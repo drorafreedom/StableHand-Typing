@@ -1,0 +1,12 @@
+specVersion: "v1beta"
+serviceId: "stablehand-typing"
+location: "us-west2"
+schema:
+  source: "./schema"
+  datasource:
+    postgresql:
+      database: "stablehand-typing-fdcdb"
+      cloudSql:
+        instanceId: "stablehand-typing-fdc"
+      # schemaValidation: "COMPATIBLE"
+connectorDirs: ["./connector"]

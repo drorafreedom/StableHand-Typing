@@ -1,0 +1,31 @@
+AIzaSyC3gClNJ79vyni7GMr8erF4DZZ8E6iRJL4
+
+var admin = require("firebase-admin");
+
+var serviceAccount = require("path/to/serviceAccountKey.json");
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
+
+
+
+
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyC3gClNJ79vyni7GMr8erF4DZZ8E6iRJL4",
+  authDomain: "stable-b543e.firebaseapp.com",
+  projectId: "stable-b543e",
+  storageBucket: "stable-b543e.appspot.com",
+  messagingSenderId: "431840563462",
+  appId: "1:431840563462:web:79e0223459910a5f640e87"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
