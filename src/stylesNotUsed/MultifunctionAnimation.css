@@ -1,0 +1,57 @@
+/* src/components/TherapyPage/MultifunctionAnimation.css */
+
+body, html {
+    margin: 0;
+    padding: 0;
+  }
+  
+  canvas {
+    position: relative;
+    top: 0;
+    left: 0;
+  }
+  /* src/components/TherapyPage/MultifunctionAnimation.css */
+canvas {
+  background: transparent !important;
+}
+
+    /* Add this to your CSS file for the ControlPanel */
+.controller {
+    position: fixed;
+    right: 20px;
+    top: 20px;
+    width: 300px;
+    background-color: rgb(192, 56, 56);
+    padding: 10px;
+    border: 1px solid rgb(117, 42, 151);
+    border-radius: 55px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  }
+  .controller {
+    width: 300px;
+  }
+  
+  .control-group {
+    margin-bottom: .3rem;
+  }
+  
+  label {
+    display: block;
+    margin-bottom: 0.1rem;
+  }
+  
+  input[type="range"],
+  input[type="color"],
+  select {
+    width: 100%;
+  }
+
+ /* src/components/TherapyPage/AnimationBackground.css */
+.preview-iframe {
+  width: 100%;
+  height: 100vh;
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: transparent; /* Ensure the background is transparent */
+}

@@ -1,0 +1,470 @@
+
+/* src\App.css */
+
+/* index.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Display:
+
+display: flex; or display: inline-flex; turns an element into a flex container.
+Flex Container Properties:
+
+flex-direction: Defines the direction of the flex items (row, row-reverse, column, column-reverse).
+justify-content: Aligns flex items along the main axis (flex-start, flex-end, center, space-between, space-around, space-evenly).
+align-items: Aligns flex items along the cross axis (flex-start, flex-end, center, baseline, stretch).
+align-content: Aligns flex lines when there is extra space in the cross axis (flex-start, flex-end, center, space-between, space-around, stretch).
+flex-wrap: Determines whether flex items are forced into a single line or can wrap onto multiple lines (nowrap, wrap, wrap-reverse). */
+
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  width: 100%;
+  font-family: Arial, sans-serif;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+  height: auto;
+  width: auto;
+}
+
+/*   additional custom styles   */
+
+ 
+ 
+body {
+  margin: 0;
+  padding: 0;
+  background-size: cover;
+  font-family: 'Arial', sans-serif;
+  overflow: auto;
+}  
+.form-container {
+  @apply flex flex-col items-center justify-center min-h-screen p-4 bg-gray-100;
+}
+
+.form-frame {
+  @apply w-full max-w-lg bg-white p-8 rounded-lg shadow-md border border-gray-300;
+}
+
+.form-title {
+  @apply text-4xl font-bold mb-4 text-center;
+}
+
+.form-label {
+  @apply block text-sm font-medium text-gray-700 mb-2;
+}
+
+.form-button {
+  @apply px-4 py-2 border rounded cursor-pointer;
+}
+
+.form-button.never {
+  @apply bg-blue-500 text-white;
+}
+
+.form-button.rarely {
+  @apply bg-green-500 text-white;
+}
+
+.form-button.occasionally {
+  @apply bg-yellow-500 text-white;
+}
+
+.form-button.often {
+  @apply bg-orange-500 text-white;
+}
+
+.form-button.always {
+  @apply bg-red-500 text-white;
+}
+
+.form-error {
+  @apply text-red-500 text-sm mt-1;
+}
+
+.form-submit-button {
+  @apply w-full bg-blue-500 hover:bg-blue-700 border border-blue-700 mt-4 text-white;
+}
+.clip-wedge {
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+/* src/components/pages/TherapyPage.css */
+/* .therapy-page-container { */
+  /* padding: 20px;} */
+
+ 
+.wave-animation-container {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+}
+
+canvas {
+  position: relative;
+  top: 0;
+  left: 0;
+}
+
+
+
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
+}
+
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+}
+
+.card {
+  padding: 2em;
+}
+
+.read-the-docs {
+  color: #888;
+}
+.clip-wedge {
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+
+
+ 
+.App {
+  text-align: center;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.therapy-page {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+canvas {
+  display: auto;
+}
+
+body, html, #root {
+  height: 100%;
+  margin: 0;
+}
+/* App.css */
+body, html {
+  margin: 0;
+  padding: 0;
+}
+
+canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+/* src/components/pages/TherapyPage.css */
+.therapy-page-container {
+  padding: 20px;
+}
+
+ 
+.wave-animation-container {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+}
+
+/* src/App.css */
+body, html, #root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+  /* src/components/TherapyPage/MultifunctionAnimation.css */
+  canvas {
+    background: transparent !important;
+  }
+.therapy-page {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+canvas {
+  display: block;
+}
+/* App.css */
+
+/* App.css */
+
+/* App.css */
+
+/* App.css */
+
+/* App.css */
+
+
+/* Custom styles for footer wedge cut */
+ 
+
+.flame-logo {
+  position: absolute;
+  top: 30%;  /* Center vertically in the wedge */
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 24px;  /* Adjust as needed to fit the logo */
+  height: 24px; /* Adjust as needed to fit the logo */
+
+/* .flame-logo {
+
+ .flame-logo {
+ 
+  position: absolute;
+  top: -48px;  /* Position the flame logo slightly above the wedge */
+  left: 50%;
+  transform: translateX(-50%);
+  width: 24;  /* Adjust as needed to fit the logo */
+  height: 24; /* Adjust as needed to fit the logo */
+} 
+  
+footer {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  background-color: #792727;
+  color: white;
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+
+}
+
+footer .container {
+  max-width: 100%;
+  margin: 0 auto;
+  text-align: center;
+  padding: 0 rem 0rem; /* Adjust padding to control height */
+} 
+ 
+
+footer .flame-logo {
+  position: absolute;
+  top: -42px;
+  left: 50%;
+  /* transform: translateX(-50%) */;
+  width: 4px;
+  height: 4px;
+}
+
+/* App.css */
+
+/* Custom styles for footer wedge cut */
+ 
+
+.flame-logo {
+  position: absolute;
+  top: -20px; /* Position the flame logo slightly above the wedge */
+  left: 50%;
+  transform: translateX(-50%);
+  width: 40px; /* Adjust as needed to fit the logo */
+  height: 40px; /* Adjust as needed to fit the logo */
+}
+
+footer {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  background-color: #4b556373;
+  color: white;
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+}
+
+footer .container {
+  max-width: auto;
+  margin: 0 auto;
+  text-align: center;
+  padding: 0.5rem 1rem; /* Adjust padding to control height */
+}
+
+/* // this is the one which is responsible for the wedge none of the others  */
+footer .footer-wedge {
+  position: absolute;
+  top: -30;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 50;
+  border-left: 55px solid transparent;
+  border-right: 55px solid transparent;
+  border-top: 55px solid #ffffff;
+}
+ 
+
+footer .flame-logo {
+  position: absolute;
+  top: -50px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 40px;
+  height: 30px;
+}
+
+
+
+ /* src/index.css or src/app.css */
+ 
+
+/* Custom styles */
+.logo-wrapper {
+  position: relative;
+  width: 100px; /* Adjust width as needed */
+  height: 100px; /* Adjust height as needed */
+}
+
+.logo {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  box-shadow: 0 0 10px rgba(139, 21, 21, 0.5); /* Blurry edges */
+  transition: opacity 0.3s ease; /* Fade effect */
+}
+
+.logo-wrapper::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 60%;
+  height:60%;
+  border-radius: 5%;
+  background: rgba(50, 73, 51, 0.3);
+  filter: blur(15px); /* Adjust blur as needed */
+  z-index: -1; /* Place behind the image */
+}
+
+
+/* Custom styles */
+.shadow-logo {
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.5); /* Blurry edges */
+  transition: opacity 0.3s ease; /* Fade effect */
+}
+
+/* Optional: Adding Hover Effect */
+.shadow-logo:hover {
+  opacity: 0.8; /* Slightly fade out on hover */
+}
+
+/*   sidebar overlays the main content */
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 250px; /* Adjust the width as needed */
+  z-index: 1000;
+  background-color: #2d2d2d; /* Adjust the color as needed */
+  transition: transform 0.3s ease;
+  transform: translateX(-100%);
+}
+
+.sidebar.open {
+  transform: translateX(0);
+}
+
+.main-content {
+  transition: margin-left 0.1s ease;
+}
+/* Ensure the recaptcha container is visible */
+#recaptcha-container {
+  display: block; /* Ensure it's not set to 'none' */
+  margin-bottom: 1rem; /* Adjust spacing as needed */
+}
+/* src/styles/react-select.css */
+
+.react-select__control {
+  border: 1px solid #d1d5db; /* Tailwind 'border-gray-300' */
+  border-radius: 0.375rem; /* Tailwind 'rounded-md' */
+  padding: 0.5rem;
+  min-height: 2.5rem;
+}
+
+.react-select__control--is-focused {
+  border-color: #3b82f6; /* Tailwind 'border-blue-500' */
+  box-shadow: none;
+}
+
+.react-select__value-container {
+  padding: 0;
+}
+
+.react-select__input {
+  margin: 0;
+}
+
+.react-select__single-value {
+  margin: 0;
+}
+
+.react-select__menu {
+  border-radius: 0.375rem; /* Tailwind 'rounded-md' */
+}
+
+.react-select__option {
+  padding: 0.5rem;
+}
+
+.react-select__option--is-focused {
+  background-color: #f3f4f6; /* Tailwind 'bg-gray-100' */
+}
+
+.react-select__option--is-selected {
+  background-color: #3b82f6; /* Tailwind 'bg-blue-500' */
+  color: white;
+}

@@ -1,0 +1,87 @@
+/*src\styles\Welcome.css  Container Styles  clean version*/
+.welcome-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 20px;
+  flex-direction: column; /* Flex direction for welcome content */
+  
+}
+/* Adjusting the space between the image and the login form */
+.welcome-container .image-section {
+  margin-bottom: 1rem; /* Adjust this value as needed */
+}
+
+.image-section {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.image-section img {
+  max-width: 100%;
+  height: auto;
+  max-height: 80vh; /* Limit image height to fit within the viewport */
+}
+
+.info-section {
+  flex: 1;
+  text-align: left;
+  padding: 0 50px;
+}
+
+/* Login Form Styles */
+.login-form {
+  margin-top: 20px;
+}
+
+.login-form input,
+.login-form button {
+  display: block;
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
+.login-form button {
+  background-color: #007BFF;
+  color: white;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.login-form button:hover {
+  background-color: #0056b3;
+}
+
+/* Welcome Content Styles */
+.welcome-content {
+  text-align: center;
+}
+
+/* Error Message Styles */
+.error {
+  color: red;
+  font-size: 0.8rem;
+  margin-top: 5px;
+}
+
+.error-list {
+  color: red;
+  font-size: 0.8rem;
+  margin-top: 5px;
+  list-style-type: none;
+  padding-left: 0;
+}
+
+/* Additional Actions Styles */
+.additional-actions {
+  margin-top: 20px;
+}
+
+.additional-actions button {
+  margin-right: 10px;
+}

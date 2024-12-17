@@ -1,0 +1,476 @@
+
+//src\components\TherapyPage\MultifunctionAnimation.jsx
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Full Page Sine Wave</title>
+    
+    
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+    }
+    canvas {
+      position: relative;
+      top: 0;
+      left: 0;
+    }
+      
+ .slider-container {
+  position: relative;
+  width: 100px; /* Set the width to your preference */
+}
+
+.slider {
+  width: 100%;
+}
+
+.slider-markings {
+  display: flex;
+  justify-content: space-between;
+  position: absolute;
+  width: 100%;
+  top: 30px; /* Positioning just below the slider */
+}
+
+.marker {
+  width: 5px;
+  height: 5px;
+  background: black;
+  border-radius: 50%;
+}
+   .control-group {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    margin-right: 20px;
+}
+</style>
+ 
+    
+    
+<body>
+<div id="WaveEquationsControls">
+  <div id="animationdiv">
+    <button id="startBtn">Start</button>
+    <button id="stopBtn">Stop</button>
+    <button id="resetBtn">Reset</button><br>
+    </div> 
+  <div id="Wave Equation" >
+    </select>
+    Wave Type:
+    <select id="waveType">
+      <option value="sine">Sine</option>
+      <option value="tan">Tan</option>
+      <option value="cotan">Cotan</option>
+      <option value="sawtooth">Sawtooth</option>
+      <option value="square">Square</option>
+      <option value="triangle">Triangle</option>
+      </select>
+    </div>
+  <div id="Direction control">
+    direction:<select id="direction">
+      <option value="static">Static</option>
+      <option value="up">Up</option>
+      <option value="down">Down</option>
+      <option value="left">Left</option>
+      <option value="right">Right</option>
+      <option value="oscillateUpDown">Oscillate Up and Down</option>
+      <option value="oscillateRightLeft">Oscillate Right and Left</option>
+      <option value="circular">Circular</option>
+      </select>
+    
+    <!--
+Rotation Speed:<input type="range" id="rotationSpeed" min="0.01" max="0.1" step="0.01" value="0.02">
+Rotation Radius:<input type="range" id="rotationRadius" min="10" max="300" value="150">
+-->
+    <div id="rotationSpeedControl" style="display:none;">
+      <label for="rotationSpeed">Rotation Speed:</label>
+      <input type="range" id="rotationSpeed" min="0.01" max="0.1" step="0.01" value="0.02">
+    </div>
+    
+    <div id="rotationRadiusControl" style="display:none;">
+      <label for="rotationRadius">Rotation Radius:</label>
+      <input type="range" id="rotationRadius" min="10" max="300" value="150">
+    </div>
+  </div>
+  <div id="Equation parameters">
+    Angle: <input type="range" id="angle" min="0" max="360" value="0" step="45"  >
+    Amplitude:<input type="range" id="amplitude" max="360" min="0" step="1" autocomplete="off" value="0" >
+    Frequency: <input type="range" id="frequency" min="1" max="150" value="20" step="5" >
+      Speed: <input type="range" id="speed" min="1" max="200" value="50" step="20"  >
+    
+    </div>
+    <div id="lines parameters">
+    <!--	 The step="1" ensures that only whole number values are selected.-->
+    Line Thickness: <input type="range" id="thickness" min="1" max="10" value="1" step="2" >
+    Phase Offset: <input type="range" id="phaseOffset" min="0" max="360" value="0" step="2" >
+        Number of Lines: <input type="range" id="numLines" min="1" max="100" value="10" step="1" >
+    Distance Between Lines: <input type="range" id="distance" min="1" max="100" value="20" step="1" >
+    
+    </div>
+  
+  <div ID="Coloring">
+    Background Color:
+    <input type="color" id="bgColor" value="#FFFFFF">
+    <!--Line Color: <input type="color" id="lineColor" value="#FF0000">-->
+    Line Color: <input type="color" id="lineColor" value="#FF0000">
+    Use Palette: 
+    <select id="paletteSelect">
+      <option value="none">None</option>
+      <option value="rainbow">Rainbow</option>
+      <option value="pastel">Pastel</option>
+      </select>
+    </div>
+</div>
+<canvas id="canvas"></canvas>
+<script>
+
+ // default declarations canvas size =====================
+let canvas = document.getElementById("canvas");
+let ctx = canvas.getContext("2d");
+    function resizeCanvas() {
+canvas.width = window.innerWidth * 1;
+ canvas.height = window.innerHeight * 1;
+}
+
+let animationId;
+let x = 0;
+let speed = 1;
+let angle = 0;
+let direction = "right";
+let offset = 0;
+let bgColor = "#FFFFFF";
+let numLines = 1;
+let thickness = 1
+let frequency = 10;
+let amplitude = 10;
+let phaseOffset = 0;
+let distance = 0;
+let  waveType = "sine";
+let lineColor = "#FF0000"; // default color
+const palettes = {
+    "rainbow": ["#FF0000", "#FF7F00", "#FFFF00", "#7FFF00", "#00FF00", "#00FF7F", "#00FFFF", "#007FFF", "#0000FF", "#7F00FF", "#FF00FF", "#FF007F"],
+    "pastel": ["#FFD1DC", "#FFABAB", "#FFC3A0", "#FF677D", "#D4A5A5", "#392F5A", "#31A2AC", "#61C0BF", "#6B4226", "#ACD8AA"]
+};
+let selectedPalette = "none";
+
+let selectedDirection = "static";  // Set a default value
+let phase = 0;
+
+let oscillationFactorY = 1; // Initial values, consider it as the direction for up-down oscillation
+let oscillationFactorX = 1; // Initial values, consider it as the direction for left-right oscillation
+let yOffset = 0;
+let time = 0;  // Initialize this once, outside the drawing function
+// Set amplitude to half the canvas width for horizontal oscillation
+let oscillationAmplitudeX = canvas.width / 2; 
+
+// Set amplitude to half the canvas height for vertical oscillation
+let oscillationAmplitudeY = canvas.height / 2;
+let centerX = canvas.width / 2;
+let centerY = -canvas.height /2;
+let radius = 50;
+let circleRadius = 100;  // Radius of the circle. You can adjust this value.
+let rotationSpeed = parseFloat(document.getElementById("rotationSpeed").value);
+let rotationRadius = parseFloat(document.getElementById("rotationRadius").value);
+
+
+//=======================end of parameters declarations ===========================
+
+	  
+//	  function resizeCanvas() {
+//      canvas.width = window.innerWidth;
+//      canvas.height = window.innerHeight * 1.5;  // Make canvas height 1.5 times the viewport to allow scrolling
+//    }          
+ //======================= buttons listeners declarations ===========================
+document.getElementById("startBtn").addEventListener("click", start);
+document.getElementById("stopBtn").addEventListener("click", stop);
+document.getElementById("resetBtn").addEventListener("click", reset);     
+
+document.getElementById("rotationSpeed").addEventListener("input", function(e) {
+rotationSpeed = parseFloat(e.target.value);
+});
+
+document.getElementById("rotationRadius").addEventListener("input", function(e) {
+rotationRadius = parseFloat(e.target.value);
+});
+
+document.getElementById("speed").addEventListener("input", function(e) {
+    speed = parseFloat(e.target.value)/100;
+});
+
+document.getElementById("direction").addEventListener("input", function(e) {
+direction = e.target.value;
+});
+ document.getElementById("waveType").addEventListener("input", function(e) {
+waveType = e.target.value;
+});
+document.getElementById("angle").addEventListener("input", function(e) {
+angle = parseFloat(e.target.value) * (Math.PI / 180); // Convert degrees to radians
+});
+document.getElementById("bgColor").addEventListener("input", function(e) {
+bgColor = e.target.value;
+
+});
+
+document.getElementById("numLines").addEventListener("input", function(e) {
+numLines = parseInt(e.target.value, 10);
+});
+
+
+document.getElementById("frequency").addEventListener("input", function(e) {
+frequency = parseFloat(e.target.value);
+});
+document.getElementById("amplitude").addEventListener("input", function(e) {
+amplitude = parseFloat(e.target.value) * (canvas.height / 4)/100;
+});// Adjusting the amplitude to be up to 1/4 of canvas height
+document.getElementById("thickness").addEventListener("input", function(e) {
+thickness = parseFloat(e.target.value);
+});
+document.getElementById("phaseOffset").addEventListener("input", function(e) {
+phaseOffset = (parseFloat(e.target.value) / 100) * (2 * Math.PI);;
+});
+let scaledPhaseOffset = (document.getElementById("phaseOffset").value / 100) * (2 * Math.PI);
+
+document.getElementById("distance").addEventListener("input", function(e) {
+distance = parseFloat(e.target.value);
+});
+
+
+document.getElementById("lineColor").addEventListener("input", function(e) {
+lineColor = e.target.value;
+
+});
+document.getElementById("paletteSelect").addEventListener("change", function(e) {
+selectedPalette = e.target.value;
+
+});
+
+
+	  function resetAndCenterAnimation() {
+    // Reset position and time variables
+    // Reset position variables to recenter the animation
+    x  = 0;
+    yOffset = 0;
+     time = 0;
+		  // Optionally, reset other relevant variables, such as time or phase, if needed
+   
+    oscillationPhase = 0;
+    circularPhase = 0;
+	angle = 0;
+ 
+ centerX = canvas.width / 2;
+   centerY = -canvas.height /2;
+     
+  /*
+
+    // Clear the canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+*/
+
+    /*// Stop any existing animation
+    if (animationId) {
+        cancelAnimationFrame(animationId);
+        animationId = null;*/
+    };
+
+	  document.getElementById("waveType").addEventListener("change", function() {
+		  waveType = e.target.value;
+		  resetAndCenterAnimation();
+		  
+		  
+	 
+  });
+
+document.getElementById("direction").addEventListener("change", function(e) {
+   
+		  direction = e.target.value; 
+	resetAndCenterAnimation();
+ });
+
+const directionDropdown = document.getElementById("direction");
+directionDropdown.addEventListener("change", function(e) {
+    const isCircular = e.target.value === "circular";
+    document.getElementById("rotationSpeedControl").style.display = isCircular ? "block" : "none";
+    document.getElementById("rotationRadiusControl").style.display = isCircular ? "block" : "none";
+});
+
+//==================function drawSineWave() ===========================
+    function drawSineWave() {
+   
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Fill background color
+     ctx.fillStyle = bgColor;
+     //ctx.fillStyle = document.getElementById("bgColor").value;
+
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Set line properties
+      ctx.lineWidth = thickness;
+//      ctx.strokeStyle = lineColor;
+ 
+ 
+ 
+
+switch(direction) {
+	case "static":
+        centerX = canvas.width / 2;
+   centerY = canvas.height /2;
+			 	speed = 0;
+        time = 0;
+        yOffset = 0;
+        
+        break;
+        case "up":
+            yOffset -= speed;
+		centerX = canvas.width / 2;
+  /* centerY = canvas.height*.9;*/
+        // Check if waves are out of the canvas, and reset yOffset
+        if (yOffset + numLines * distance < 0) {
+            yOffset = canvas.height;
+        }
+            break;
+        case "down":
+yOffset += speed;
+		centerX = canvas.width / 2;
+   /*centerY = canvas.height*.1;*/
+        // Check if waves are out of the canvas, and reset yOffset
+        if (yOffset > canvas.height) {
+            yOffset = -numLines * distance;
+        }            
+		break;
+        case "left":
+            x -= speed;
+		yOffset = 0 ;
+		centerX = canvas.width / 2;
+   centerY = canvas.height /2;
+            break;
+        case "right":
+            x += speed;
+		yOffset = 0 ;
+		centerX = canvas.width / 2;
+   centerY = canvas.height /2;
+            break;
+		case "oscillateUpDown":
+		centerX = canvas.width / 2;
+   centerY = canvas.height /2;
+		yOffset = oscillationAmplitudeY * Math.sin(time);
+    time += 0.05;  //  // Increment the time variable
+//     yOffset += speed * oscillationFactorY;
+//        if (yOffset < canvas.height * 0.10 || yOffset > canvas.height * 0.90) {
+//            oscillationFactorY *= -1; // reverse the direction
+//        }
+        break;
+        
+    case "oscillateRightLeft":
+		centerX = canvas.width / 2;
+   centerY = canvas.height /2;
+		 x = oscillationAmplitudeX * Math.sin(time); 
+		time += 0.05;  //  // Increment the time variable
+//        x += speed * oscillationFactorX;
+//        if (x < canvas.width * 0.10 || x > canvas.width * 0.90) {
+//            oscillationFactorX *= -1; // reverse the direction
+//        }
+      
+		break;
+		 
+   case "circular":
+		centerX = canvas.width / 2;
+   centerY = canvas.height /2;
+    angle += rotationSpeed; 
+    x = rotationRadius * Math.cos(angle);
+    yOffset = rotationRadius * Math.sin(angle) - canvas.height / 2;
+    break;
+
+    }
+		
+ for (let i = 0; i < numLines; i++) {
+        ctx.beginPath();
+        for (let j = 0; j <= canvas.width; j++) {
+			const k = ((j + x + phaseOffset * i) / frequency)
+            //const sineValue = amplitude * Math.sin((j + x + phaseOffset * i) / frequency);
+            
+ switch (waveType) {
+                    // Case calculations 
+                     case 'sine':
+                         sineValue = Math.sin(k) * amplitude ;//+ canvas.height / 2;
+                        break;
+                    case 'tan':
+                         sineValue = Math.tan(k) * amplitude / 4;// + canvas.height / 2;
+                        break;
+                    case 'cotan':
+                         sineValue = (1 / Math.tan(k)) * amplitude / 4;// + canvas.height / 2;
+                        break;
+                    case 'sawtooth':
+                         sineValue = ((k / Math.PI) % 2 - 1) * amplitude;// + canvas.height / 2;
+                        break;
+                    case 'square':
+                        sineValue = (Math.sign(Math.sin(k)) * amplitude / 2);// + canvas.height / 2;
+                        break;
+                    case 'triangle':
+                         sineValue = (2 * amplitude / Math.PI) * Math.asin(Math.sin(k));// + canvas.height / 2;
+                        break;
+                }
+let baseY = centerY + yOffset + i * distance;
+
+            // Apply rotation
+            const rotatedX = (j - centerX) * Math.cos(angle) - (sineValue) * Math.sin(angle) + centerX;
+            const rotatedY = (j - centerX) * Math.sin(angle) + (sineValue + baseY - centerY) * Math.cos(angle) + centerY;
+
+            ctx.lineTo(rotatedX, rotatedY);
+        }
+        if (selectedPalette !== "none") {
+            ctx.strokeStyle = palettes[selectedPalette][i % palettes[selectedPalette].length];
+        } else {
+            ctx.strokeStyle = lineColor;
+        }
+	 ctx.stroke();
+    }
+ 
+
+    animationId = requestAnimationFrame(drawSineWave);
+}
+
+       //==================end function drawSineWave() ===========================
+	  
+	  window.addEventListener('resize', function() {
+    resizeCanvas();
+    drawSineWave(); // or however you've named your function to redraw the graph
+});
+
+window.onload = function() {
+    resizeCanvas();
+    drawSineWave(); // initial drawing of the graph
+}
+
+//================== initiation and reset buttons listeners  ===========================
+        function start() { 
+            if (!animationId) {
+                drawSineWave();
+            }
+        }
+
+        function stop() {
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+        }
+
+        function reset() {
+            stop();
+            x = 0;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+//==================end  initiation and reset buttons listeners  ===========================
+
+        resizeCanvas();
+         reset();
+  </script>
+</head>
+
+</html>

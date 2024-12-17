@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chevron Animation</title>
+<style>
+    body, html {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+    }
+
+    canvas {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+    }
+
+    #controls {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        background: rgba(255, 255, 255, 0.9);
+        padding: 10px;
+        border-radius: 8px;
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+    }
+
+        #controls div {
+            margin-bottom: 8px;
+        }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<div id="controls">
+    <div id="animationdiv">
+        <button id="startBtn">Start</button>
+        <button id="stopBtn">Stop</button>
+        <button id="resetBtn">Reset</button><br>
+    </div>
+    <div>
+        <label for="shapeSelect">Select Shape:</label>
+        <select id="shapeSelect">
+            <option value="chevron">Chevron</option>
+            <option value="triangle">Triangle</option>
+            <option value="diamond">Diamond</option>
+            <option value="circle">Circle</option>
+            <option value="square">Square</option>
+
+        </select>
+    </div>
+
+    <div id="Direction control">
+        <div id="Direction control">
+            direction:<select id="direction">
+                <option value="static">Static</option>
+                <option value="up">Up</option>
+                <option value="down">Down</option>
+                <option value="left">Left</option>
+                <option value="right">Right</option>
+                <option value="oscillateUpDown">Oscillate Up and Down</option>
+                <option value="oscillateRightLeft">Oscillate Right and Left</option>
+                <option value="circular">Circular</option>
+
+            </select>
+
+            <!--
+Rotation Speed:<input type="range" id="rotationSpeed" min="0.01" max="0.1" step="0.01" value="0.02">
+Rotation Radius:<input type="range" id="rotationRadius" min="10" max="300" value="150">
+-->
+            <div id="rotationSpeedControl" style="display:none;">
+                <label for="rotationSpeed">Rotation Speed:</label>
+                <input type="range" id="rotationSpeed" min="0.01" max="0.1" step="0.01" value="0.02">
+            </div>
+
+            <div id="rotationRadiusControl" style="display:none;">
+                <label for="rotationRadius">Rotation Radius:</label>
+                <input type="range" id="rotationRadius" min="10" max="300" value="150">
+            </div>
+
+
+            <div ID="Coloring">
+                Background Color:<input type="color" id="bgColor" value="#FFFFFF">
+
+                Chevron Color: <input type="color" id="chevronColor" value="#007BFF">
+                               <div id="CheckboardColoring" style="display:none;">
+                                   Checkboard Color:<input type="color" id="checkboardColor" value="#D1C9E9">
+                               </div>
+                    <input type="color" id="lineColor" value="#FF0000" style="display:none;">
+                    Use Palette:
+                    <select id="paletteSelect">
+                        <option value="none">None</option>
+                        <option value="rainbow">Rainbow</option>
+                        <option value="pastel">Pastel</option>
+                    </select>
+                </div>
+                <div id="style selector">
+                    <label for="layoutSelect">Select Style:</label>
+                    <select id="layoutSelect">
+                        <option value="random">Random</option>
+                        <option value="regular">Regular</option>
+                        <option value="checkboard">Checkboard</option>
+
+                    </select>
+                </div>
+
+                <div>
+                    <label for="chevronAngle">Angle:</label>
+                    <input type="range" id="chevronAngle" min="0" max="360" value="0">
+                </div>
+
+                <div>
+                    <label for="chevronSpeed">Speed:</label>
+                    <input type="range" id="chevronSpeed" min="1" max="20" value="5">
+                </div>
+
+                <div>
+                    <label for="chevronSize">Size:</label>
+                    <input type="range" id="chevronSize" min="20" max="200" value="50">
+                </div>
+                <div id="RandomShapeCount">
+                    <label for="chevronCount">Count:</label>
+                    <input type="range" id="chevronCount" min="1" max="1000" value="10">
+                </div>
+
+
+                <div id="organized" style="display:none;">
+
+
+                    <div>
+                        <label for="rowOffset">Row Offset:</label>
+                        <input type="range" id="rowOffset" min="0" max="100" value="0">
+                    </div>
+                    <div>
+                        <label for="columnOffset">Column Offset:</label>
+                        <input type="range" id="columnOffset" min="0" max="100" value="0">
+                    </div>
+                    <div>
+                        <label for="rowDistance">Row Distance:</label>
+                        <input type="range" id="rowDistance" min="0" max="100" value="50">
+                    </div>
+                    <div>
+                        <label for="columnDistance">Column Distance:</label>
+                        <input type="range" id="columnDistance" min="0" max="100" value="50">
+                    </div>
+                </div>
+
+
+            </div>
+
+
+
+
+        <script>
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+
+
+
+            //--------------------declaration----------------------------
+            let chevrons = [];
+            let animationId;
+            let direction = document.getElementById('direction').value;
+            let chevronColor = document.getElementById('chevronColor').value;
+            let checkboardColor = document.getElementById('checkboardColor').value;
+            let bgColor = "#FFFFFF";
+            let lineColor = "#FF0000"; // default color
+            const palettes = {
+                "rainbow": ["#FF0000", "#FF7F00", "#FFFF00", "#7FFF00", "#00FF00", "#00FF7F", "#00FFFF", "#007FFF", "#0000FF", "#7F00FF", "#FF00FF", "#FF007F"],
+                "pastel": ["#FFD1DC", "#FFABAB", "#FFC3A0", "#FF677D", "#D4A5A5", "#392F5A", "#31A2AC", "#61C0BF", "#6B4226", "#ACD8AA"]
+            };
+            let selectedPalette = "none";
+            let shapeSelect = "chevron";
+
+            let chevronSpeed = parseInt(document.getElementById('chevronSpeed').value, 10);
+            let chevronSize = parseInt(document.getElementById('chevronSize').value, 10);
+            let chevronCount = parseInt(document.getElementById('chevronCount').value, 10);
+            let chevronAngle = parseInt(document.getElementById('chevronAngle').value, 10) * Math.PI / 180;
+
+            let selectedDirection = "static";  // Set a default value
+            let layoutSelect = "random";
+
+            let oscillationFactorY = 1; // Initial values, consider it as the direction for up-down oscillation
+            let oscillationFactorX = 1; // Initial values, consider it as the direction for left-right oscillation
+            let yOffset = 0;
+            let time = 0;  // Initialize this once, outside the drawing function
+            // Set amplitude to half the canvas width for horizontal oscillation
+            let oscillationAmplitudeX = canvas.width / 2;
+
+            // Set amplitude to half the canvas height for vertical oscillation
+            let oscillationAmplitudeY = canvas.height / 2;
+            let centerX = canvas.width / 2;
+            let centerY = canvas.height / 2;
+            let radius = 50;
+            let circleRadius = 100;  // Radius of the circle.  .
+            let rotationSpeed = parseFloat(document.getElementById("rotationSpeed").value);
+            let rotationRadius = parseFloat(document.getElementById("rotationRadius").value);
+
+            //----------------declaration for the table  parameters*/ -----------------
+            let rows = 5; // Default number of rows
+            let columns = 10; // Default number of columns
+            let rowOffset = 0; // Default row offset
+            let columnOffset = 0; // Default column offset
+            let rowDistance = 50; // Default distance between rows
+            let columnDistance = 50; // Default distance between columns
+
+            //--------------------liiseners---------------------
+            document.getElementById("startBtn").addEventListener("click", start);
+            document.getElementById("stopBtn").addEventListener("click", stop);
+            document.getElementById("resetBtn").addEventListener("click", reset);
+
+
+            document.getElementById('direction').addEventListener('change', e => {
+                direction = e.target.value;
+                resetAnimation();
+            });
+            const directionDropdown = document.getElementById("direction");
+            directionDropdown.addEventListener("change", function (e) {
+                const isCircular = e.target.value === "circular";
+                document.getElementById("rotationSpeedControl").style.display = isCircular ? "block" : "none";
+                document.getElementById("rotationRadiusControl").style.display = isCircular ? "block" : "none";
+            });
+
+            document.getElementById('chevronColor').addEventListener('input', e => {
+                chevronColor = e.target.value;
+                resetAnimation();
+            });
+            document.getElementById('checkboardColor').addEventListener('input', e => {
+                checkboardColor = e.target.value;
+                resetAnimation();
+            });
+
+            
+            document.getElementById('chevronSpeed').addEventListener('input', e => {
+                chevronSpeed = parseInt(e.target.value, 10);
+                resetAnimation();
+            });
+            document.getElementById('chevronSize').addEventListener('input', e => {
+                chevronSize = parseInt(e.target.value, 10);
+                resetAnimation();
+            });
+            document.getElementById('chevronCount').addEventListener('input', e => {
+                chevronCount = parseInt(e.target.value, 10);
+                resetAnimation();
+            });
+            document.getElementById('chevronAngle').addEventListener('input', e => {
+                chevronAngle = parseInt(e.target.value, 10) * Math.PI / 180;
+                resetAnimation();
+            });
+            document.getElementById("bgColor").addEventListener("input", function (e) {
+                bgColor = e.target.value;
+
+            });
+            document.getElementById("lineColor").addEventListener("input", function (e) {
+                lineColor = e.target.value;
+
+            });
+            document.getElementById("paletteSelect").addEventListener("change", function (e) {
+                selectedPalette = e.target.value;
+                resetAnimation()
+            });
+
+            document.getElementById('shapeSelect').addEventListener('change', function (e) {
+                shapeSelect = e.target.value;
+                resetAnimation()
+            });
+
+            document.getElementById("rotationSpeed").addEventListener("input", function (e) {
+                rotationSpeed = parseFloat(e.target.value);
+            });
+
+            document.getElementById("rotationRadius").addEventListener("input", function (e) {
+                rotationRadius = parseFloat(e.target.value);
+            });
+            // ----------------------------liesteners for the table controls ------------------------
+            //document.getElementById('rows').addEventListener('input', e => {
+            //    rows = parseInt(e.target.value);
+            //    resetAnimation();
+            //});
+            //document.getElementById('columns').addEventListener('input', e => {
+            //    columns = parseInt(e.target.value);
+            //    resetAnimation();
+            //});
+            document.getElementById('rowOffset').addEventListener('input', e => {
+                rowOffset = parseFloat(e.target.value);
+                resetAnimation();
+            });
+
+            document.getElementById('columnOffset').addEventListener('input', e => {
+                columnOffset = parseFloat(e.target.value);
+                resetAnimation();
+            });
+
+            document.getElementById('rowDistance').addEventListener('input', e => {
+                rowDistance = parseFloat(e.target.value, 10);
+                resetAnimation();
+            });
+            document.getElementById('columnDistance').addEventListener('input', e => {
+                columnDistance = parseFloat(e.target.value, 10);
+                resetAnimation();
+            });
+
+            //  a listener for changes to the layout selection
+            document.getElementById('layoutSelect').addEventListener('change', function (e) {
+                layoutSelect = e.target.value;
+                                    resetAnimation();
+            });
+            /*------------- control displays specific to layout----------------*/
+
+            //const layoutSelectDropdown = document.getElementById("layoutSelect");
+            //layoutSelectDropdown.addEventListener("change", function (e) {
+            //    const isLayoutSelect  = e.target.value === "random";
+            //    document.getElementById("RandomShapeCount").style.display = isLayoutSelect ? "block" : "none";
+            //    document.getElementById("CheckboardColoring").style.display = isLayoutSelect ? "display" : "none";
+            //    document.getElementById("organized").style.display = isLayoutSelect ?  "display" : "none" ;
+            //    resetAnimation();
+            //});
+            //  const layoutSelect2Dropdown = document.getElementById("layoutSelect");
+            //layoutSelect2Dropdown.addEventListener("change", function (e) {
+            //  const isLayoutSelect2 = e.target.value === "regular" || "checkboard";
+            //    document.getElementById("organized").style.display = isLayoutSelect2 ? "block" : "none";
+            //    resetAnimation();
+            //});
+            //const layoutSelect3Dropdown = document.getElementById("layoutSelect");
+            //layoutSelect3Dropdown.addEventListener("change", function (e) {
+            //    const isLayoutSelect3 = e.target.value ===  "checkboard";
+            //    document.getElementById("CheckboardColoring").style.display = isLayoutSelect3 ? "block" : "none";
+            //    resetAnimation();
+            //});
+
+
+
+                  //---------------------------conditions for visible controllers ---------------------
+//              const layoutSelectDropdown = document.getElementById("layoutSelect");
+//layoutSelectDropdown.addEventListener("change", function (e) {
+//    const selectedLayout = e.target.value;
+//    const randomShapeCountElement = document.getElementById("RandomShapeCount");
+//    const organizedElement = document.getElementById("organized");
+//    const checkboardColoringElement = document.getElementById("CheckboardColoring");
+    
+//    if (selectedLayout === "random") {
+//        if (randomShapeCountElement) randomShapeCountElement.style.display = "block";
+//        if (organizedElement) organizedElement.style.display = "none";
+//        if (checkboardColoringElement) checkboardColoringElement.style.display = "none";
+//    } else if (selectedLayout === "regular" || selectedLayout === "checkboard") {
+//        if (randomShapeCountElement) randomShapeCountElement.style.display = "none";
+//        if (organizedElement) organizedElement.style.display = "block";
+//        if (selectedLayout === "checkboard" && checkboardColoringElement) {
+//            checkboardColoringElement.style.display = "block";
+//        } else {
+//            if (checkboardColoringElement) checkboardColoringElement.style.display = "none";
+//        }
+//    } else {
+//        // Handle the case where no layout is selected
+//        if (randomShapeCountElement) randomShapeCountElement.style.display = "none";
+//        if (organizedElement) organizedElement.style.display = "none";
+//        if (checkboardColoringElement) checkboardColoringElement.style.display = "none";
+//    }
+    
+//    resetAnimation();
+//});
+
+            const layoutSelectDropdown = document.getElementById("layoutSelect");
+            layoutSelectDropdown.addEventListener("change", function (e) {
+                const selectedLayout = e.target.value;
+                const randomShapeCountElement = document.getElementById("RandomShapeCount");
+                const organizedElement = document.getElementById("organized");
+                const checkboardColoringElement = document.getElementById("CheckboardColoring");
+
+                if (selectedLayout === "random") {
+                    if (randomShapeCountElement) {
+                        randomShapeCountElement.style.display = "block";
+                        organizedElement.style.display = "none";
+                    }
+                    if (checkboardColoringElement) checkboardColoringElement.style.display = "none";
+                } else if (selectedLayout === "regular" || selectedLayout === "checkboard") {
+                    if (randomShapeCountElement) randomShapeCountElement.style.display = "none";
+                    if (organizedElement) organizedElement.style.display = "block";
+                    if (selectedLayout === "checkboard" && checkboardColoringElement) {
+                        checkboardColoringElement.style.display = "block";
+                    } else {
+                        if (checkboardColoringElement) checkboardColoringElement.style.display = "none";
+                    }
+                } else {
+                    // Handle the case where no layout is selected
+                    if (randomShapeCountElement) randomShapeCountElement.style.display = "none";
+                    if (organizedElement) organizedElement.style.display = "none";
+                    if (checkboardColoringElement) checkboardColoringElement.style.display = "none";
+                }
+
+                resetAnimation();
+            });
+
+
+            function resizeCanvas() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                resetAnimation();
+            }
+
+            function Chevron(x, y, size, color, speed, angle, bgColor) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                document.getElementById('bgColor').addEventListener('input', function () {
+                    const bgColor = document.getElementById('bgColor').value;
+                    canvas.style.backgroundColor = bgColor;
+                });
+
+                this.x = x;
+                this.y = y;
+                this.size = size;
+                this.color = color;
+                 
+                this.speed = speed;
+                this.angle = angle;
+                const chevronSizeInput = document.getElementById('chevronSize');
+                const rowOffsetInput = document.getElementById('rowOffset');
+
+                chevronSizeInput.addEventListener('input', (e) => {
+                    const maxRowOffset = parseFloat(e.target.value); // Use the current chevron size as the maximum row offset
+                    rowOffsetInput.max = maxRowOffset.toString(); // Set the max attribute of the row offset input
+                });
+
+
+                //---------------------------design  --------
+                this.draw = function () {
+
+                    ctx.save(); // Save the current transformation matrix
+                    ctx.translate(this.x, this.y); // Move the origin to the circle's position
+
+                    /*ctx.translate(this.x + columnOffset, this.y + rowOffset); */
+                    ctx.rotate(this.angle); // Rotate the canvas around the origin
+                    ctx.beginPath();
+                    // ctx.arc(0, 0, this.size / 2, 0, Math.PI * 2); // Draw a circle centered at (0, 0)
+                    //--------------------sswithch -------------------
+                    //  this.shape = function() {
+                    switch (shapeSelect) {
+
+                        case 'chevron':
+                            ctx.moveTo(0, 0); // Start at the origin
+                            ctx.lineTo(this.size / 2, this.size / 4); // Draw the top-left corner
+                            ctx.lineTo(this.size, 0); // Draw the top-right corner
+                            ctx.lineTo(this.size / 2, this.size / 2); // Draw the bottom-right corner
+                            break;
+
+                        case 'triangle':
+                            ctx.moveTo(0, 0); // Start at the origin
+                            ctx.lineTo(this.size, this.size / 2);
+                            ctx.lineTo(0, this.size);
+                            break;
+
+                        case 'diamond':
+                            ctx.moveTo(0, 0);
+                            ctx.lineTo(size, size / 2);
+                            ctx.lineTo(0, size);
+                            ctx.lineTo(-size, size / 2);
+                            break;
+
+                        case 'circle':
+                            ctx.arc(0, 0, this.size / 2, 0, Math.PI * 2); // Draw a circle centered at (0, 0)
+                            break;
+                        default:
+                            initChevrons(); // Default to chevron if shape is not recognized
+                            break;
+                        case 'square':
+                            ctx.moveTo(0, 0); //  top-left corner of the square
+                            ctx.lineTo(size, 0); //  top-right corner
+                            ctx.lineTo(size, size); //   bottom-right corner
+                            ctx.lineTo(0, size); //   bottom-left corner
+                            break;
+                    }
+
+
+
+                    ctx.closePath();
+                    ctx.fillStyle = this.color;
+                    ctx.fill();
+                    ctx.restore(); // Restore the previous transformation matrix
+
+
+                };
+
+
+                this.update = function () {
+                    switch (direction) {
+                        case 'right':
+                            this.x += this.speed;
+                            if (this.x - this.size > canvas.width) {
+                                this.x = -this.size;
+                            }
+                            break;
+                        case 'left':
+                            this.x -= this.speed;
+                            if (this.x + this.size < 0) {
+                                this.x = canvas.width + this.size;
+                            }
+                            break;
+                        case 'up':
+                            this.y -= this.speed;
+                            if (this.y + this.size < 0) {
+                                this.y = canvas.height + this.size;
+                            }
+                            break;
+                        case 'down':
+                            this.y += this.speed;
+                            if (this.y - this.size > canvas.height) {
+                                this.y = -this.size;
+                            }
+                            break;
+ //-----------------------------------------------
+                        /*case 'oscillateUpDown':
+                                    this.time += 0.1; // Increment the time variable
+                                    this.yOffset = oscillationAmplitudeY * Math.sin(this.time);
+                                    this.y = centerY + this.yOffset;
+                                    break;
+     //-----------------------------------------------
+                                case 'oscillateRightLeft':
+                                    this.time += 0.01; // Increment the time variable
+                                    this.x = oscillationAmplitudeX * Math.sin(this.time) + centerX;
+                                    break;*/
+  ////-----------------------------------------------
+  //                      case "oscillateUpDown":
+  //                          this.y += this.speed * oscillationFactorY;
+  //                          if (this.y < 0 || this.y + this.size > canvas.height) {
+  //                              oscillationFactorY *= -1; // Reverse the direction
+  //                          }
+  //                          break;
+  //  //-----------------------------------------------
+  //                      case "oscillateRightLeft":
+  //                          this.x += this.speed * oscillationFactorX;
+  //                          if (this.x < 0 || this.x + this.size > canvas.width) {
+  //                              oscillationFactorX *= -1; // Reverse the direction
+  //                          }
+  //                          break;
+
+ // -------------------------correct----------------
+                        case 'oscillateUpDown':
+                            this.y += .5 * this.speed * oscillationFactorY; this.spead += this.speed;
+                            if (this.y < 0 || this.y > 1.2 * canvas.height + this.size) {
+                                oscillationFactorY *= -1; // Reverse the direction
+                            }
+                            break;
+ //-----------------------------------------------
+                        case 'oscillateRightLeft':
+                            this.x += .5 * this.speed * oscillationFactorX; this.spead += this.speed;
+                            if (this.x < 0 || this.x > 1.2 * canvas.width ) {
+                                oscillationFactorX *= -1; // Reverse the direction
+
+                            }
+                            break;
+
+        //-----------------------------------------------
+
+        //case "oscillateUpDown":
+        //    this.y += this.speed  * oscillationFactorY;
+        //    if (this.y < -this.size || this.y > canvas.height + this.size) {
+        //        oscillationFactorY *= -1; // Reverse the direction
+        //    }
+        //    break;
+
+        //case "oscillateRightLeft":
+        //    this.x += this.speed  * oscillationFactorX;
+        //    if (this.x < -this.size || this.x > canvas.width + this.size) {
+        //        oscillationFactorX *= -1; // Reverse the direction
+        //    }
+        //    break;
+
+
+        //------------------------------- oscillator old ----------
+        //case "oscillateUpDown":
+        //    this.y += this.speed * oscillationFactorY;
+        //    if (this.y < 0 || this.y + this.size > canvas.height) {
+        //        oscillationFactorY *= -1; // Reverse the direction
+        //    }
+        //    break;
+        //case "oscillateRightLeft":
+        //    this.x += this.speed * oscillationFactorX;
+        //    if (this.x < 0 || this.x + this.size > canvas.width) {
+        //        oscillationFactorX *= -1; // Reverse the direction
+        //    }
+        //    break;
+
+                        //-------------------------------------------------------------------------------------------------//
+                        //case "circular":
+                        //    centerX = canvas.width / 2;
+                        //    centerY = canvas.height / 2;
+                        //    let x = centerX + rotationRadius * Math.cos(angle);
+                        //    let y = centerY + rotationRadius * Math.sin(angle);
+                        //    // Update the angle for circular movement
+                        //    for (let i = 0; i < chevronCount; i++) {
+                        //        chevrons[i].angle += rotationSpeed; // Increment the angle for circular movement
+                        //        let angle = chevrons[i].angle;
+
+                        //        const x = Math.random() * canvas.width;
+                        //        const y = Math.random() * canvas.height;
+                        //        chevrons[i].x = x;
+                        //        chevrons[i].y = y;
+                        //    }
+                        //    break;
+  //-------------------------------------------------------------------------------------------------//
+                        case "circular":
+                            if (layoutSelect === "random") {
+                                centerX = canvas.width / 2;
+                            centerY = canvas.height / 2;
+                            let x = centerX + rotationRadius * Math.cos(angle);
+                            let y = centerY + rotationRadius * Math.sin(angle);
+                            // Update the angle for circular movement
+                            for (let i = 0; i < chevronCount; i++) {
+                                chevrons[i].angle += rotationSpeed; // Increment the angle for circular movement
+                                let angle = chevrons[i].angle;
+
+                                const x = Math.random() * canvas.width;
+                                const y = Math.random() * canvas.height;
+                                chevrons[i].x = x;
+                                chevrons[i].y = y;
+                           }
+                            } else {
+                                // Maintain position according to selected layout
+                                let rows = Math.ceil(canvas.height / (chevronSize + rowDistance)) + 1;
+                                let columns = Math.ceil(canvas.width / (chevronSize + columnDistance)) + 1;
+                                let i = Math.floor(this.y / (chevronSize + rowDistance));
+                                let j = Math.floor(this.x / (chevronSize + columnDistance));
+                                let x = j * (chevronSize + columnDistance + i * columnOffset);
+                                let y = i * (chevronSize + rowDistance + j * rowOffset);
+                                this.angle += rotationSpeed; // Increment the angle for circular movement
+                                let angle = this.angle;
+                                this.x = x;
+                                this.y = y;
+                            }
+                            break;
+ //-------------------------------------------------------------------------------------------------//
+
+
+ //--------------------------------------------------ciruclar when all the shapes are accumulated to a circle and swivel. not correct------------------------------------------------//
+                        /*case "circular":
+                            centerX = canvas.width / 2;
+                            centerY = canvas.height / 2;
+                            // Update the angle for circular movement and calculate positions
+                            for (let i = 0; i < chevronCount; i++) {
+                                chevrons[i].angle += rotationSpeed; // Increment the angle for circular movement
+                                let angle = chevrons[i].angle;
+                                // Calculate the position based on the angle and rotation radius
+                                let x = centerX + rotationRadius * Math.cos(angle);
+                                let y = centerY + rotationRadius * Math.sin(angle);
+                                // Update the position of the chevron
+                                chevrons[i].x = x;
+                                chevrons[i].y = y;
+                            }
+                            break;*/
+
+
+
+
+
+
+                    }
+                };
+            }
+
+            /*function initChevrons() {
+                chevrons = [];
+                for (let i = 0; i < chevronCount; i++) {
+                    const x = Math.random() * canvas.width;
+                    const y = Math.random() * canvas.height;
+
+                    if (selectedPalette !== "none") {
+                        chevrons.forEach((chevron, index) => {
+                            chevron.color = palettes[selectedPalette][i % palettes[selectedPalette].length];
+                        });
+                    }
+
+                    let angleIncrement = (Math.PI * 2) / chevronCount; // Calculate angle increment based on number of shapes
+                    let angle = i * angleIncrement; // Calculate angle for even distribution of shapes
+                    let circularX = centerX + rotationRadius * Math.cos(angle); // Calculate circular X coordinate
+                    let circularY = centerY + rotationRadius * Math.sin(angle); // Calculate circular Y coordinate
+
+                    chevrons.push(new Chevron(x, y, chevronSize, chevronColor, chevronSpeed, chevronAngle, circularX, circularY));
+                }
+            }*/
+
+            function initShapes() {
+                chevrons = [];
+                let rows = Math.ceil(canvas.height / (chevronSize + rowDistance)) +1;
+                let columns = Math.ceil(canvas.width / (chevronSize + columnDistance))+1;
+                let startX = columnOffset;
+                let startY = rowOffset;
+
+
+                switch (layoutSelect) {
+                    case "random":
+                        for (let i = 0; i < chevronCount; i++) {
+                            const x = Math.random() * canvas.width;
+                            const y = Math.random() * canvas.height;
+
+
+                            //if (selectedPalette !== "none") {
+                            //    chevrons.forEach((chevron, index) => {
+                            //        chevron.color = palettes[selectedPalette][i % palettes[selectedPalette].length];
+                            //    });
+                            //}
+
+                            if (selectedPalette !== "none") {
+                                chevronColor = palettes[selectedPalette][i % palettes[selectedPalette].length];
+                            } else {
+                                // Fallback to default color if no palette is selected
+                                chevronColor = chevronColor;
+                            }
+
+
+                            chevrons.push(new Chevron(x, y, chevronSize, chevronColor, chevronSpeed, chevronAngle));
+                        }
+
+                        break;
+
+                    case 'regular':
+
+                        // ---------------------initShape 1 regular table-------------
+
+                        // Calculate the number of rows and columns based on canvas size and chevron size with distances
+                            
+
+                        // Calculate the starting points for rows and columns
+                        //let { startX, startY } = calculateStartingPoints();
+                        ctx.moveTo(0, 0)
+                        ;
+                        for (let i = 0; i < rows; i++) {
+                            for (let j = 0; j < columns; j++) {
+                                let x = i * startX + j * (chevronSize + columnDistance + i * columnOffset);
+                                let y = j * startY + i * (chevronSize + rowDistance + j * rowOffset);
+                                if (selectedPalette !== "none") {
+                                    chevronColor = palettes[selectedPalette][i % palettes[selectedPalette].length];
+                                }
+                                 //differnt way to apply the pallete not in rows but rather for each shape
+                                //if (selectedPalette !== "none") {
+                                //    chevronColor = palettes[selectedPalette][(i * columns + j) % palettes[selectedPalette].length];
+                                //}
+                                // Adjust the x and y coordinates based on the offsets
+                                // x += j * columnOffset;
+                                // y += i * rowOffset;
+                                chevrons.push(new Chevron(x, y, chevronSize, chevronColor, chevronSpeed, chevronAngle, bgColor, columnOffset, rowOffset));
+                            }
+                        }
+
+
+                        break;
+
+            //        case 'checkboard':
+            ////    //---------------------------------checkboard  with  alternating  colors  back adn white  ------------------------
+                
+                      
+           
+            //            for (let i = 0; i < rows; i++) {
+            //                for (let j = 0; j < columns; j++) {
+            //                    let x = startX + j * (chevronSize + columnDistance);
+            //                    let y = startY + i * (chevronSize + rowDistance);
+            //                    if (selectedPalette !== "none") {
+            //                        chevronColor = palettes[selectedPalette][i % palettes[selectedPalette].length];
+            //                    }
+            //                    if ((i + j) % 2 === 1) { // Change color for checkerboard pattern
+            //                        chevronColor = "#000"; // Set color to black for odd rows and columns
+            //                    } else {
+            //                        chevronColor = "#FFF"; // Set color to white for even rows and columns
+            //                    }
+
+            //                    chevrons.push(new Chevron(x, y, chevronSize, chevronColor, chevronSpeed, chevronAngle, bgColor, columnOffset, rowOffset));
+            //                }
+            //            }
+
+
+            //            break;
+                    case 'checkboard':
+                        // Initialize the checkboard color
+                         
+                       
+                        
+                            for (let i = 0; i < rows; i++) {
+                                for (let j = 0; j < columns; j++) {
+                                    let x = startX + j * (chevronSize + columnDistance + i * columnOffset);
+                                    let y = startY + i * (chevronSize + rowDistance + j * rowOffset);
+                                    if (selectedPalette !== "none") {
+                                        chevronColor = palettes[selectedPalette][i % palettes[selectedPalette].length];
+                                    }
+
+                                // Alternate between chevron color and checkboard color
+                                if ((i + j) % 2 === 1) {
+                                    chevrons.push(new Chevron(x, y, chevronSize, checkboardColor, chevronSpeed, chevronAngle, bgColor, columnOffset, rowOffset));
+                                } else {
+                                    chevrons.push(new Chevron(x, y, chevronSize, chevronColor, chevronSpeed, chevronAngle, bgColor, columnOffset, rowOffset));
+                                }
+                            }
+                        }
+
+                        break;
+
+
+
+
+                }
+            }
+
+
+
+
+
+
+            function animate() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                chevrons.forEach(chevron => {
+                    chevron.update();
+
+                    chevron.draw();
+
+                });
+                animationId = requestAnimationFrame(animate);
+            }
+
+            function resetAnimation() {
+                if (animationId) {
+                    cancelAnimationFrame(animationId);
+                }
+                initShapes();
+                animate();
+            }
+
+            function start() {
+                if (!animationId) {
+                    animate();
+                }
+            }
+
+            function stop() {
+                if (animationId) {
+                    cancelAnimationFrame(animationId);
+                    animationId = null;
+                }
+            }
+
+            function reset() {
+                stop();
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }
+
+            window.addEventListener('resize', resizeCanvas);
+
+            resizeCanvas();
+            reset();
+        </script>
+</body>
+</html>

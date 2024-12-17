@@ -1,0 +1,29 @@
+.button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background-color 0.3s;
+}
+
+.primary {
+    background-color: blue;
+    color: white;
+}
+
+.secondary {
+    background-color: gray;
+    color: white;
+}
+
+.danger {
+    background-color: red;
+    color: white;
+}
+
+/* Additional styles for disabled state */
+.button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}

@@ -1,0 +1,30 @@
+/* src\styles\components.css */
+.input, .button {
+    display: block;
+    width: 100%; /* Full width */
+    padding: 10px;
+    margin: 10px 0;
+    box-sizing: border-box; /* Includes padding and border in the element's total width and height */
+}
+
+.button {
+    background-color: #7bda23;
+    color: rgb(112, 38, 155);
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.8s;
+}
+
+.button:hover {
+    background-color: #030e1a; /* Darker blue on hover */
+}
+
+.login-form {
+    max-width: 500px; /* Smaller and more reasonable form size */
+    margin: auto;
+}
+
+.form-error {
+    color: red;
+    margin-bottom: 30px; /* Adds space between the error message and the input fields */
+}
