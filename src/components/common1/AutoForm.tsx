@@ -1,6 +1,4 @@
 // src/components/common/AuthForm.jsx
-
-//TS version
 import React, { useState } from 'react';
 import {
   createUserWithEmailAndPassword,
@@ -10,21 +8,16 @@ import {
 import { auth } from '../../firebase/firebase';
 import Recaptcha from './Recaptcha';
 
-// Define props interface
-interface AuthFormProps {
-  mode: 'register' | 'login';
-}
+const AutoForm = ({ mode }) => { // mode can be 'register' or 'login'
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState(''); // Only for registration
+  const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
 
-const AuthForm: React.FC<AuthFormProps> = ({ mode }) => {
-  const [email, setEmail] = useState<string>('');
-  const [password, setPassword] = useState<string>('');
-  const [confirmPassword, setConfirmPassword] = useState<string>(''); // Only for registration
-  const [message, setMessage] = useState<string | null>(null);
-  const [loading, setLoading] = useState<boolean>(false);
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setMessage(null);
+    setMessage('');
     setLoading(true);
 
     if (mode === 'register' && password !== confirmPassword) {
@@ -38,7 +31,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ mode }) => {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         await sendEmailVerification(userCredential.user);
         setMessage('Registration successful! Please check your email for verification.');
-        // Reset form fields
+        // Optionally, reset form fields
         setEmail('');
         setPassword('');
         setConfirmPassword('');
@@ -47,12 +40,11 @@ const AuthForm: React.FC<AuthFormProps> = ({ mode }) => {
         setMessage('Login successful!');
         // Redirect or perform additional actions
       }
-
-      if (window.recaptchaVerifier) window.recaptchaVerifier.reset(); // Safely reset Recaptcha
-    } catch (error: any) {
-      console.error('AuthForm Error:', error);
+      window.recaptchaVerifier.reset(); // Reset Recaptcha after successful action
+    } catch (error) {
+      console.error('AutoForm Error:', error);
       setMessage(`Error: ${error.message}`);
-      if (window.recaptchaVerifier) window.recaptchaVerifier.reset();
+      window.recaptchaVerifier.reset(); // Reset Recaptcha on error
     }
 
     setLoading(false);
@@ -67,7 +59,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ mode }) => {
             type="email"
             id="auto-email"
             value={email}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
+            onChange={(e) => setEmail(e.target.value)}
             placeholder="Enter your email"
             required
             className="input-field"
@@ -80,7 +72,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ mode }) => {
             type="password"
             id="auto-password"
             value={password}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
+            onChange={(e) => setPassword(e.target.value)}
             placeholder="Enter your password"
             required
             className="input-field"
@@ -94,7 +86,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ mode }) => {
               type="password"
               id="auto-confirm-password"
               value={confirmPassword}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConfirmPassword(e.target.value)}
+              onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Confirm your password"
               required
               className="input-field"
@@ -108,133 +100,14 @@ const AuthForm: React.FC<AuthFormProps> = ({ mode }) => {
       </form>
 
       {/* Integrate Recaptcha */}
-      <Recaptcha
-        containerId="recaptcha-auto"
-        onVerify={() => {}}
-        onExpire={() => setMessage('Recaptcha expired. Please try again.')}
-      />
+      <Recaptcha containerId="recaptcha-auto" onVerify={() => {}} onExpire={() => setMessage('Recaptcha expired. Please try again.')} />
 
-      {message && (
-        <p className={`message ${message.includes('Error') ? 'error' : 'success'}`}>
-          {message}
-        </p>
-      )}
+      {message && <p className={`message ${message.includes('Error') ? 'error' : 'success'}`}>{message}</p>}
     </div>
   );
 };
 
-export default AuthForm;
-
-//JS version
-// import React, { useState } from 'react';
-// import {
-//   createUserWithEmailAndPassword,
-//   signInWithEmailAndPassword,
-//   sendEmailVerification,
-// } from 'firebase/auth';
-// import { auth } from '../../firebase/firebase';
-// import Recaptcha from './Recaptcha';
-
-// const AutoForm = ({ mode }) => { // mode can be 'register' or 'login'
-//   const [email, setEmail] = useState('');
-//   const [password, setPassword] = useState('');
-//   const [confirmPassword, setConfirmPassword] = useState(''); // Only for registration
-//   const [message, setMessage] = useState('');
-//   const [loading, setLoading] = useState(false);
-
-//   const handleSubmit = async (e) => {
-//     e.preventDefault();
-//     setMessage('');
-//     setLoading(true);
-
-//     if (mode === 'register' && password !== confirmPassword) {
-//       setMessage('Passwords do not match.');
-//       setLoading(false);
-//       return;
-//     }
-
-//     try {
-//       if (mode === 'register') {
-//         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-//         await sendEmailVerification(userCredential.user);
-//         setMessage('Registration successful! Please check your email for verification.');
-//         // Optionally, reset form fields
-//         setEmail('');
-//         setPassword('');
-//         setConfirmPassword('');
-//       } else {
-//         await signInWithEmailAndPassword(auth, email, password);
-//         setMessage('Login successful!');
-//         // Redirect or perform additional actions
-//       }
-//       window.recaptchaVerifier.reset(); // Reset Recaptcha after successful action
-//     } catch (error) {
-//       console.error('AutoForm Error:', error);
-//       setMessage(`Error: ${error.message}`);
-//       window.recaptchaVerifier.reset(); // Reset Recaptcha on error
-//     }
-
-//     setLoading(false);
-//   };
-
-//   return (
-//     <div className="auto-form-container">
-//       <form onSubmit={handleSubmit} className="auto-form">
-//         <div className="form-group">
-//           <label htmlFor="auto-email">Email:</label>
-//           <input
-//             type="email"
-//             id="auto-email"
-//             value={email}
-//             onChange={(e) => setEmail(e.target.value)}
-//             placeholder="Enter your email"
-//             required
-//             className="input-field"
-//           />
-//         </div>
-
-//         <div className="form-group">
-//           <label htmlFor="auto-password">Password:</label>
-//           <input
-//             type="password"
-//             id="auto-password"
-//             value={password}
-//             onChange={(e) => setPassword(e.target.value)}
-//             placeholder="Enter your password"
-//             required
-//             className="input-field"
-//           />
-//         </div>
-
-//         {mode === 'register' && (
-//           <div className="form-group">
-//             <label htmlFor="auto-confirm-password">Confirm Password:</label>
-//             <input
-//               type="password"
-//               id="auto-confirm-password"
-//               value={confirmPassword}
-//               onChange={(e) => setConfirmPassword(e.target.value)}
-//               placeholder="Confirm your password"
-//               required
-//               className="input-field"
-//             />
-//           </div>
-//         )}
-
-//         <button type="submit" className="submit-button" disabled={loading}>
-//           {loading ? 'Processing...' : mode === 'register' ? 'Register' : 'Login'}
-//         </button>
-//       </form>
-
-//       {/* Integrate Recaptcha */}
-//       <Recaptcha containerId="recaptcha-auto" onVerify={() => {}} onExpire={() => setMessage('Recaptcha expired. Please try again.')} />
-
-//       {message && <p className={`message ${message.includes('Error') ? 'error' : 'success'}`}>{message}</p>}
-//     </div>
-//   );
-// };
-
-// export default AutoForm;
+export default AutoForm;
 
 
 

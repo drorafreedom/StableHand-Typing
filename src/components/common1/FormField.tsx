@@ -1,98 +1,4 @@
-// src/components/common/FormField.tsx
-// TS version
-
-import React, { useState } from 'react';
-
-// Define props interface
-interface FormFieldProps {
-  label: string;
-  name: string;
-  type: string; // e.g., 'text', 'select', etc.
-  value: string;
-  onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
-  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>) => void;
-  options?: string[]; // Only for select fields
-  placeholder?: string;
-  errors?: string;
-  showOtherField?: boolean;
-}
-
-const FormField: React.FC<FormFieldProps> = ({
-  label,
-  name,
-  type,
-  value,
-  onChange,
-  onKeyDown,
-  options = [],
-  placeholder = '',
-  errors,
-  showOtherField = false,
-}) => {
-  const [showOther, setShowOther] = useState<boolean>(false);
-
-  // Handle select dropdown changes
-  const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    onChange(e);
-    setShowOther(e.target.value === 'Other');
-  };
-
-  return (
-    <div className="mb-4">
-      <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>
-      {type === 'select' ? (
-        <>
-          <select
-            name={name}
-            value={value}
-            onChange={handleSelectChange}
-            onKeyDown={onKeyDown}
-            className={`w-full p-2 border ${errors ? 'border-red-500' : 'border-gray-300'} rounded`}
-          >
-            <option value="">Select {label.toLowerCase()}</option>
-            {options.map((option, index) => (
-              <option key={index} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-          {showOtherField && showOther && (
-            <input
-              name={`${name}_other`}
-              type="text"
-              value={value}
-              onChange={onChange}
-              onKeyDown={onKeyDown}
-              placeholder={`Enter other ${label.toLowerCase()}`}
-              className={`w-full p-2 border ${
-                errors ? 'border-red-500' : 'border-gray-300'
-              } rounded mt-2`}
-            />
-          )}
-        </>
-      ) : (
-        <input
-          name={name}
-          type={type}
-          value={value}
-          onChange={onChange}
-          onKeyDown={onKeyDown}
-          placeholder={placeholder}
-          className={`w-full p-2 border ${errors ? 'border-red-500' : 'border-gray-300'} rounded`}
-        />
-      )}
-      {errors && <p className="text-red-500 text-sm mt-1">{errors}</p>}
-    </div>
-  );
-};
-
-export default FormField;
-
-
-
-
-/* // src/components/common/FormField.jsx
-//JS version
+// src/components/common/FormField.jsx
 import React, { useState } from 'react';
 
 const FormField = ({ label, name, type, value, onChange, onKeyDown, options, placeholder, errors, showOtherField }) => {
@@ -155,7 +61,7 @@ const FormField = ({ label, name, type, value, onChange, onKeyDown, options, pla
 };
 
 export default FormField;
- */
+
 
 
 
