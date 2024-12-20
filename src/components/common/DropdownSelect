@@ -1,0 +1,54 @@
+// src\components\common\DropdownSelect
+import React from 'react';
+import Select, { Props as SelectProps } from 'react-select';
+
+type DropdownSelectProps = {
+  options: { value: string; label: string }[]; // Array of options for the dropdown
+  placeholder?: string; // Placeholder text
+  onChange?: (selectedOption: any) => void; // Callback when an option is selected
+} & SelectProps;
+
+const DropdownSelect: React.FC<DropdownSelectProps> = ({ options, placeholder, onChange, ...props }) => {
+  return (
+    <Select
+      options={options}
+      placeholder={placeholder || 'Select an option...'}
+      onChange={onChange}
+      {...props} // Pass additional props to the Select component
+    />
+  );
+};
+
+export default DropdownSelect;
+
+
+/* Usage Example
+tsx
+Copy code
+import React, { useState } from 'react';
+import DropdownSelect from './components/DropdownSelect';
+
+const App = () => {
+  const [selectedOption, setSelectedOption] = useState(null);
+
+  const options = [
+    { value: 'option1', label: 'Option 1' },
+    { value: 'option2', label: 'Option 2' },
+    { value: 'option3', label: 'Option 3' },
+  ];
+
+  const handleChange = (option: any) => {
+    console.log('Selected Option:', option);
+    setSelectedOption(option);
+  };
+
+  return (
+    <div>
+      <h1>React Select Example</h1>
+      <DropdownSelect options={options} onChange={handleChange} />
+      {selectedOption && <p>Selected: {selectedOption.label}</p>}
+    </div>
+  );
+};
+
+export default App; */
