@@ -1,4 +1,76 @@
-// src/components/common/Recaptcha.jsx
+// src/components/common/Recaptcha.tsx
+// TS version
+
+import React, { useEffect } from 'react';
+import { RecaptchaVerifier } from 'firebase/auth';
+import { auth } from '../../firebase/firebase';
+
+// Define props for the Recaptcha component
+interface RecaptchaProps {
+  containerId: string; // The ID of the container where reCAPTCHA will render
+  onVerify?: (response: string) => void; // Callback triggered when reCAPTCHA is successfully verified
+  onExpire?: () => void; // Callback triggered when reCAPTCHA expires
+}
+
+// Extend the global `window` object to include `recaptchaVerifier`
+declare global {
+  interface Window {
+    recaptchaVerifier: RecaptchaVerifier;
+  }
+}
+
+const Recaptcha: React.FC<RecaptchaProps> = ({ containerId, onVerify, onExpire }) => {
+  useEffect(() => {
+    // Initialize reCAPTCHA only if it hasn't been initialized already
+    if (!window.recaptchaVerifier) {
+      window.recaptchaVerifier = new RecaptchaVerifier(
+        containerId,
+        {
+          size: 'normal', // Size of the reCAPTCHA ('normal', 'compact', or 'invisible')
+          callback: (response: string) => {
+            console.log('Recaptcha verified');
+            if (onVerify) onVerify(response); // Call the onVerify callback
+          },
+          'expired-callback': () => {
+            console.log('Recaptcha expired');
+            if (onExpire) onExpire(); // Call the onExpire callback
+          },
+        },
+        auth
+      );
+
+      window.recaptchaVerifier.render(); // Render the reCAPTCHA
+    }
+  }, [containerId, onVerify, onExpire]);
+
+  // Handle refreshing the reCAPTCHA manually
+  const handleRecaptchaRefresh = () => {
+    if (window.recaptchaVerifier) {
+      window.recaptchaVerifier.clear(); // Clear the existing reCAPTCHA
+      window.recaptchaVerifier.render(); // Render a new reCAPTCHA
+    }
+  };
+
+  return (
+    <div>
+      {/* Container for reCAPTCHA */}
+      <div id={containerId}></div>
+      {/* Button to refresh the reCAPTCHA */}
+      <button onClick={handleRecaptchaRefresh} className="refresh-button">
+        Refresh reCAPTCHA
+      </button>
+    </div>
+  );
+};
+
+export default Recaptcha;
+
+
+//===========JS version===============
+
+/* // src/components/common/Recaptcha.jsx
+
+//JS version
 import React, { useEffect } from 'react';
 import { RecaptchaVerifier } from 'firebase/auth';
 import { auth } from '../../firebase/firebase';
@@ -45,7 +117,7 @@ const Recaptcha = ({ containerId, onVerify, onExpire }) => {
 
 export default Recaptcha;
 
-
+ */
 
 
 

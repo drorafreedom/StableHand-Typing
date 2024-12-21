@@ -1,3 +1,239 @@
+// src/components/common/PhoneAuth.tsx
+// TS version
+
+import React, { useState, useEffect } from 'react';
+import { getAuth, signInWithPhoneNumber, RecaptchaVerifier, ConfirmationResult } from 'firebase/auth';
+import { auth } from '../../firebase/firebase';
+import { isValidPhoneNumber } from 'libphonenumber-js';
+
+interface PhoneAuthProps {
+  isRegister: boolean; // Determines whether the component is in "Register" or "Login" mode
+}
+
+declare global {
+  interface Window {
+    recaptchaVerifier: RecaptchaVerifier;
+    confirmationResult: ConfirmationResult;
+  }
+}
+
+const PhoneAuth: React.FC<PhoneAuthProps> = ({ isRegister }) => {
+  const [phoneNumber, setPhoneNumber] = useState<string>('');
+  const [verificationCode, setVerificationCode] = useState<string>('');
+  const [verificationSent, setVerificationSent] = useState<boolean>(false);
+  const [message, setMessage] = useState<string>('');
+  const [recaptchaInitialized, setRecaptchaInitialized] = useState<boolean>(false);
+
+  // Initialize reCAPTCHA
+  const setupRecaptcha = () => {
+    if (!recaptchaInitialized) {
+      window.recaptchaVerifier = new RecaptchaVerifier(
+        'recaptcha-container',
+        {
+          size: 'normal',
+          callback: () => {
+            console.log('reCAPTCHA verified.');
+          },
+          'expired-callback': () => {
+            console.log('reCAPTCHA expired. Please solve it again.');
+          },
+        },
+        auth
+      );
+      window.recaptchaVerifier.render();
+      setRecaptchaInitialized(true);
+    }
+  };
+
+  // Handle sending the verification code
+  const handleSendCode = async () => {
+    if (!isValidPhoneNumber(phoneNumber)) {
+      setMessage('Please enter a valid phone number.');
+      return;
+    }
+
+    setupRecaptcha();
+    const appVerifier = window.recaptchaVerifier;
+
+    try {
+      const confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
+      window.confirmationResult = confirmationResult;
+      setVerificationSent(true);
+      setMessage('Verification code sent!');
+    } catch (error: any) {
+      console.error('Error sending SMS:', error);
+      setMessage(`Error: ${error.message}`);
+    }
+  };
+
+  // Handle verifying the code
+  const handleVerifyCode = async () => {
+    try {
+      const confirmationResult = window.confirmationResult;
+      const result = await confirmationResult.confirm(verificationCode);
+      console.log('User signed in:', result.user);
+      setMessage('Phone verification successful!');
+    } catch (error: any) {
+      console.error('Error verifying code:', error);
+      setMessage(`Invalid code. Error: ${error.message}`);
+    }
+  };
+
+  return (
+    <div className="phone-auth-container">
+      <h2>{isRegister ? 'Register with' : 'Login with'} Phone Authentication</h2>
+
+      <div>
+        <input
+          type="text"
+          placeholder="Enter phone number"
+          value={phoneNumber}
+          onChange={(e) => setPhoneNumber(e.target.value)}
+          className="w-full p-2 border rounded-lg mb-2"
+        />
+        <div id="recaptcha-container" className="mb-4"></div>
+        <button
+          onClick={handleSendCode}
+          className="w-full bg-blue-500 text-white p-2 rounded-lg"
+        >
+          Send Verification Code
+        </button>
+      </div>
+
+      {verificationSent && (
+        <div className="mt-4">
+          <input
+            type="text"
+            placeholder="Enter verification code"
+            value={verificationCode}
+            onChange={(e) => setVerificationCode(e.target.value)}
+            className="w-full p-2 border rounded-lg mb-2"
+          />
+          <button
+            onClick={handleVerifyCode}
+            className="w-full bg-green-500 text-white p-2 rounded-lg"
+          >
+            Verify Code
+          </button>
+        </div>
+      )}
+
+      {message && <p className="mt-4 text-center text-red-500">{message}</p>}
+    </div>
+  );
+};
+
+export default PhoneAuth;
+
+
+
+//=======================JS version=========================
+// // src/components/common/PhoneAuth.jsx  WORKING  WITH CAPTIVA 
+// //JS version
+//   import React, { useState, useEffect } from 'react';
+//  import { getAuth, signInWithPhoneNumber, RecaptchaVerifier } from 'firebase/auth';
+// import { auth } from '../../firebase/firebase';  
+//   import { isValidPhoneNumber } from 'libphonenumber-js';
+// const PhoneAuth = ( isRegister) => {
+//   const [phoneNumber, setPhoneNumber] = useState('');
+//   const [verificationCode, setVerificationCode] = useState('');
+//   const [verificationSent, setVerificationSent] = useState(false);
+//   const [message, setMessage] = useState('');
+//   const [recaptchaInitialized, setRecaptchaInitialized] = useState(false);
+//  // const [isRegister, setIsRegister] = useState('isRegister');
+
+//   // Initialize reCAPTCHA on first render or when the button is clicked
+//   const setupRecaptcha = () => {
+//     if (!recaptchaInitialized) {
+//       window.recaptchaVerifier = new RecaptchaVerifier('recaptcha-container', {
+//         'size': 'normal',
+//         'callback': (response) => {
+//           console.log('reCAPTCHA verified.');
+//         },
+//         'expired-callback': () => {
+//           console.log('reCAPTCHA expired. Please solve it again.');
+//         }
+//       }, auth);
+//       window.recaptchaVerifier.render();
+//       setRecaptchaInitialized(true);
+//     }
+//   };
+
+//   const handleSendCode = async () => {
+//     setupRecaptcha(); // Ensure reCAPTCHA is ready
+//     const appVerifier = window.recaptchaVerifier;
+
+//     try {
+//       const confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
+//       window.confirmationResult = confirmationResult;
+//       setVerificationSent(true);
+//       setMessage('Verification code sent!');
+//     } catch (error) {
+//       console.error('Error sending SMS:', error);
+//       setMessage(`Error: ${error.message}`);
+//     }
+//   };
+
+//   const handleVerifyCode = async () => {
+//     try {
+//       const confirmationResult = window.confirmationResult;
+//       const result = await confirmationResult.confirm(verificationCode);
+//       console.log('User signed in:', result.user);
+//       setMessage('Phone verification successful!');
+//     } catch (error) {
+//       console.error('Error verifying code:', error);
+//       setMessage(`Invalid code. Error: ${error.message}`);
+//     }
+//   };
+// // Form Mode
+
+//   return (
+//     <div className="phone-auth-container">
+//       <h2> {isRegister ? 'Register with  ' : 'Login with '}Phone Authentication</h2>
+
+//       <div>
+//         <input
+//           type="text"
+//           placeholder="Enter phone number to "
+//           value={phoneNumber}
+//           onChange={(e) => setPhoneNumber(e.target.value)}
+//           className="w-full p-2 border rounded-lg mb-2"
+//         />
+//        {/*  */} <div id="recaptcha-container" className="mb-4"></div>
+//         <button
+//           onClick={handleSendCode}
+//           className="w-full bg-blue-500 text-white p-2 rounded-lg"
+//         >
+//           Send Verification Code
+//         </button>
+//       </div>
+
+//       {verificationSent && (
+//         <div className="mt-4">
+//           <input
+//             type="text"
+//             placeholder="Enter verification code"
+//             value={verificationCode}
+//             onChange={(e) => setVerificationCode(e.target.value)}
+//             className="w-full p-2 border rounded-lg mb-2"
+//           />
+//           <button
+//             onClick={handleVerifyCode}
+//             className="w-full bg-green-500 text-white p-2 rounded-lg"
+//           >
+//             Verify Code
+//           </button>
+//         </div>
+//       )}
+
+//       {message && <p className="mt-4 text-center text-red-500">{message}</p>}
+//     </div>
+//   );
+// };
+
+// export default PhoneAuth;
+
+
 // src\components\common\PhoneAuth.jsx
 //==============================
 // src/components/common/PhoneAuth.jsx- WORKING WITH CAPTIVA
@@ -225,108 +461,5 @@
 // export default PhoneAuth;
 
 
-//======================================================
-// src/components/common/PhoneAuth.jsx  WORKING  WITH CAPTIVA 
-  import React, { useState, useEffect } from 'react';
- import { getAuth, signInWithPhoneNumber, RecaptchaVerifier } from 'firebase/auth';
-import { auth } from '../../firebase/firebase';  
-  import { isValidPhoneNumber } from 'libphonenumber-js';
-const PhoneAuth = ( isRegister) => {
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [verificationCode, setVerificationCode] = useState('');
-  const [verificationSent, setVerificationSent] = useState(false);
-  const [message, setMessage] = useState('');
-  const [recaptchaInitialized, setRecaptchaInitialized] = useState(false);
- // const [isRegister, setIsRegister] = useState('isRegister');
-
-  // Initialize reCAPTCHA on first render or when the button is clicked
-  const setupRecaptcha = () => {
-    if (!recaptchaInitialized) {
-      window.recaptchaVerifier = new RecaptchaVerifier('recaptcha-container', {
-        'size': 'normal',
-        'callback': (response) => {
-          console.log('reCAPTCHA verified.');
-        },
-        'expired-callback': () => {
-          console.log('reCAPTCHA expired. Please solve it again.');
-        }
-      }, auth);
-      window.recaptchaVerifier.render();
-      setRecaptchaInitialized(true);
-    }
-  };
-
-  const handleSendCode = async () => {
-    setupRecaptcha(); // Ensure reCAPTCHA is ready
-    const appVerifier = window.recaptchaVerifier;
-
-    try {
-      const confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
-      window.confirmationResult = confirmationResult;
-      setVerificationSent(true);
-      setMessage('Verification code sent!');
-    } catch (error) {
-      console.error('Error sending SMS:', error);
-      setMessage(`Error: ${error.message}`);
-    }
-  };
-
-  const handleVerifyCode = async () => {
-    try {
-      const confirmationResult = window.confirmationResult;
-      const result = await confirmationResult.confirm(verificationCode);
-      console.log('User signed in:', result.user);
-      setMessage('Phone verification successful!');
-    } catch (error) {
-      console.error('Error verifying code:', error);
-      setMessage(`Invalid code. Error: ${error.message}`);
-    }
-  };
-// Form Mode
-
-  return (
-    <div className="phone-auth-container">
-      <h2> {isRegister ? 'Register with  ' : 'Login with '}Phone Authentication</h2>
-
-      <div>
-        <input
-          type="text"
-          placeholder="Enter phone number to "
-          value={phoneNumber}
-          onChange={(e) => setPhoneNumber(e.target.value)}
-          className="w-full p-2 border rounded-lg mb-2"
-        />
-       {/*  */} <div id="recaptcha-container" className="mb-4"></div>
-        <button
-          onClick={handleSendCode}
-          className="w-full bg-blue-500 text-white p-2 rounded-lg"
-        >
-          Send Verification Code
-        </button>
-      </div>
-
-      {verificationSent && (
-        <div className="mt-4">
-          <input
-            type="text"
-            placeholder="Enter verification code"
-            value={verificationCode}
-            onChange={(e) => setVerificationCode(e.target.value)}
-            className="w-full p-2 border rounded-lg mb-2"
-          />
-          <button
-            onClick={handleVerifyCode}
-            className="w-full bg-green-500 text-white p-2 rounded-lg"
-          >
-            Verify Code
-          </button>
-        </div>
-      )}
-
-      {message && <p className="mt-4 text-center text-red-500">{message}</p>}
-    </div>
-  );
-};
-
-export default PhoneAuth;  
+ 
  

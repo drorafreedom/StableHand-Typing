@@ -1,8 +1,153 @@
+// src/components/common/ThirdPartyAuthPanel.tsx
+// TS version
+
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { signInWithPopup, AuthProvider } from 'firebase/auth';
+import {
+  signInWithGoogle,
+  signInWithFacebook,
+  signInWithYahoo,
+  signInWithMicrosoft,
+  signInWithApple,
+  signInWithGitHub,
+  signInWithTwitter,
+} from '../../firebase/auth';
+import ThirdPartyButton from './ThirdPartyButton';
+import Alert from './Alert';
+import { getFriendlyErrorMessage } from '../../utils/validation';
+
+// Logo imports
+import googleLogo from '../../assets/logos/google.svg';
+import facebookLogo from '../../assets/logos/facebook.svg';
+import yahooLogo from '../../assets/logos/yahoo.svg';
+import microsoftLogo from '../../assets/logos/microsoft.svg';
+import appleLogo from '../../assets/logos/appleLogo.png';
+import phoneLogo from '../../assets/logos/phone.svg';
+import twitterLogo from '../../assets/logos/twitter.svg';
+
+// Define props for the component
+interface ThirdPartyAuthPanelProps {
+  clearEmailAndPasswordErrors: () => void; // Callback to clear email and password errors
+  isRegister: boolean; // Indicates if the component is used for registration or login
+}
+
+const ThirdPartyAuthPanel: React.FC<ThirdPartyAuthPanelProps> = ({
+  clearEmailAndPasswordErrors,
+  isRegister,
+}) => {
+  const [message, setMessage] = useState<{ message: string; type: 'success' | 'error' | '' }>({
+    message: '',
+    type: '',
+  });
+  const [loading, setLoading] = useState<boolean>(false);
+  const navigate = useNavigate();
+
+  // Clear third-party login message
+  const clearMessage = () => {
+    setMessage({ message: '', type: '' });
+  };
+
+  // Handle third-party authentication
+  const handleThirdPartyClick = async (signInFunction: () => Promise<void>, providerName: string) => {
+    clearEmailAndPasswordErrors();
+    setLoading(true);
+
+    try {
+      await signInFunction();
+      setMessage({ message: `${providerName} login successful! Redirecting...`, type: 'success' });
+      setTimeout(() => navigate('/stablehand-welcome'), 2000);
+    } catch (error: any) {
+      console.error(`Error during ${providerName} sign-in:`, error);
+      setMessage({ message: getFriendlyErrorMessage(error), type: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Google Login */}
+      <ThirdPartyButton
+        onClick={() => handleThirdPartyClick(signInWithGoogle, 'Google')}
+        className="w-full mt-2 flex items-center justify-center rounded-lg"
+        color="bg-red-500"
+        hoverColor="hover:bg-red-700"
+        textColor="text-white"
+        text={isRegister ? 'Register with Google' : 'Login with Google'}
+        logo={googleLogo}
+      />
+
+      {/* Facebook Login */}
+      <ThirdPartyButton
+        onClick={() => handleThirdPartyClick(signInWithFacebook, 'Facebook')}
+        className="w-full mt-2 flex items-center justify-center rounded-lg"
+        color="bg-blue-700"
+        hoverColor="hover:bg-blue-900"
+        textColor="text-white"
+        text={isRegister ? 'Register with Facebook' : 'Login with Facebook'}
+        logo={facebookLogo}
+      />
+
+      {/* Yahoo Login */}
+      <ThirdPartyButton
+        onClick={() => handleThirdPartyClick(signInWithYahoo, 'Yahoo')}
+        className="w-full mt-2 flex items-center justify-center rounded-lg"
+        color="bg-purple-700"
+        hoverColor="hover:bg-purple-900"
+        textColor="text-white"
+        text={isRegister ? 'Register with Yahoo' : 'Login with Yahoo'}
+        logo={yahooLogo}
+      />
+
+      {/* Microsoft Login */}
+      <ThirdPartyButton
+        onClick={() => handleThirdPartyClick(signInWithMicrosoft, 'Microsoft')}
+        className="w-full mt-2 flex items-center justify-center rounded-lg"
+        color="bg-green-700"
+        hoverColor="hover:bg-green-900"
+        textColor="text-white"
+        text={isRegister ? 'Register with Microsoft' : 'Login with Microsoft'}
+        logo={microsoftLogo}
+      />
+
+      {/* Apple Login */}
+      <ThirdPartyButton
+        onClick={() => handleThirdPartyClick(signInWithApple, 'Apple')}
+        className="w-full mt-2 flex items-center justify-center rounded-lg"
+        color="bg-black"
+        hoverColor="hover:bg-gray-800"
+        textColor="text-white"
+        text={isRegister ? 'Register with Apple' : 'Login with Apple'}
+        logo={appleLogo}
+      />
+
+      {/* Twitter Login */}
+      <ThirdPartyButton
+        onClick={() => handleThirdPartyClick(signInWithTwitter, 'Twitter')}
+        className="w-full mt-2 flex items-center justify-center rounded-lg"
+        color="bg-teal-400"
+        hoverColor="hover:bg-teal-600"
+        textColor="text-white"
+        text={isRegister ? 'Register with Twitter' : 'Login with Twitter'}
+        logo={twitterLogo}
+      />
+
+      {/* Display Third-Party Authentication Message */}
+      {message.message && <Alert message={message.message} type={message.type} />}
+    </div>
+  );
+};
+
+export default ThirdPartyAuthPanel;
+
+//++++++++++++++++++JS version++++++++++++++++
 
 /* Error Handling: The errorMessage state handles and displays error messages for all authentication methods. It is cleared before each new authentication attempt.
 Third-party Authentication: Each button calls the appropriate provider method (e.g., signInWithGoogle, signInWithFacebook). The handleThirdPartyAuth method should now be correctly passed from the parent component to process the authentication.
 Phone Authentication: The handlePhoneRegister method properly manages the flow for phone authentication, including the Recaptcha setup and code verification, and clears messages before starting. */
  // src/components/common/ThirdPartyAuthPanel.jsx lsata working 
+ //JS version
  import React, { useState } from 'react';
  import ThirdPartyButton from './ThirdPartyButton';
  import { useNavigate } from 'react-router-dom';
