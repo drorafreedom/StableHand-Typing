@@ -156,7 +156,7 @@ export default RegistrationForm;
 */
 
 
-//+++++++++++JS VERSIOn++++++++++++++++++
+//+++++++++++JS version+++++++++++++++++
 // src/components/forms/RegistrationForm.jsx
 
 //Js version

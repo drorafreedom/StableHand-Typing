@@ -1,4 +1,36 @@
+
+// src/components/pages/AuthPage.tsx
+import React, { useState } from 'react';
+import LoginForm from '../organisms/LoginForm';
+import RegistrationForm from '../organisms/RegistrationForm';
+
+const AuthPage: React.FC = () => {
+  const [isLoginMode, setIsLoginMode] = useState<boolean>(true);
+
+  const toggleMode = (): void => {
+    setIsLoginMode(!isLoginMode);
+  };
+
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gray-100">
+      {isLoginMode ? (
+        <>
+          <LoginForm onRegisterClick={toggleMode} />
+        </>
+      ) : (
+        <>
+          <RegistrationForm onLoginClick={toggleMode} />
+        </>
+      )}
+    </div>
+  );
+};
+
+export default AuthPage;
+
+//+++++++++++JS version+++++++++++++++++
 // src/components/pages/AuthPage.jsx
+ // JS version
 import React, { useState } from 'react';
 import LoginForm from '../osrganisms/LoginForm';
 import RegistrationForm from '../organisms/RegistrationForm';

@@ -1,4 +1,174 @@
+
+// src/components/pages/Welcome.tsx
+
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import welcomeImage from '../../assets/images/signed_stablehand_logo.png';
+import { Frame3 } from '../common/Frame';
+
+const Welcome: React.FC = () => {
+  const navigate = useNavigate();
+  const [isVisible, setIsVisible] = useState<boolean>(false);
+
+  // Fade-in effect
+  useEffect(() => {
+    const timer = setTimeout(() => setIsVisible(true), 300); // Adjust for delay
+    return () => clearTimeout(timer);
+  }, []);
+
+  return (
+    <Frame3 bgColor="bg-gray-100">
+      <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gray-100">
+        {/* Image and Arc Text Container */}
+        <div
+          className={`relative mb-3 transition-opacity duration-1000 ${
+            isVisible ? 'opacity-100' : 'opacity-0'
+          }`}
+        >
+          {/* Larger Circular Image */}
+          <img
+            src={welcomeImage}
+            alt="Welcome to StableGait, a unique therapy to relieve tremor"
+            className="w-100 h-100 object-cover rounded-full shadow-x3"
+          />
+        </div>
+
+        {/* Welcome Text */}
+        <div className="text-center mb-6">
+          <h1 className="text-5xl font-bold text-gray-800 mb-2">
+            Welcome to Stablehand
+          </h1>
+          <p className="text-xl text-gray-600">
+            A Unique Virtual Tool to Stabilize Tremor
+          </p>
+        </div>
+
+        {/* Login Form */}
+        <div className="w-full p-2 bg-white rounded-lg shadow-lg max-w-md">
+          {/* Redirect Buttons */}
+          <div className="mt-8 flex space-x-4">
+            <button
+              onClick={() => navigate('/login')}
+              className="w-full bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg"
+            >
+              Login
+            </button>
+            <button
+              onClick={() => navigate('/register')}
+              className="w-full bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg"
+            >
+              Register
+            </button>
+          </div>
+        </div>
+      </div>
+    </Frame3>
+  );
+};
+
+export default Welcome;
+
+
+//+++++++++++JS version+++++++++++++++++
 // // src/components/pages/Welcome.jsx
+ // JS version
+
+/*  import React, { useEffect, useState } from 'react';
+ import { useNavigate } from 'react-router-dom';
+ import welcomeImage from '../../assets/images/signed_stablehand_logo.png';
+ import { Frame3 } from '../common/Frame';
+ import LoginForm from '../organisms/LoginForm';
+ 
+ const Welcome = () => {
+   const navigate = useNavigate();
+   const [isVisible, setIsVisible] = useState(false);
+ 
+   // Fade-in effect
+   useEffect(() => {
+     const timer = setTimeout(() => setIsVisible(true), 300); // Adjust for delay
+     return () => clearTimeout(timer);
+   }, []);
+ 
+   return (
+     <Frame3 bgColor="bg-gray-100">
+       <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gray-100">
+         
+         {/* Image and Arc Text Container */}
+         <div
+           className={`relative mb-3 transition-opacity duration-1000 ${
+             isVisible ? 'opacity-100' : 'opacity-0'
+           }`}
+         >
+           {/* Larger Circular Image */}
+           <img
+             src={welcomeImage}
+             alt="Welcome to StableGait, a unique therapy to relieve tremor"
+             className="w-100 h-100 object-cover rounded-full  shadow-x3"
+           />
+ 
+           {/* SVG Arc Text Positioned on Top */}
+        {/*    <svg
+             className="absolute inset-0 w-96 h-96"
+             viewBox="0 0 300 300"
+             xmlns="http://www.w3.org/2000/svg"
+           >
+             <defs>
+               <path
+                 id="arcPath"
+                 d="M 150, 150 m -120, 0 a 120,120 0 1,1 240,0"
+               />
+             </defs>
+             <text fontSize="26" fill="#4a4a4a" fontWeight="bold">
+               <textPath
+                 href="#arcPath"
+                 startOffset="50%"
+                 textAnchor="middle"
+               >
+                 Welcome to StableGait
+               </textPath>
+             </text>
+           </svg> */}
+         </div>
+ 
+         {/* Welcome Text */}
+         <div className="text-center mb-6">
+           <h1 className="text-5xl font-bold text-gray-800 mb-2">
+             Welcome to Stablehand
+           </h1>
+           <p className="text-xl text-gray-600">
+             A Unique Virtual Tool to Stabilize Tremor
+           </p>
+         </div>
+ 
+         {/* Login Form */}
+         <div className="w-full p-2 bg-white rounded-lg shadow-lg max-w-md">
+           {/* <LoginForm /> */}
+ 
+             {/* Redirect Buttons */}
+         <div className="mt-8 flex space-x-4">
+           <button
+             onClick={() => navigate('/login')}
+             className="w-full bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg"
+           >
+             Login
+           </button>
+           <button
+             onClick={() => navigate('/register')}
+             className="w-full bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg"
+           >
+             Register
+           </button>
+         </div>
+         </div>
+       </div>
+     </Frame3>
+   );
+ };
+ 
+ export default Welcome; */
+
+//-------------------------------------
+ 
 // import React from 'react';
 // import { Link, useNavigate } from 'react-router-dom';
 // // import LoginForm from '../organisms/LoginForm';
@@ -59,99 +229,7 @@
 
 
  // src/components/pages/Welcome.jsx
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import welcomeImage from '../../assets/images/signed_stablehand_logo.png';
-import { Frame3 } from '../common/Frame';
-import LoginForm from '../organisms/LoginForm';
-
-const Welcome = () => {
-  const navigate = useNavigate();
-  const [isVisible, setIsVisible] = useState(false);
-
-  // Fade-in effect
-  useEffect(() => {
-    const timer = setTimeout(() => setIsVisible(true), 300); // Adjust for delay
-    return () => clearTimeout(timer);
-  }, []);
-
-  return (
-    <Frame3 bgColor="bg-gray-100">
-      <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gray-100">
-        
-        {/* Image and Arc Text Container */}
-        <div
-          className={`relative mb-3 transition-opacity duration-1000 ${
-            isVisible ? 'opacity-100' : 'opacity-0'
-          }`}
-        >
-          {/* Larger Circular Image */}
-          <img
-            src={welcomeImage}
-            alt="Welcome to StableGait, a unique therapy to relieve tremor"
-            className="w-100 h-100 object-cover rounded-full  shadow-x3"
-          />
-
-          {/* SVG Arc Text Positioned on Top */}
-       {/*    <svg
-            className="absolute inset-0 w-96 h-96"
-            viewBox="0 0 300 300"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <defs>
-              <path
-                id="arcPath"
-                d="M 150, 150 m -120, 0 a 120,120 0 1,1 240,0"
-              />
-            </defs>
-            <text fontSize="26" fill="#4a4a4a" fontWeight="bold">
-              <textPath
-                href="#arcPath"
-                startOffset="50%"
-                textAnchor="middle"
-              >
-                Welcome to StableGait
-              </textPath>
-            </text>
-          </svg> */}
-        </div>
-
-        {/* Welcome Text */}
-        <div className="text-center mb-6">
-          <h1 className="text-5xl font-bold text-gray-800 mb-2">
-            Welcome to Stablehand
-          </h1>
-          <p className="text-xl text-gray-600">
-            A Unique Virtual Tool to Stabilize Tremor
-          </p>
-        </div>
-
-        {/* Login Form */}
-        <div className="w-full p-2 bg-white rounded-lg shadow-lg max-w-md">
-          {/* <LoginForm /> */}
-
-            {/* Redirect Buttons */}
-        <div className="mt-8 flex space-x-4">
-          <button
-            onClick={() => navigate('/login')}
-            className="w-full bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg"
-          >
-            Login
-          </button>
-          <button
-            onClick={() => navigate('/register')}
-            className="w-full bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg"
-          >
-            Register
-          </button>
-        </div>
-        </div>
-      </div>
-    </Frame3>
-  );
-};
-
-export default Welcome;
+ 
 
 // // src/components/pages/Welcome.jsx
 // import React, { useEffect, useState, useRef } from 'react';

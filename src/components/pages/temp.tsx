@@ -1,5 +1,5 @@
 // src/components/common/PhoneNumberField.jsx
-
+ // JS version
 import React, { useState } from 'react';
 import InputField from './InputField';
 import Alert from './Alert';

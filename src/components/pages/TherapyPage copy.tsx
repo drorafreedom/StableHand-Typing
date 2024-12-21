@@ -1,4 +1,9 @@
+
+
+//+++++++++++JS version+++++++++++++++++
+
 // src/components/pages/TherapyPage.jsx
+ // JS version
 import React, { useState } from 'react';
 import WaveAnimation from '../Therapy/WaveAnimation';
 import TextInputComponent from '../Therapy/TextInputComponent';

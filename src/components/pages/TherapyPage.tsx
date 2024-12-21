@@ -1,4 +1,5 @@
-// src\components\pages\TherapyPage.jsx
+// src/components/pages/TherapyPage.tsx
+
 import React, { useState } from 'react';
 import MultifunctionAnimation from '../Therapy/MultifunctionAnimation';
 import ShapeAnimations from '../Therapy/ShapeAnimations';
@@ -10,14 +11,23 @@ import DateTimeDisplay from '../common/DateTimeDisplay';
 import TextDisplay from '../Therapy/TextDisplay';
 import TextInput from '../Therapy/TextInput';
 
-const TherapyPage = () => {
-  const [currentAnimation, setCurrentAnimation] = useState('multifunction');
-  const { currentUser } = useAuth();
-  const [message, setMessage] = useState({ message: '', type: '' });
-  const [settings, setSettings] = useState({}); // Assuming settings structure is compatible across all animations
-  const [displayText, setDisplayText] = useState('');
+interface Message {
+  message: string;
+  type: 'success' | 'error';
+}
 
-  const saveKeystrokeData = async (keyData) => {
+interface Settings {
+  [key: string]: any; // Replace `any` with the specific type for your settings if known
+}
+
+const TherapyPage: React.FC = () => {
+  const [currentAnimation, setCurrentAnimation] = useState<'multifunction' | 'shape' | 'color'>('multifunction');
+  const { currentUser } = useAuth();
+  const [message, setMessage] = useState<Message | null>(null);
+  const [settings, setSettings] = useState<Settings>({});
+  const [displayText, setDisplayText] = useState<string>('');
+
+  const saveKeystrokeData = async (keyData: any) => {
     try {
       const timestamp = new Date().toISOString();
       const userDocRef = doc(collection(db, `users/${currentUser.uid}/keystroke-data`));
@@ -53,27 +63,29 @@ const TherapyPage = () => {
         </button>
       </div>
 
-      {message.message && (
+      {message && (
         <div className={`alert ${message.type === 'error' ? 'bg-red-500' : 'bg-green-500'} text-white p-2 rounded mb-4`}>
           {message.message}
         </div>
       )}
 
-      {currentAnimation === 'multifunction' && <MultifunctionAnimation settings={settings} setSettings={setSettings} />}
-      {currentAnimation === 'shape' && <ShapeAnimations settings={settings} setSettings={setSettings} />}
-      {currentAnimation === 'color' && <ColorAnimation settings={settings} setSettings={setSettings} />}
-      
+      {currentAnimation === 'multifunction' && (
+        <MultifunctionAnimation settings={settings} setSettings={setSettings} />
+      )}
+      {currentAnimation === 'shape' && (
+        <ShapeAnimations settings={settings} setSettings={setSettings} />
+      )}
+      {currentAnimation === 'color' && (
+        <ColorAnimation settings={settings} setSettings={setSettings} />
+      )}
+
       <div className="relative w-full z-25 p-4">
-  <TextInput placeholder="Type here..." displayText={displayText} saveKeystrokeData={saveKeystrokeData} />
-</div>
-{/* <div className="relative center-0 right-0 w-1/3   p-4">
-  <TextDisplay displayText={displayText} setDisplayText={setDisplayText} />
-</div> */}
-<div className="absolute center-820 right-0 w-1/3 z-225 p-4">
-  <TextDisplay displayText={displayText} setDisplayText={setDisplayText} />
-</div>
-       
-      
+        <TextInput placeholder="Type here..." displayText={displayText} saveKeystrokeData={saveKeystrokeData} />
+      </div>
+
+      <div className="absolute center-820 right-0 w-1/3 z-225 p-4">
+        <TextDisplay displayText={displayText} setDisplayText={setDisplayText} />
+      </div>
     </div>
   );
 };
@@ -81,10 +93,96 @@ const TherapyPage = () => {
 export default TherapyPage;
 
 
+//+++++++++++JS version+++++++++++++++++
+
+// // src\components\pages\TherapyPage.jsx
+//  // JS version
+// import React, { useState } from 'react';
+// import MultifunctionAnimation from '../Therapy/MultifunctionAnimation';
+// import ShapeAnimations from '../Therapy/ShapeAnimations';
+// import ColorAnimation from '../Therapy/ColorAnimation';
+// import { db } from '../../firebase/firebase';
+// import { useAuth } from '../../data/AuthContext';
+// import { doc, setDoc, collection } from 'firebase/firestore';
+// import DateTimeDisplay from '../common/DateTimeDisplay';
+// import TextDisplay from '../Therapy/TextDisplay';
+// import TextInput from '../Therapy/TextInput';
+
+// const TherapyPage = () => {
+//   const [currentAnimation, setCurrentAnimation] = useState('multifunction');
+//   const { currentUser } = useAuth();
+//   const [message, setMessage] = useState({ message: '', type: '' });
+//   const [settings, setSettings] = useState({}); // Assuming settings structure is compatible across all animations
+//   const [displayText, setDisplayText] = useState('');
+
+//   const saveKeystrokeData = async (keyData) => {
+//     try {
+//       const timestamp = new Date().toISOString();
+//       const userDocRef = doc(collection(db, `users/${currentUser.uid}/keystroke-data`));
+//       await setDoc(userDocRef, { keyData, timestamp });
+//       setMessage({ message: 'Keystroke data saved successfully!', type: 'success' });
+//     } catch (error) {
+//       console.error('Error saving keystroke data:', error);
+//       setMessage({ message: 'Error saving keystroke data. Please try again.', type: 'error' });
+//     }
+//   };
+
+//   return (
+//     <div className="relative w-full">
+//       <div className="flex justify-center text-sm text-gray-600 rounded p-2 mb-4 w-full">
+//         <DateTimeDisplay />
+//         <button
+//           onClick={() => setCurrentAnimation('multifunction')}
+//           className={`p-2 mx-2 ${currentAnimation === 'multifunction' ? 'bg-blue-500 text-white rounded' : 'bg-gray-200'}`}
+//         >
+//           Multifunction Animation
+//         </button>
+//         <button
+//           onClick={() => setCurrentAnimation('shape')}
+//           className={`p-2 mx-2 ${currentAnimation === 'shape' ? 'bg-blue-500 text-white rounded' : 'bg-gray-200'}`}
+//         >
+//           Shape Animation
+//         </button>
+//         <button
+//           onClick={() => setCurrentAnimation('color')}
+//           className={`p-2 mx-2 ${currentAnimation === 'color' ? 'bg-blue-500 text-white rounded' : 'bg-gray-200'}`}
+//         >
+//           Color Animation
+//         </button>
+//       </div>
+
+//       {message.message && (
+//         <div className={`alert ${message.type === 'error' ? 'bg-red-500' : 'bg-green-500'} text-white p-2 rounded mb-4`}>
+//           {message.message}
+//         </div>
+//       )}
+
+//       {currentAnimation === 'multifunction' && <MultifunctionAnimation settings={settings} setSettings={setSettings} />}
+//       {currentAnimation === 'shape' && <ShapeAnimations settings={settings} setSettings={setSettings} />}
+//       {currentAnimation === 'color' && <ColorAnimation settings={settings} setSettings={setSettings} />}
+      
+//       <div className="relative w-full z-25 p-4">
+//   <TextInput placeholder="Type here..." displayText={displayText} saveKeystrokeData={saveKeystrokeData} />
+// </div>
+// {/* <div className="relative center-0 right-0 w-1/3   p-4">
+//   <TextDisplay displayText={displayText} setDisplayText={setDisplayText} />
+// </div> */}
+// <div className="absolute center-820 right-0 w-1/3 z-225 p-4">
+//   <TextDisplay displayText={displayText} setDisplayText={setDisplayText} />
+// </div>
+       
+      
+//     </div>
+//   );
+// };
+
+// export default TherapyPage;
 
 
 
 
+
+//--------------------------------------------
 // // src/pages/TherapyPage.jsx
 // import React, { useState } from 'react';
 // import MultifunctionAnimation from '../Therapy/MultifunctionAnimation';

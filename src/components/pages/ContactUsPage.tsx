@@ -1,6 +1,126 @@
-// src/components/pages/ContactUsPage.jsx
+ 
 
+// src/pages/ContactUs.tsx
+import { useState } from 'react';
+import { db, auth } from '../../firebase/firebase'; // Import Firestore and Auth
+import { collection, addDoc } from 'firebase/firestore'; // Firestore methods
+
+interface FormData {
+  name: string;
+  email: string;
+  message: string;
+}
+
+const ContactUs = () => {
+  const [formData, setFormData] = useState<FormData>({
+    name: '',
+    email: '',
+    message: '',
+  });
+  const [status, setStatus] = useState<string>('');
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
+  };
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setStatus('Sending...');
+
+    try {
+      const user = auth.currentUser; // Get the logged-in user
+
+      // Store message in the general 'messages' collection
+      await addDoc(collection(db, 'messages'), {
+        ...formData,
+        userId: user ? user.uid : 'anonymous',
+        timestamp: new Date(),
+      });
+
+      // If user is logged in, also store the message under their user ID
+      if (user) {
+        const userMessagesRef = collection(db, `users/${user.uid}/messages`);
+        await addDoc(userMessagesRef, {
+          ...formData,
+          timestamp: new Date(),
+        });
+      }
+
+      setStatus('Message sent! We will get back to you shortly.');
+      setFormData({ name: '', email: '', message: '' });
+    } catch (error) {
+      console.error('Error sending message:', error);
+      setStatus('Error sending message. Please try again later.');
+    }
+  };
+
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-gray-100">
+      <div className="w-full max-w-lg p-8 bg-white shadow-md rounded-lg">
+        <h2 className="text-2xl font-semibold text-center mb-6">Contact Us</h2>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block mb-1 font-medium" htmlFor="name">
+              Name
+            </label>
+            <input
+              type="text"
+              id="name"
+              name="name"
+              value={formData.name}
+              onChange={handleChange}
+              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+              required
+            />
+          </div>
+          <div>
+            <label className="block mb-1 font-medium" htmlFor="email">
+              Email
+            </label>
+            <input
+              type="email"
+              id="email"
+              name="email"
+              value={formData.email}
+              onChange={handleChange}
+              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+              required
+            />
+          </div>
+          <div>
+            <label className="block mb-1 font-medium" htmlFor="message">
+              Message
+            </label>
+            <textarea
+              id="message"
+              name="message"
+              value={formData.message}
+              onChange={handleChange}
+              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+              rows={4}
+              required
+            ></textarea>
+          </div>
+          <button
+            type="submit"
+            className="w-full bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors"
+          >
+            Send Message
+          </button>
+        </form>
+        {status && <p className="mt-4 text-center">{status}</p>}
+      </div>
+    </div>
+  );
+};
+
+export default ContactUs;
+
+
+//+++++++++++JS version+++++++++++++++++
 // src/pages/ContactUs.jsx
+ // JS version
 import { useState } from 'react';
 import { db, auth } from '../../firebase/firebase'; // Import Firestore and Auth
 import { collection, addDoc, doc } from 'firebase/firestore'; // Firestore methods
