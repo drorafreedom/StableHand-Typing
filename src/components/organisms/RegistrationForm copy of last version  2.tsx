@@ -1,4 +1,4 @@
-
+//+++++++++++JS VERSIOn++++++++++++++++++
 // this is last copy after reverting to basic functions . next files is a 
 // src/components/common/RegistrationForm.jsx
  // THIS IS THE LATEST UPDATED CLEAN VERSION. Not sure what is the cleaning . handling third pary only by the panel.

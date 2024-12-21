@@ -1,4 +1,197 @@
+// src/components/organisms/LoginForm.tsx
+// TS version
 
+import React, { useState } from "react";
+import {
+  signInWithEmailAndPassword,
+  RecaptchaVerifier,
+  PhoneAuthProvider,
+  multiFactor,
+  EmailAuthProvider,
+  getMultiFactorResolver,
+  MultiFactorResolver,
+  MultiFactorInfo,
+} from "firebase/auth";
+import { auth } from "../../firebase/firebase";
+import EmailField from "../common/EmailField";
+import PasswordField from "../common/PasswordField";
+import Alert from "../common/Alert";
+import Button from "../common/Button";
+import InputField from "../common/InputField";
+
+const LoginForm: React.FC = () => {
+  const [email, setEmail] = useState<string>("");
+  const [password, setPassword] = useState<string>("");
+  const [verificationCode, setVerificationCode] = useState<string>("");
+  const [loginMessage, setLoginMessage] = useState<{ message: string; type: string }>({ message: "", type: "" });
+  const [mfaOptions, setMfaOptions] = useState<MultiFactorInfo[] | null>(null);
+  const [resolver, setResolver] = useState<MultiFactorResolver | null>(null);
+  const [mfaMethod, setMfaMethod] = useState<string>("");
+  const [phoneMasked, setPhoneMasked] = useState<string>("");
+
+  // Initialize Recaptcha
+  const initializeRecaptcha = () => {
+    if (!window.recaptchaVerifier) {
+      window.recaptchaVerifier = new RecaptchaVerifier(
+        "recaptcha-container",
+        { size: "invisible" },
+        auth
+      );
+    }
+  };
+
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setLoginMessage({ message: "", type: "" });
+
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // Check if MFA is required
+      if (multiFactor(user).enrolledFactors.length > 0) {
+        const mfaResolver = getMultiFactorResolver(auth, userCredential);
+
+        const options = mfaResolver.hints.map((hint) => ({
+          factorId: hint.factorId,
+          displayName: hint.displayName,
+          phoneNumber: hint.phoneNumber,
+        }));
+
+        setMfaOptions(options);
+        setResolver(mfaResolver);
+
+        const phone = options.find((opt) => opt.factorId === PhoneAuthProvider.PROVIDER_ID);
+        if (phone) {
+          setPhoneMasked(`*****${phone.phoneNumber?.slice(-4) || ""}`);
+        }
+
+        setLoginMessage({
+          message: "MFA required. Choose an option to proceed.",
+          type: "warning",
+        });
+        return;
+      }
+
+      setLoginMessage({ message: "Login successful!", type: "success" });
+      // Redirect to your app or dashboard here
+    } catch (error: any) {
+      if (error.code === "auth/multi-factor-auth-required") {
+        const mfaResolver = getMultiFactorResolver(auth, error);
+
+        const options = mfaResolver.hints.map((hint) => ({
+          factorId: hint.factorId,
+          displayName: hint.displayName,
+          phoneNumber: hint.phoneNumber,
+        }));
+
+        setMfaOptions(options);
+        setResolver(mfaResolver);
+
+        const phone = options.find((opt) => opt.factorId === PhoneAuthProvider.PROVIDER_ID);
+        if (phone) {
+          setPhoneMasked(`*****${phone.phoneNumber?.slice(-4) || ""}`);
+        }
+
+        setLoginMessage({
+          message: "MFA required. Choose an option to proceed.",
+          type: "warning",
+        });
+        return;
+      }
+
+      setLoginMessage({
+        message: `Login failed: ${error.message}`,
+        type: "error",
+      });
+    }
+  };
+
+  const handleSendVerificationCode = async () => {
+    if (mfaMethod === PhoneAuthProvider.PROVIDER_ID) {
+      try {
+        const appVerifier = window.recaptchaVerifier;
+        const phoneInfoOptions = {
+          multiFactorHint: resolver?.hints.find((hint) => hint.factorId === PhoneAuthProvider.PROVIDER_ID),
+          session: resolver?.session,
+        };
+
+        const phoneAuthProvider = new PhoneAuthProvider(auth);
+        const verificationId = await phoneAuthProvider.verifyPhoneNumber(phoneInfoOptions, appVerifier);
+
+        window.verificationId = verificationId;
+        setLoginMessage({ message: "Verification code sent to your phone.", type: "success" });
+      } catch (error: any) {
+        setLoginMessage({ message: `Failed to send SMS: ${error.message}`, type: "error" });
+      }
+    } else if (mfaMethod === EmailAuthProvider.PROVIDER_ID) {
+      setLoginMessage({ message: "Email MFA not implemented yet.", type: "info" });
+    }
+  };
+
+  const handleVerifyCode = async () => {
+    try {
+      const cred = PhoneAuthProvider.credential(window.verificationId, verificationCode);
+      const assertion = PhoneAuthProvider.assertion(cred);
+
+      if (resolver) {
+        await resolver.resolveSignIn(assertion);
+        setLoginMessage({ message: "MFA verification successful! Redirecting...", type: "success" });
+        // Redirect to your app or dashboard here
+      }
+    } catch (error: any) {
+      setLoginMessage({ message: `MFA verification failed: ${error.message}`, type: "error" });
+    }
+  };
+
+  return (
+    <div>
+      {!mfaOptions ? (
+        <form onSubmit={handleLogin}>
+          <EmailField email={email} setEmail={setEmail} />
+          <PasswordField password={password} setPassword={setPassword} />
+          {loginMessage.message && <Alert message={loginMessage.message} type={loginMessage.type} />}
+          <Button type="submit" className="w-full bg-blue-500 hover:bg-blue-700">
+            Login
+          </Button>
+        </form>
+      ) : (
+        <div>
+          <h3>MFA Required</h3>
+          {mfaOptions.map((option, index) => (
+            <div key={index}>
+              <input
+                type="radio"
+                id={`mfa-option-${index}`}
+                name="mfaOption"
+                value={option.factorId}
+                onChange={(e) => setMfaMethod(e.target.value)}
+              />
+              <label htmlFor={`mfa-option-${index}`}>
+                {option.factorId === PhoneAuthProvider.PROVIDER_ID ? `Phone (${phoneMasked})` : "Email"}
+              </label>
+            </div>
+          ))}
+          <Button onClick={handleSendVerificationCode}>Send Verification Code</Button>
+          <InputField
+            label="Verification Code"
+            value={verificationCode}
+            onChange={(e) => setVerificationCode(e.target.value)}
+          />
+          <Button onClick={handleVerifyCode}>Verify Code</Button>
+        </div>
+      )}
+      <div id="recaptcha-container"></div>
+    </div>
+  );
+};
+
+export default LoginForm;
+
+
+//+++++++++++JS VERSIOn++++++++++++++++++
+// src/components/organisms/LoginForm.jsx
+//JS version
 import React, { useState } from "react";
 import {
   signInWithEmailAndPassword,

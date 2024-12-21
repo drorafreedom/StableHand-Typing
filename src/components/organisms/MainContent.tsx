@@ -1,3 +1,5 @@
+//+++++++++++JS VERSIOn++++++++++++++++++
+
 import React from 'react';
 
 function MainContent() {
