@@ -1,3 +1,243 @@
+ // src/components/TherapyPage/AnimationBackground.tsx
+
+import React, { Component } from 'react';
+import p5 from 'p5';
+import TextInput from './TextInput';
+
+interface AnimationBackgroundProps {
+  patternType: string;
+  patterns: {
+    sineWave: {
+      translateSpeed: number;
+      amplitude: number;
+      frequency: number;
+      rotation: number;
+      duplicates: number;
+    };
+    chevrons: any; // Replace `any` with the correct type if known
+    checkerboard: any; // Replace `any` with the correct type if known
+  };
+  inputValue: string;
+  setInputValue: (value: string) => void;
+  keystrokes: string[];
+  setKeystrokes: (keystrokes: string[]) => void;
+  displayText: string;
+  setDisplayText: (text: string) => void;
+}
+
+class AnimationBackground extends Component<AnimationBackgroundProps> {
+  private myRef = React.createRef<HTMLDivElement>();
+  private myP5: p5 | null = null;
+
+  constructor(props: AnimationBackgroundProps) {
+    super(props);
+  }
+
+  Sketch = (p: p5) => {
+    const { patternType, patterns } = this.props;
+
+    p.setup = () => {
+      p.createCanvas(p.windowWidth, p.windowHeight);
+      p.angleMode(p.DEGREES);
+    };
+
+    p.windowResized = () => {
+      p.resizeCanvas(p.windowWidth, p.windowHeight);
+    };
+
+    p.draw = () => {
+      p.clear();
+      p.background(0, 0, 0, 0);
+
+      switch (patternType) {
+        case 'sineWave':
+          this.drawSineWaves(p, patterns.sineWave);
+          break;
+        case 'chevrons':
+          this.drawChevrons(p, patterns.chevrons);
+          break;
+        case 'checkerboard':
+          this.drawCheckerboard(p, patterns.checkerboard);
+          break;
+        default:
+          p.text('Select a pattern', p.width / 2, p.height / 2);
+      }
+    };
+  };
+
+  drawSineWaves = (
+    p: p5,
+    { translateSpeed, amplitude, frequency, rotation, duplicates }: AnimationBackgroundProps['patterns']['sineWave']
+  ) => {
+    p.translate(p.width / 2, p.height / 2);
+    p.rotate(rotation);
+
+    for (let i = 0; i < duplicates; i++) {
+      p.beginShape();
+      for (let x = -p.width / 2; x < p.width / 2; x++) {
+        const y = amplitude * p.sin(frequency * (x + p.frameCount));
+        p.vertex(x, y);
+      }
+      p.endShape();
+    }
+  };
+
+  drawChevrons = (p: p5, config: any) => {
+    // Implement chevron drawing logic
+  };
+
+  drawCheckerboard = (p: p5, config: any) => {
+    // Implement checkerboard drawing logic
+  };
+
+  componentDidMount() {
+    this.myP5 = new p5(this.Sketch, this.myRef.current!);
+  }
+
+  componentDidUpdate() {
+    this.myP5?.remove();
+    this.myP5 = new p5(this.Sketch, this.myRef.current!);
+  }
+
+  componentWillUnmount() {
+    this.myP5?.remove();
+  }
+
+  render() {
+    const {
+      inputValue,
+      setInputValue,
+      keystrokes,
+      setKeystrokes,
+      displayText,
+      setDisplayText,
+    } = this.props;
+
+    return (
+      <div ref={this.myRef}>
+        {this.props.children}
+        <TextInput
+          displayText={displayText}
+          setDisplayText={setDisplayText}
+          inputValue={inputValue}
+          setInputValue={setInputValue}
+          keystrokes={keystrokes}
+          setKeystrokes={setKeystrokes}
+          placeholder="Type here..."
+        />
+      </div>
+    );
+  }
+}
+
+export default AnimationBackground;
+
+ //+++++++++++JS version+++++++++++++++++
+ // src/components/TherapyPage/AnimationBackground.jsx
+ // JS version
+
+ import React, { Component } from 'react';
+import p5 from 'p5';
+import TextInput from './TextInput'; 
+import TextDisplay from './TextDisplay';
+import PatternControl from './PatternControl';
+
+
+class AnimationBackground extends Component {
+  constructor(props) {
+    super(props);
+    this.myRef = React.createRef();
+  }
+
+  Sketch = (p) => {
+    // Destructure props for ease of use
+    const { patternType, patterns } = this.props;
+
+    p.setup = () => {
+      p.createCanvas(p.windowWidth, p.windowHeight);
+      p.angleMode(p.DEGREES);
+    };
+
+    p.windowResized = () => {
+      p.resizeCanvas(p.windowWidth, p.windowHeight);
+    }
+
+    p.draw = () => {
+      p.clear();
+      p.background(0, 0, 0, 0);
+
+      // Switch between different patterns
+      switch (patternType) {
+        case 'sineWave':
+          this.drawSineWaves(p, patterns.sineWave);
+          break;
+        case 'chevrons':
+          this.drawChevrons(p, patterns.chevrons);
+          break;
+        case 'checkerboard':
+          this.drawCheckerboard(p, patterns.checkerboard);
+          break;
+        default:
+          // Default pattern can be anything you choose
+          p.text('Select a pattern', p.width / 2, p.height / 2);
+      }
+    };
+  }
+
+  drawSineWaves = (p, { translateSpeed, amplitude, frequency, rotation, duplicates }) => {
+    p.translate(p.width / 2, p.height / 2);
+    p.rotate(rotation);
+
+    for (let i = 0; i < duplicates; i++) {
+      p.beginShape();
+      for (let x = -p.width / 2; x < p.width / 2; x++) {
+        let y = amplitude * p.sin(frequency * (x + p.frameCount));
+        p.vertex(x, y);
+      }
+      p.endShape();
+    }
+  }
+
+  drawChevrons = (p, config) => {
+    // Implement chevron drawing logic
+  }
+
+  drawCheckerboard = (p, config) => {
+    // Implement checkerboard drawing logic
+  }
+
+  componentDidMount() {
+    this.myP5 = new p5(this.Sketch, this.myRef.current);
+  }
+
+  componentDidUpdate() {
+    this.myP5.remove();
+    this.myP5 = new p5(this.Sketch, this.myRef.current);
+  }
+
+  componentWillUnmount() {
+    this.myP5.remove();
+  }
+  
+  render() {
+
+    const { inputValue, setInputValue, keystrokes, setKeystrokes, displayText, setDisplayText } = this.props;
+
+
+    return <div ref={this.myRef}>{this.props.children}
+     
+    <TextInput displayText={displayText} setDisplayText={setDisplayText} inputValue={inputValue} setInputValue={setInputValue} keystrokes={keystrokes} 
+    setKeystrokes={setKeystrokes} placeholder="Type here..." />
+   
+   
+   
+    </div>;
+  }
+}
+
+export default AnimationBackground;  
+
+
 /* // src/components/TherapyPage/AnimationBackground.jsx
 import React, { Component } from 'react';
 import p5 from 'p5';
@@ -202,103 +442,3 @@ class AnimationBackground extends Component {
 export default AnimationBackground;
 
  */
- import React, { Component } from 'react';
-import p5 from 'p5';
-import TextInput from './TextInput'; 
-import TextDisplay from './TextDisplay';
-import PatternControl from './PatternControl';
-
-
-class AnimationBackground extends Component {
-  constructor(props) {
-    super(props);
-    this.myRef = React.createRef();
-  }
-
-  Sketch = (p) => {
-    // Destructure props for ease of use
-    const { patternType, patterns } = this.props;
-
-    p.setup = () => {
-      p.createCanvas(p.windowWidth, p.windowHeight);
-      p.angleMode(p.DEGREES);
-    };
-
-    p.windowResized = () => {
-      p.resizeCanvas(p.windowWidth, p.windowHeight);
-    }
-
-    p.draw = () => {
-      p.clear();
-      p.background(0, 0, 0, 0);
-
-      // Switch between different patterns
-      switch (patternType) {
-        case 'sineWave':
-          this.drawSineWaves(p, patterns.sineWave);
-          break;
-        case 'chevrons':
-          this.drawChevrons(p, patterns.chevrons);
-          break;
-        case 'checkerboard':
-          this.drawCheckerboard(p, patterns.checkerboard);
-          break;
-        default:
-          // Default pattern can be anything you choose
-          p.text('Select a pattern', p.width / 2, p.height / 2);
-      }
-    };
-  }
-
-  drawSineWaves = (p, { translateSpeed, amplitude, frequency, rotation, duplicates }) => {
-    p.translate(p.width / 2, p.height / 2);
-    p.rotate(rotation);
-
-    for (let i = 0; i < duplicates; i++) {
-      p.beginShape();
-      for (let x = -p.width / 2; x < p.width / 2; x++) {
-        let y = amplitude * p.sin(frequency * (x + p.frameCount));
-        p.vertex(x, y);
-      }
-      p.endShape();
-    }
-  }
-
-  drawChevrons = (p, config) => {
-    // Implement chevron drawing logic
-  }
-
-  drawCheckerboard = (p, config) => {
-    // Implement checkerboard drawing logic
-  }
-
-  componentDidMount() {
-    this.myP5 = new p5(this.Sketch, this.myRef.current);
-  }
-
-  componentDidUpdate() {
-    this.myP5.remove();
-    this.myP5 = new p5(this.Sketch, this.myRef.current);
-  }
-
-  componentWillUnmount() {
-    this.myP5.remove();
-  }
-  
-  render() {
-
-    const { inputValue, setInputValue, keystrokes, setKeystrokes, displayText, setDisplayText } = this.props;
-
-
-    return <div ref={this.myRef}>{this.props.children}
-     
-    <TextInput displayText={displayText} setDisplayText={setDisplayText} inputValue={inputValue} setInputValue={setInputValue} keystrokes={keystrokes} 
-    setKeystrokes={setKeystrokes} placeholder="Type here..." />
-   
-   
-   
-    </div>;
-  }
-}
-
-export default AnimationBackground;  

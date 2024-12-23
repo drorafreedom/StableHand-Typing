@@ -1,5 +1,56 @@
-// src\Components\Therapy\TherapyPage2.js
-import React, { useRef, useEffect, useState } from 'react';
+// src/Components/Therapy/TherapyPage2.tsx
+
+import React, { useState } from 'react';
+import '../../styles/Animation.css';
+import AnimationBackground from './AnimationBackground';
+
+interface PatternParams {
+  translateSpeed?: number;
+  amplitude?: number;
+  frequency?: number;
+  rotation?: number;
+  duplicates?: number;
+}
+
+const TherapyPage2: React.FC = () => {
+  const [inputValue, setInputValue] = useState<string>('');
+  const [keystrokes, setKeystrokes] = useState<any[]>([]); // Define specific types for keystrokes if possible
+  const [displayText, setDisplayText] = useState<string>('');
+
+  const [patternType, setPatternType] = useState<string>('');
+  const [patternParams, setPatternParams] = useState<PatternParams>({});
+
+  return (
+    <div>
+      <AnimationBackground
+        patternType={patternType}
+        patterns={{
+          sineWave: patternParams,
+          chevrons: { translateSpeed: 10, amplitude: 100, frequency: 5, rotation: 45, duplicates: 3 },
+          checkerboard: { translateSpeed: 10, amplitude: 100, frequency: 5, rotation: 45, duplicates: 3 },
+        }}
+        setPatternType={setPatternType}
+        setPatternParams={setPatternParams}
+        inputValue={inputValue}
+        setInputValue={setInputValue}
+        keystrokes={keystrokes}
+        setKeystrokes={setKeystrokes}
+        displayText={displayText}
+        setDisplayText={setDisplayText}
+      />
+    </div>
+  );
+};
+
+export default TherapyPage2;
+
+
+//+++++++++++JS version+++++++++++++++++
+ 
+// src\Components\Therapy\TherapyPage2.jsx
+  // JS version
+
+/* import React, { useRef, useEffect, useState } from 'react';
  
 import '../../styles/Animation.css';
 import AnimationBackground from './AnimationBackground';
@@ -38,12 +89,7 @@ const TherapyPage2 = () => {
 
 
 export default TherapyPage2;
-
-
-
-
-
-
+ */
 
 
 

@@ -1,5 +1,208 @@
-// src\components\Therapy\TextInput.jsx
+// src/components/Therapy/TextInput.tsx
+
 import React, { useState, useEffect, useRef } from 'react';
+import { Collapse } from 'react-collapse';
+import buttonStyle from './buttonStyle';
+
+interface KeyData {
+  key: string;
+  pressTime: number;
+  releaseTime: number | null;
+  holdTime: number | null;
+  lagTime: number;
+  totalLagTime: number;
+}
+
+interface TextInputProps {
+  placeholder: string;
+  displayText: string;
+  saveKeystrokeData: (data: { keyData: KeyData[]; errors: number }) => void;
+}
+
+const TextInput: React.FC<TextInputProps> = ({ placeholder, displayText, saveKeystrokeData }) => {
+  const [inputValue, setInputValue] = useState<string>('');
+  const [keyData, setKeyData] = useState<KeyData[]>([]);
+  const [font, setFont] = useState<string>('Arial');
+  const [fontSize, setFontSize] = useState<number>(16);
+  const [isBold, setIsBold] = useState<boolean>(false);
+  const [textColor, setTextColor] = useState<string>('#000000');
+  const [backgroundColor, setBackgroundColor] = useState<string>('#FFFFFF');
+  const [backgroundOpacity, setBackgroundOpacity] = useState<number>(1);
+  const [isPanelOpen, setIsPanelOpen] = useState<boolean>(true);
+
+  const keyDataRef = useRef<KeyData[]>(keyData);
+  let lastKeyPressTime: number | null = null;
+  let lastKeyReleaseTime: number | null = null;
+
+  useEffect(() => {
+    keyDataRef.current = keyData;
+  }, [keyData]);
+
+  const handleKeyDown = (e: KeyboardEvent) => {
+    const pressTime = Date.now();
+
+    if (!e.key.match(/^.$/)) return;
+
+    const lagTime = lastKeyReleaseTime !== null ? pressTime - lastKeyReleaseTime : 0;
+    const totalLagTime = lastKeyPressTime !== null ? pressTime - lastKeyPressTime : 0;
+
+    setKeyData((prevKeyData) => [
+      ...prevKeyData,
+      {
+        key: e.key,
+        pressTime: pressTime,
+        releaseTime: null,
+        holdTime: null,
+        lagTime: lagTime,
+        totalLagTime: totalLagTime,
+      },
+    ]);
+
+    lastKeyPressTime = pressTime;
+  };
+
+  const handleKeyUp = (e: KeyboardEvent) => {
+    const releaseTime = Date.now();
+
+    const updatedKeyData = keyDataRef.current.map((k) =>
+      k.key === e.key && k.releaseTime === null
+        ? { ...k, releaseTime: releaseTime, holdTime: releaseTime - k.pressTime }
+        : k
+    );
+
+    setKeyData(updatedKeyData);
+    lastKeyReleaseTime = releaseTime;
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInputValue(e.target.value);
+  };
+
+  const handleSubmit = () => {
+    const errors = calculateErrors(inputValue, displayText);
+    const dataToSave = { keyData, errors };
+    saveKeystrokeData(dataToSave);
+  };
+
+  const calculateErrors = (typedText: string, originalText: string): number => {
+    const typedWords = typedText.split(' ');
+    const originalWords = originalText.split(' ');
+    let errors = 0;
+
+    typedWords.forEach((word, index) => {
+      if (word !== originalWords[index]) {
+        errors++;
+      }
+    });
+
+    return errors;
+  };
+
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('keyup', handleKeyUp);
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('keyup', handleKeyUp);
+    };
+  }, []);
+
+  return (
+    <div className="relative w-100% p-4">
+      <div className="w-full mb-4">
+        <textarea
+          value={inputValue}
+          placeholder={placeholder}
+          onChange={handleInputChange}
+          style={{
+            width: '100%',
+            height: '300px',
+            fontFamily: font,
+            fontSize: `${fontSize}px`,
+            fontWeight: isBold ? 'bold' : 'normal',
+            color: textColor,
+            backgroundColor: `rgba(${parseInt(backgroundColor.slice(1, 3), 16)}, ${parseInt(backgroundColor.slice(3, 5), 16)}, ${parseInt(backgroundColor.slice(5, 7), 16)}, ${backgroundOpacity})`,
+            border: '1px solid #ccc',
+            outline: 'none',
+            padding: '10px',
+            borderRadius: '4px',
+            resize: 'vertical',
+            overflowY: 'scroll',
+          }}
+        />
+      </div>
+
+      <button onClick={() => setIsPanelOpen(!isPanelOpen)} className="flex mb-200 bg-red-200 p-2 border rounded w-1/3">
+        {isPanelOpen ? ' Hide Text Control' : 'Show Text Controls'}
+      </button>
+      <Collapse isOpened={isPanelOpen}>
+        <div className="flex flex-wrap mb-200 bg-red-200 p-200 border rounded w-1/3">
+          <div className="w-full md:w-1/3">
+            <label>Font:</label>
+            <select value={font} onChange={(e) => setFont(e.target.value)} className="border p-2 rounded w-full">
+              <option value="Arial">Arial</option>
+              <option value="Verdana">Verdana</option>
+              <option value="Times New Roman">Times New Roman</option>
+              <option value="Courier New">Courier New</option>
+              <option value="Georgia">Georgia</option>
+            </select>
+          </div>
+          <div className="w-full md:w-1/3">
+            <label>Font Size:</label>
+            <select value={fontSize} onChange={(e) => setFontSize(parseInt(e.target.value))} className="border p-2 rounded w-full">
+              {[...Array(31)].map((_, i) => (
+                <option key={i} value={10 + i}>
+                  {10 + i}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="w-half md:w-1/3 flex items-center space-x-2">
+            <label>Bold:</label>
+            <input type="checkbox" checked={isBold} onChange={(e) => setIsBold(e.target.checked)} className="border p-2 rounded" />
+          </div>
+          <div className="w-full md:w-1/3">
+            <label>Text Color:</label>
+            <input type="color" value={textColor} onChange={(e) => setTextColor(e.target.value)} className="w-full" />
+          </div>
+          <div className="w-full md:w-1/3">
+            <label>Background Color:</label>
+            <input type="color" value={backgroundColor} onChange={(e) => setBackgroundColor(e.target.value)} className="w-full" />
+          </div>
+          <div className="w-full md:w-1/3">
+            <label>Background Opacity:</label>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              value={backgroundOpacity}
+              onChange={(e) => setBackgroundOpacity(parseFloat(e.target.value))}
+              className="border p-2 rounded w-full"
+            />
+          </div>
+        </div>
+      </Collapse>
+      <div className="bg-red-200 p-200 border rounded w-1/3">
+        <button onClick={handleSubmit} style={buttonStyle}>
+          Submit
+        </button>
+        <button onClick={() => setInputValue('')} style={buttonStyle}>
+          Reset
+        </button>
+      </div>
+    </div>
+  );
+};
+
+export default TextInput;
+
+//+++++++++++JS version+++++++++++++++++
+// src\components\Therapy\TextInput.jsx   
+  // JS version
+
+/* import React, { useState, useEffect, useRef } from 'react';
 import { Collapse } from 'react-collapse';
 import buttonStyle from './buttonStyle';
 
@@ -168,7 +371,10 @@ const TextInput = ({ placeholder, displayText, saveKeystrokeData }) => {
   );
 };
 
-export default TextInput;
+export default TextInput; */
+
+//---------------------------------------------------
+
  //a version with control panel
 /* import React, { useState, useEffect, useRef } from 'react';
 import buttonStyle from './buttonStyle';

@@ -1,5 +1,244 @@
+// src/components/Therapy/ShapeAnimations.tsx
 
+import React, { useState } from 'react';
+import ControlPanelShape from './ControlPanelShape';
+import { ReactP5Wrapper } from 'react-p5-wrapper';
 
+interface Settings {
+  shapeType: 'circle' | 'square' | 'triangle' | 'chevron' | 'diamond';
+  numShapes: number;
+  size: number;
+  direction: 'static' | 'up' | 'down' | 'left' | 'right' | 'oscillateUpDown' | 'oscillateRightLeft' | 'circular';
+  angle: number;
+  speed: number;
+  rotationSpeed: number;
+  rotationRadius: number;
+  bgColor: string;
+  shapeColor: string;
+  secondColor: string;
+  palette: 'none' | 'rainbow' | 'pastel';
+  rowOffset: number;
+  columnOffset: number;
+  rowDistance: number;
+  columnDistance: number;
+  layoutSelect: 'random' | 'regular' | 'checkboard';
+  oscillationRange: number;
+}
+
+const ShapeAnimations: React.FC = () => {
+  const defaultSettings: Settings = {
+    shapeType: 'circle',
+    numShapes: 10,
+    size: 50,
+    direction: 'static',
+    angle: 0,
+    speed: 5,
+    rotationSpeed: 0.02,
+    rotationRadius: 150,
+    bgColor: '#FFFFFF',
+    shapeColor: '#007BFF',
+    secondColor: '#FF0000',
+    palette: 'none',
+    rowOffset: 0,
+    columnOffset: 0,
+    rowDistance: 50,
+    columnDistance: 50,
+    layoutSelect: 'random',
+    oscillationRange: 100,
+  };
+
+  const [settings, setSettings] = useState<Settings>(defaultSettings);
+  const [isAnimating, setIsAnimating] = useState<boolean>(true);
+
+  const sketch = (p5: any) => {
+    let shapes: Shape[] = [];
+
+    p5.setup = () => {
+      p5.createCanvas(p5.windowWidth, p5.windowHeight);
+      createShapes();
+    };
+
+    p5.updateWithProps = (props: { settings: Settings; isAnimating: boolean }) => {
+      if (props.settings) {
+        setSettings(props.settings);
+        createShapes();
+      }
+      if (props.isAnimating !== undefined) {
+        props.isAnimating ? p5.loop() : p5.noLoop();
+      }
+    };
+
+    p5.draw = () => {
+      p5.background(settings.bgColor);
+      for (let shape of shapes) {
+        shape.move();
+        shape.display();
+      }
+    };
+
+    p5.windowResized = () => {
+      p5.resizeCanvas(p5.windowWidth, p5.windowHeight);
+      createShapes();
+    };
+
+    function createShapes() {
+      shapes = [];
+      let totalShapes: number;
+      let rows: number, cols: number;
+
+      if (settings.layoutSelect === 'random') {
+        totalShapes = settings.numShapes;
+      } else {
+        rows = Math.floor(p5.height / (settings.size + settings.rowDistance));
+        cols = Math.floor(p5.width / (settings.size + settings.columnDistance));
+        totalShapes = rows * cols;
+      }
+
+      for (let i = 0; i < totalShapes; i++) {
+        shapes.push(new Shape(p5, settings, i, rows, cols));
+      }
+    }
+
+    class Shape {
+      private p5: any;
+      private settings: Settings;
+      private index: number;
+      private rows: number;
+      private cols: number;
+      private x: number;
+      private y: number;
+      private angle: number;
+      private speed: number;
+
+      constructor(p5: any, settings: Settings, index: number, rows: number, cols: number) {
+        this.p5 = p5;
+        this.settings = settings;
+        this.index = index;
+        this.rows = rows;
+        this.cols = cols;
+        this.initPosition();
+      }
+
+      initPosition() {
+        if (this.settings.layoutSelect === 'random') {
+          this.x = this.p5.random(this.p5.width);
+          this.y = this.p5.random(this.p5.height);
+        } else {
+          this.x = (this.index % this.cols) * (this.settings.size + this.settings.columnDistance) + this.settings.columnOffset;
+          this.y = Math.floor(this.index / this.cols) * (this.settings.size + this.settings.rowDistance) + this.settings.rowOffset;
+        }
+        this.angle = this.settings.angle;
+        this.speed = this.settings.speed;
+      }
+
+      move() {
+        switch (this.settings.direction) {
+          case 'up':
+            this.y -= this.speed;
+            break;
+          case 'down':
+            this.y += this.speed;
+            break;
+          case 'left':
+            this.x -= this.speed;
+            break;
+          case 'right':
+            this.x += this.speed;
+            break;
+          case 'oscillateUpDown':
+            this.y += Math.sin(this.p5.frameCount * 0.05) * this.settings.speed * 0.01 * this.settings.oscillationRange;
+            break;
+          case 'oscillateRightLeft':
+            this.x += Math.sin(this.p5.frameCount * 0.05) * this.settings.speed * 0.01 * this.settings.oscillationRange;
+            break;
+          case 'circular':
+            this.x += Math.cos(this.p5.frameCount * this.settings.rotationSpeed * 0.001 + this.index) * this.settings.rotationRadius * 0.1;
+            this.y += Math.sin(this.p5.frameCount * this.settings.rotationSpeed * 0.001 + this.index) * this.settings.rotationRadius * 0.1;
+            break;
+          default:
+            break;
+        }
+
+        if (this.x > this.p5.width) this.x = 0;
+        if (this.x < 0) this.x = this.p5.width;
+        if (this.y > this.p5.height) this.y = 0;
+        if (this.y < 0) this.y = this.p5.height;
+      }
+
+      display() {
+        this.p5.push();
+        this.p5.translate(this.x, this.y);
+        this.p5.rotate(this.angle);
+
+        let shapeColor = this.settings.palette === 'none' ? this.settings.shapeColor : '#000';
+        this.p5.fill(shapeColor);
+
+        switch (this.settings.shapeType) {
+          case 'circle':
+            this.p5.ellipse(0, 0, this.settings.size);
+            break;
+          case 'square':
+            this.p5.rect(0, 0, this.settings.size, this.settings.size);
+            break;
+          case 'triangle':
+            this.p5.triangle(
+              -this.settings.size / 2, this.settings.size / 2,
+              this.settings.size / 2, this.settings.size / 2,
+              0, -this.settings.size / 2
+            );
+            break;
+          case 'chevron':
+            this.p5.beginShape();
+            this.p5.vertex(-this.settings.size / 2, this.settings.size / 2);
+            this.p5.vertex(0, -this.settings.size / 2);
+            this.p5.vertex(this.settings.size / 2, this.settings.size / 2);
+            this.p5.vertex(this.settings.size / 4, this.settings.size / 2);
+            this.p5.vertex(0, 0);
+            this.p5.vertex(-this.settings.size / 4, this.settings.size / 2);
+            this.p5.endShape(this.p5.CLOSE);
+            break;
+          case 'diamond':
+            this.p5.beginShape();
+            this.p5.vertex(0, -this.settings.size / 2);
+            this.p5.vertex(this.settings.size / 2, 0);
+            this.p5.vertex(0, this.settings.size / 2);
+            this.p5.vertex(-this.settings.size / 2, 0);
+            this.p5.endShape(this.p5.CLOSE);
+            break;
+          default:
+            break;
+        }
+        this.p5.pop();
+      }
+    }
+  };
+
+  const startAnimation = () => setIsAnimating(true);
+  const stopAnimation = () => setIsAnimating(false);
+  const resetAnimation = () => {
+    setSettings(defaultSettings);
+    setIsAnimating(true);
+  };
+
+  return (
+    <div className="relative">
+      <ControlPanelShape
+        settings={settings}
+        setSettings={setSettings}
+        startAnimation={startAnimation}
+        stopAnimation={stopAnimation}
+        resetAnimation={resetAnimation}
+      />
+      <ReactP5Wrapper sketch={sketch} settings={settings} isAnimating={isAnimating} />
+    </div>
+  );
+};
+
+export default ShapeAnimations;
+
+//+++++++++++JS version+++++++++++++++++
+ /*  // src/components/Therapy/ShapeAnimations.jsx
+  // JS version
 //this is working . the oscllation is          3D .  
 import React, { useState } from 'react';
 import ControlPanelShape from './ControlPanelShape';
@@ -251,10 +490,10 @@ const ShapeAnimations = () => {
 };
 
 export default ShapeAnimations;
+ */
 
 
-
-/*  // src/components/Therapy/ShapeAnimations.jsx
+/*  
  import React, { useState } from 'react';
  import ControlPanelShape from './ControlPanelShape';
  import { ReactP5Wrapper } from 'react-p5-wrapper';

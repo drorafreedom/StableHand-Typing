@@ -68,10 +68,10 @@ const Welcome: React.FC = () => {
 
 export default Welcome;
 
-
+ // JS version
 //+++++++++++JS version+++++++++++++++++
 // // src/components/pages/Welcome.jsx
- // JS version
+
 
 /*  import React, { useEffect, useState } from 'react';
  import { useNavigate } from 'react-router-dom';

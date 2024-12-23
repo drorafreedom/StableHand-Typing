@@ -1,5 +1,113 @@
-// src\components\Therapy\TextInputControlPanel.jsx
 
+
+// src/components/Therapy/TextInputControlPanel.tsx
+
+import React, { useState } from 'react';
+import { Collapse } from 'react-collapse';
+
+interface InputSettings {
+  font: string;
+  textColor: string;
+  backgroundColor: string;
+  backgroundOpacity: number;
+  fontSize: string;
+  fontWeight: 'normal' | 'bold';
+}
+
+interface TextInputControlPanelProps {
+  inputSettings: InputSettings;
+  setInputSettings: React.Dispatch<React.SetStateAction<InputSettings>>;
+}
+
+const TextInputControlPanel: React.FC<TextInputControlPanelProps> = ({ inputSettings, setInputSettings }) => {
+  const [isOpen, setIsOpen] = useState<boolean>(true);
+
+  return (
+    <div className="w-1/2 bg-red p-2 rounded shadow-lg z-50 h-full overflow-y-auto">
+      <button onClick={() => setIsOpen(!isOpen)} className="mb-2 bg-gray-200 p-2 rounded w-full">
+        {isOpen ? 'Collapse Controls' : 'Expand Controls'}
+      </button>
+      <Collapse isOpened={isOpen}>
+        <div className="space-y-4">
+          <div className="flex space-x-2">
+            <label>Font:</label>
+            <select
+              value={inputSettings.font}
+              onChange={(e) => setInputSettings({ ...inputSettings, font: e.target.value })}
+              className="border p-2 rounded"
+            >
+              <option value="Arial">Arial</option>
+              <option value="Verdana">Verdana</option>
+              <option value="Times New Roman">Times New Roman</option>
+              <option value="Courier New">Courier New</option>
+              <option value="Georgia">Georgia</option>
+            </select>
+          </div>
+          <div className="flex space-x-2">
+            <label>Text Color:</label>
+            <input
+              type="color"
+              value={inputSettings.textColor}
+              onChange={(e) => setInputSettings({ ...inputSettings, textColor: e.target.value })}
+              className="border p-2 rounded"
+            />
+          </div>
+          <div className="flex space-x-2">
+            <label>Background Color:</label>
+            <input
+              type="color"
+              value={inputSettings.backgroundColor}
+              onChange={(e) => setInputSettings({ ...inputSettings, backgroundColor: e.target.value })}
+              className="border p-2 rounded"
+            />
+          </div>
+          <div className="flex space-x-2">
+            <label>Background Opacity:</label>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              value={inputSettings.backgroundOpacity}
+              onChange={(e) => setInputSettings({ ...inputSettings, backgroundOpacity: parseFloat(e.target.value) })}
+              className="border p-2 rounded"
+            />
+          </div>
+          <div className="flex space-x-2">
+            <label>Font Size:</label>
+            <input
+              type="number"
+              value={parseInt(inputSettings.fontSize)}
+              onChange={(e) => setInputSettings({ ...inputSettings, fontSize: `${e.target.value}px` })}
+              className="border p-2 rounded"
+            />
+          </div>
+          <div className="flex space-x-2">
+            <label>Bold:</label>
+            <input
+              type="checkbox"
+              checked={inputSettings.fontWeight === 'bold'}
+              onChange={(e) =>
+                setInputSettings({ ...inputSettings, fontWeight: e.target.checked ? 'bold' : 'normal' })
+              }
+              className="border p-2 rounded"
+            />
+          </div>
+        </div>
+      </Collapse>
+    </div>
+  );
+};
+
+export default TextInputControlPanel;
+
+
+//+++++++++++JS version+++++++++++++++++
+ // src\components\Therapy\TextInputControlPanel.jsx
+  // JS version
+
+
+/* 
 import React, { useState } from 'react';  // Add this line
 import { Collapse } from 'react-collapse';
 
@@ -49,9 +157,9 @@ const TextInputControlPanel = ({ inputSettings, setInputSettings }) => {
   );
 };
 
-export default TextInputControlPanel;
+export default TextInputControlPanel; */
 
-
+//-----------------------------------------
 /* import React, { useState } from 'react';
 import { Collapse } from 'react-collapse';
 
