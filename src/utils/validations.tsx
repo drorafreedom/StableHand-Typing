@@ -1,4 +1,8 @@
-// src/utils/validations.js
+//+++++++++++JS version+++++++++++++++++
+ // src/utils/validations.js 
+  // JS version
+
+
 import { getAuth, sendEmailVerification } from 'firebase/auth';
 
  const validateEmail = (email) => {

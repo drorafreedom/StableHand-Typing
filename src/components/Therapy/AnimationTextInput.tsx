@@ -51,7 +51,7 @@ export default AnimationTextInput;
  // JS version
 
 
-import React, { useRef, useEffect } from 'react';
+/* import React, { useRef, useEffect } from 'react';
 
 const AnimationTextInput = ({ inputValue, setInputValue, keystrokes, setKeystrokes, placeholder }) => {
   const textArea = useRef(null);
@@ -80,4 +80,4 @@ const AnimationTextInput = ({ inputValue, setInputValue, keystrokes, setKeystrok
   );
 };
 
-export default AnimationTextInput;
+export default AnimationTextInput; */

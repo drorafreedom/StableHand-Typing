@@ -1,6 +1,23 @@
-// src/utils/countryCodes.js
+ 
 
-const countryCodes = {
+// src/utils/countryCodes.ts
+export interface CountryCode {
+  name: string;
+  dial_code: string;
+  code: string;
+  flag: string;
+}
+const countryCodes: Record<string, CountryCode> = {
+ 
+  
+/* // src/utils/countryCodes.js
+ 
+
+
+// JS version
+
+
+const countryCodes = { */
     AF: { name: 'Afghanistan', dial_code: '+93', code: 'AF', flag: '🇦🇫' },
     AL: { name: 'Albania', dial_code: '+355', code: 'AL', flag: '🇦🇱' },
     DZ: { name: 'Algeria', dial_code: '+213', code: 'DZ', flag: '🇩🇿' },

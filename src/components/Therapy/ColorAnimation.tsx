@@ -111,7 +111,7 @@ export default ColorAnimation;
  
 // src/components/TherapyPage/ColorAnimation.jsx
 // // JS version
-
+/* 
 import React, { useState } from 'react';
 import ControlPanelColor from './ControlPanelColor';
 import { ReactP5Wrapper } from 'react-p5-wrapper';
@@ -209,7 +209,7 @@ const ColorAnimation = ({ setCurrentAnimation }) => {
 
 export default ColorAnimation;
 
-
+ */
 
 /* // src/components/Therapy/ColorAnimation.jsx
 import React, { useState } from 'react';

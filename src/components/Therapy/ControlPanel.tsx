@@ -190,7 +190,7 @@ export default ControlPanel;
   // JS version
  
  
- import React, { useState, useEffect } from 'react';
+/*  import React, { useState, useEffect } from 'react';
 import { Collapse } from 'react-collapse';
 import { db, storage } from '../../firebase/firebase';
 import { useAuth } from '../../data/AuthContext';
@@ -533,7 +533,7 @@ const ControlPanel = ({
 export default ControlPanel;
 
 
-
+ */
 
 /* // src/components/Therapy/ControlPanel.jsx
 import React, { useState } from 'react';

@@ -1,5 +1,7 @@
+//+++++++++++JS version+++++++++++++++++
+  // src/firebase/firebase.js
+  // JS version
 
-// src/firebase/firebase.js
 // new file with all options some are disabled now  
 
 import { initializeApp, getApps, getApp } from 'firebase/app';

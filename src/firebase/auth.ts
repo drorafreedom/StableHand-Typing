@@ -1,4 +1,9 @@
-// src/firebase/auth.js new comprehensive 
+
+
+//+++++++++++JS version+++++++++++++++++
+  // src/firebase/auth.js new comprehensive
+  // JS version
+ 
 import { auth } from './firebase'; // Import the initialized auth from firebase.js
 import {
   createUserWithEmailAndPassword,

@@ -135,7 +135,7 @@ export default AnimationBackground;
  //+++++++++++JS version+++++++++++++++++
  // src/components/TherapyPage/AnimationBackground.jsx
  // JS version
-
+/* 
  import React, { Component } from 'react';
 import p5 from 'p5';
 import TextInput from './TextInput'; 
@@ -235,7 +235,7 @@ class AnimationBackground extends Component {
   }
 }
 
-export default AnimationBackground;  
+export default AnimationBackground */;  
 
 
 /* // src/components/TherapyPage/AnimationBackground.jsx

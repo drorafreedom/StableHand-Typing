@@ -19,7 +19,7 @@ export default buttonStyle;
  // JS version
 
 
-const buttonStyle = {
+/* const buttonStyle = {
   backgroundColor: 'blue',
   color: 'white',
   border: 'none',
@@ -30,4 +30,4 @@ const buttonStyle = {
   transition: 'background-color 0.3s ease'
 };
 
-export default buttonStyle
+export default buttonStyle */

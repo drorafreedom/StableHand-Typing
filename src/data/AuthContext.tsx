@@ -1,4 +1,107 @@
-  // src/data/AuthContext.jsx comprehensive file  new for security 
+  
+  // src/data/AuthContext.tsx
+
+import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import {
+  registerWithEmail,
+  loginWithEmail,
+  logout,
+  resetPassword,
+  signInWithGoogle,
+  signInWithGitHub,
+  signInWithFacebook,
+  signInWithTwitter,
+  signInWithMicrosoft,
+  signInWithPhone,
+  initializeRecaptcha,
+  authStateListener,
+} from '../firebase/auth'; // Ensure these functions are correctly exported from auth.ts
+
+// Define types for AuthContext
+interface User {
+  uid: string;
+  email: string | null;
+  displayName?: string | null;
+  photoURL?: string | null;
+  phoneNumber?: string | null;
+  // Add more user properties as needed
+}
+
+interface AuthContextType {
+  currentUser: User | null;
+  loading: boolean;
+  registerWithEmail: typeof registerWithEmail;
+  loginWithEmail: typeof loginWithEmail;
+  logout: typeof logout;
+  resetPassword: typeof resetPassword;
+  signInWithGoogle: typeof signInWithGoogle;
+  signInWithGitHub: typeof signInWithGitHub;
+  signInWithFacebook: typeof signInWithFacebook;
+  signInWithTwitter: typeof signInWithTwitter;
+  signInWithMicrosoft: typeof signInWithMicrosoft;
+  signInWithPhone: typeof signInWithPhone;
+  initializeRecaptcha: typeof initializeRecaptcha;
+}
+
+// Create AuthContext
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// Custom hook to use AuthContext
+export const useAuth = (): AuthContextType => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
+
+// AuthProvider Props
+interface AuthProviderProps {
+  children: ReactNode;
+}
+
+// AuthProvider component
+export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = authStateListener((user) => {
+      setCurrentUser(user ? { ...user } : null);
+      setLoading(false);
+    });
+
+    return unsubscribe;
+  }, []);
+
+  const value: AuthContextType = {
+    currentUser,
+    loading,
+    registerWithEmail,
+    loginWithEmail,
+    logout,
+    resetPassword,
+    signInWithGoogle,
+    signInWithGitHub,
+    signInWithFacebook,
+    signInWithTwitter,
+    signInWithMicrosoft,
+    signInWithPhone,
+    initializeRecaptcha,
+  };
+
+  return (
+    <AuthContext.Provider value={value}>
+      {!loading && children}
+    </AuthContext.Provider>
+  );
+};
+
+
+//+++++++++++JS version+++++++++++++++++
+   // src/data/AuthContext.jsx comprehensive file  new for security 
+  // JS version
+ 
 
 
  import React, { createContext, useContext, useEffect, useState } from 'react';

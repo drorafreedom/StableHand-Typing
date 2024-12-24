@@ -34,7 +34,7 @@ export default AnimationTextDisplay;
  
 // src/components/TherapyPage/AnimationTextDisplay.jsx
 // // JS version
-import React from 'react';
+/* import React from 'react';
 
 const AnimationTextDisplay = ({ displayText, setDisplayText }) => {
   const handleTextChange = (e) => {
@@ -56,3 +56,4 @@ const AnimationTextDisplay = ({ displayText, setDisplayText }) => {
 };
 
 export default AnimationTextDisplay;
+ */
