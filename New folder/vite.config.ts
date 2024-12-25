@@ -1,4 +1,22 @@
+// vite.config.js, 
+ import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
 
+export default defineConfig({
+ //base: process.env.NODE_ENV === 'production' ? '/my-vite-app/' : './',
+
+  plugins: [react()],
+  base: './', // Keep relative paths
+  build: {
+    outDir: 'dist',
+    rollupOptions: {
+      input: './index.html', // Ensure this points to your index.html file
+    },
+  },
+});
+
+
+//---------------------------------------------------
 // import { defineConfig } from 'vite';
 // import react from '@vitejs/plugin-react';
 // import fs from 'fs';
@@ -28,22 +46,7 @@
 // });
 
 
-// vite.config.js, minimallistic by Eric Michel
- import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
 
-export default defineConfig({
- //base: process.env.NODE_ENV === 'production' ? '/my-vite-app/' : './',
-
-  plugins: [react()],
-  base: './', // Keep relative paths
-  build: {
-    outDir: 'dist',
-    rollupOptions: {
-      input: './index.html', // Ensure this points to your index.html file
-    },
-  },
-});
   
 /* import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
