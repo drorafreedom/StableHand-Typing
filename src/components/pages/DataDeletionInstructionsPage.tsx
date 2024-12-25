@@ -54,7 +54,7 @@ export default DataDeletionInstructions;
 //+++++++++++JS version+++++++++++++++++
 // src/components/pages/DataDeletionInstructionsPage.jsx
  // JS version
-import React from 'react';
+/* import React from 'react';
 import { Frame5, Frame,Frame3 } from '../common/Frame';
 const DataDeletionInstructions = () => {
   return (
@@ -102,3 +102,4 @@ const DataDeletionInstructions = () => {
 };
 
 export default DataDeletionInstructions;
+ */

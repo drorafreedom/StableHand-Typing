@@ -1,0 +1,41 @@
+.react-select__control {
+    border: 1px solid #d1d5db; /* Tailwind 'border-gray-300' */
+    border-radius: 0.375rem; /* Tailwind 'rounded-md' */
+    padding: 0.5rem;
+    min-height: 2.5rem;
+  }
+  
+  .react-select__control--is-focused {
+    border-color: #3b82f6; /* Tailwind 'border-blue-500' */
+    box-shadow: none;
+  }
+  
+  .react-select__value-container {
+    padding: 0;
+  }
+  
+  .react-select__input {
+    margin: 0;
+  }
+  
+  .react-select__single-value {
+    margin: 0;
+  }
+  
+  .react-select__menu {
+    border-radius: 0.375rem; /* Tailwind 'rounded-md' */
+  }
+  
+  .react-select__option {
+    padding: 0.5rem;
+  }
+  
+  .react-select__option--is-focused {
+    background-color: #f3f4f6; /* Tailwind 'bg-gray-100' */
+  }
+  
+  .react-select__option--is-selected {
+    background-color: #3b82f6; /* Tailwind 'bg-blue-500' */
+    color: white;
+  }
+  
