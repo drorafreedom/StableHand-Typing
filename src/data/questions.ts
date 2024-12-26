@@ -47,7 +47,7 @@ export const questions: string[] = [
   // src/data/questions.js
   // JS version
 
-
+/* 
 export const questions = [
     'Had difficulty doing the leisure activities which you would like to do?',
     'Had difficulty looking after your home, e.g. DIY, housework, cooking?',
@@ -89,4 +89,4 @@ export const questions = [
     'Had aches and pains in your joints or body?',
     'Felt unpleasantly hot or cold?',
   ];
-  
+   */

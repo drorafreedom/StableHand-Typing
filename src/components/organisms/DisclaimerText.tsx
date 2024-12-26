@@ -62,7 +62,7 @@ export default DisclaimerText;
 //+++++++++++JS VERSIOn++++++++++++++++++
 // src/components/organisms/DisclaimerText.jsx
 //JS version
-import React from 'react';
+/* import React from 'react';
 
 const DisclaimerText = () => {
   return (
@@ -109,3 +109,4 @@ const DisclaimerText = () => {
 };
 
 export default DisclaimerText;
+ */

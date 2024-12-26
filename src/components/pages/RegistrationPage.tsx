@@ -30,7 +30,7 @@ export default RegistrationPage;
 //+++++++++++JS version+++++++++++++++++
 // src/components/pages/RegistrationPage.jsx
  // JS version
-import React from 'react';
+/* import React from 'react';
 import RegistrationForm from '../organisms/RegistrationForm';
 import { useNavigate } from 'react-router-dom';
 import {Frame, Frame2, Frame3} from '../common/Frame';
@@ -57,5 +57,5 @@ const RegistrationPage = () => {
 };
 
 export default RegistrationPage;
-
+ */
 

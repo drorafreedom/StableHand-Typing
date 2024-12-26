@@ -68,12 +68,12 @@ export default SelectField;
 
 
 //=======JS version ==========
-// /* // src/components/common/SelectField.jsx
+//   // src/components/common/SelectField.jsx
 
 // update the SelectField component to include the id attribute on the select element and the htmlFor attribute on the label.
 
 //JS version
-import React from 'react';
+/* import React from 'react';
 import Alert from './Alert';
 
 const SelectField = ({ label, name, value, onChange, options = [], errors = [], onKeyDown }) => {
@@ -106,7 +106,7 @@ const SelectField = ({ label, name, value, onChange, options = [], errors = [], 
   );
 };
 
-export default SelectField; */
+export default SelectField;   */
 
 
 

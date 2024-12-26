@@ -26,7 +26,7 @@ export default AccountPage;
 //+++++++++++JS version+++++++++++++++++
 //  src\components\pages\AccountPage.jsx
  // JS version
-import React from 'react';
+/* import React from 'react';
 import { Link } from 'react-router-dom';
 import { Frame2, Frame, Frame3 } from '../common/Frame';
 
@@ -45,4 +45,4 @@ const AccountPage = () => {
   );
 };
  
-export default  AccountPage;
+export default  AccountPage; */

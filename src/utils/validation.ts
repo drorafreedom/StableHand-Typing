@@ -346,6 +346,22 @@ export const validateAgeWithDOB = (age: number, dob: string): string[] => {
   return errors;
 };
 
+export const compareAgeWithDOB = (dob, age) => {
+  const errors = [];
+  if (dob && age !== undefined && age !== null) {
+    const birthDate = new Date(dob);
+    const today = new Date();
+    let calculatedAge = today.getFullYear() - birthDate.getFullYear();
+    const monthDifference = today.getMonth() - birthDate.getMonth();
+    if (monthDifference < 0 || (monthDifference === 0 && today.getDate() < birthDate.getDate())) {
+      calculatedAge--;
+    }
+    if (Math.floor(age) !== calculatedAge) {
+      errors.push('Age must match Date of Birth.');
+    }
+  }
+  return errors;
+};
 //---------------------------------------getFriendlyErrorMessage
 export const getFriendlyErrorMessage = (error: any): string => {
   switch (error.code) {
@@ -399,7 +415,28 @@ const validations = {
   validateAge,
   validateAgeWithDOB,
   getFriendlyErrorMessage,
+  compareAgeWithDOB,
 };
+
+// const validations = {
+//   validateEmail,
+//   validatePhoneNumber,
+//   validateZipCode,
+//   validateRequired,
+//   validateMiddleName,
+//   validateCityCountryProfession,
+//   validateText,
+//   validatePassword,
+//   isCapsLockOn,
+//   validatePositiveNumber,
+//   sendVerificationEmail,
+//   validateDOB,
+//   validateAge,
+// validateAgeWithDOB,
+// compareAgeWithDOB,
+// getFriendlyErrorMessage
+
+// };
 
 export default validations;
 

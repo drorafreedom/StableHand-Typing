@@ -1,3 +1,9 @@
+
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* Wave Animation Container */
 .wave-animation-container {
     position: relative;

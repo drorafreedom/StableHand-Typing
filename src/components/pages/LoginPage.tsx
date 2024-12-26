@@ -62,7 +62,7 @@ export default LoginPage;
   //+++++++++++JS version+++++++++++++++++
   // /src/components/pages/LoginPage.jsx
  // JS version
-import React, { useState } from 'react';
+/* import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import LoginForm from '../organisms/LoginForm';
 //import { loginWithEmailPassword } from '../../firebase/auth';
@@ -121,9 +121,9 @@ function LoginPage() {
 }
 
 export default LoginPage;  
+ */
 
-
-
+//.---------------------------------------
 // src/components/pages/LoginPage.jsx
 /* import React from 'react';
 import { useNavigate } from 'react-router-dom';

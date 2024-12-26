@@ -104,7 +104,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
  
 
 
- import React, { createContext, useContext, useEffect, useState } from 'react';
+/*  import React, { createContext, useContext, useEffect, useState } from 'react';
 import {
   // Basic Authentication Functions
   registerWithEmail,
@@ -225,7 +225,7 @@ export const AuthProvider = ({ children }) => {
     </AuthContext.Provider>
   );
 };
-  
+   */
 //==========================================
 
 /* 

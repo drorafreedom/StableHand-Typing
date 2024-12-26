@@ -84,7 +84,7 @@ export default PrivacyPolicy;
 //+++++++++++JS version+++++++++++++++++
 // src/components/pages/PrivacyPolicyPage.jsx
  // JS version
-import React from 'react';
+/* import React from 'react';
 import { Frame5, Frame,Frame3 } from '../common/Frame';
 const PrivacyPolicy = () => {
   return ( <Frame3>
@@ -150,3 +150,4 @@ const PrivacyPolicy = () => {
 };
 
 export default PrivacyPolicy;
+ */

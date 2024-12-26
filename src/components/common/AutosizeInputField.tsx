@@ -2,7 +2,7 @@
 // src/components/common/AutosizeInputField.tsx
 //TS version
 import React, { useRef, useEffect } from "react";
-import { Container, Row, Col } from "react-bootstrap";
+//import { Container, Row, Col } from "react-bootstrap";
 
 // Define the props interface
 interface AutosizeInputFieldProps {
@@ -53,7 +53,7 @@ export default AutosizeInputField;
 
 // src/components/common/AutosizeInputField.jsx
 //JS verwsion
-import { useRef, useEffect } from "react";
+/* import { useRef, useEffect } from "react";
 
 const AutosizeInputField = (props) => {
   const logText = props.logText;
@@ -96,3 +96,4 @@ const AutosizeInputField = (props) => {
 export default AutosizeInputField;
 
 
+ */

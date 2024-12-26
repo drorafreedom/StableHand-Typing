@@ -160,7 +160,7 @@ export default RegistrationForm;
 // src/components/forms/RegistrationForm.jsx
 
 //Js version
-import React, { useState } from 'react';
+/* import React, { useState } from 'react';
 import { getAuth, sendSignInLinkToEmail } from "firebase/auth";
 
 const RegistrationForm = () => {
@@ -202,7 +202,7 @@ const RegistrationForm = () => {
   );
 };
 
-export default RegistrationForm;
+export default RegistrationForm; */
 
 
 

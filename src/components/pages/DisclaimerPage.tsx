@@ -18,7 +18,7 @@ export default DisclaimerPage;
 //+++++++++++JS version+++++++++++++++++
 //src\components\pages\DisclaimerPage.jsx
  // JS version
-import React from 'react';
+/* import React from 'react';
 import DisclaimerForm from '../organisms/DisclaimerForm';
 import { Frame2, Frame,Frame3 } from '../common/Frame';
 
@@ -32,4 +32,4 @@ const DisclaimerPage = () => {
  );
 };
 
-export default DisclaimerPage;
+export default DisclaimerPage; */

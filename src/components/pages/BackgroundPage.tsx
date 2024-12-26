@@ -27,7 +27,7 @@ export default BackgroundPage;
  //+++++++++++JS version+++++++++++++++++
  //  \src\components\pages\BackgroundPage.jsx
   // JS version
-import React from 'react';
+/* import React from 'react';
 import { Link } from 'react-router-dom';
 import { Frame2, Frame, Frame3 } from '../common/Frame';
 
@@ -45,7 +45,9 @@ const BackgroundPage = () => {
     );
 };
 
-export default BackgroundPage;
+export default BackgroundPage; */
+
+//000000000000000000000000
 // src/components/pages/BackgroundPage.jsx
 /*import React from 'react';
 import { Link } from 'react-router-dom';

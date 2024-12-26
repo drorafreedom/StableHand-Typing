@@ -1,9 +1,12 @@
+//vite.config.ts
+
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
 export default defineConfig({
+  base: process.env.NODE_ENV === 'production' ? '/my-project -ts/' : './',
   plugins: [react()],
-  base: './', // Keep relative paths for assets
+  //base: './', // Keep relative paths for assets
   build: {
     outDir: 'dist', // Output directory for build files
     rollupOptions: {

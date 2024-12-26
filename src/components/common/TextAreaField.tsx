@@ -45,9 +45,9 @@ const TextAreaField: React.FC<TextAreaFieldProps> = ({ label, name, value, onCha
 export default TextAreaField;
 
 //+++++++++++++JSversion+++++++++++++++++++
-// /* // src\components\common\TextAreaField.jsx
+//  // src\components\common\TextAreaField.jsx
 
-//JS version
+/* //JS version
 import React from 'react';
 import Alert from './Alert';
 
@@ -73,4 +73,5 @@ const TextAreaField = ({ label, name, value, onChange, errors }) => {
   );
 };
 
-export default TextAreaField; */
+export default TextAreaField;  
+ */

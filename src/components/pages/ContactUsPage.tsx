@@ -121,7 +121,7 @@ export default ContactUs;
 //+++++++++++JS version+++++++++++++++++
 // src/pages/ContactUs.jsx
  // JS version
-import { useState } from 'react';
+/* import { useState } from 'react';
 import { db, auth } from '../../firebase/firebase'; // Import Firestore and Auth
 import { collection, addDoc, doc } from 'firebase/firestore'; // Firestore methods
 
@@ -230,8 +230,8 @@ const ContactUs = () => {
 };
 
 export default ContactUs;
-
-
+ */
+//000000000000000000000000000000000000000000000
 /* import React from 'react';
 import { Link } from 'react-router-dom';
 import { Frame2, Frame, Frame3 } from '../common/Frame';

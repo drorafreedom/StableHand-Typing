@@ -239,324 +239,324 @@ export const validateDOB = (dob: string): string[] => {
 };
 
 
-// //+++++++++++JS version+++++++++++++++++
-//   // src/firebase/auth.js new comprehensive
-//   // JS version
+//+++++++++++JS version+++++++++++++++++
+  // src/firebase/auth.js new comprehensive
+  // JS version
  
-// import { auth } from './firebase'; // Import the initialized auth from firebase.js
-// import {
-//   createUserWithEmailAndPassword,
-//   signInWithEmailAndPassword,
-//   sendEmailVerification,
-//   sendPasswordResetEmail,
-//   signOut,
-//   signInWithPopup,
-//   GoogleAuthProvider,
-//   GithubAuthProvider,
-//   FacebookAuthProvider,
-//   TwitterAuthProvider,
-//   OAuthProvider,
-//   signInWithPhoneNumber,
-//   RecaptchaVerifier,
-//   onAuthStateChanged,
-//   signInWithRedirect, //for MFA  functions ( use in microsoft as default ) 
-// } from 'firebase/auth';
+import { auth } from './firebase'; // Import the initialized auth from firebase.js
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  sendEmailVerification,
+  sendPasswordResetEmail,
+  signOut,
+  signInWithPopup,
+  GoogleAuthProvider,
+  GithubAuthProvider,
+  FacebookAuthProvider,
+  TwitterAuthProvider,
+  OAuthProvider,
+  signInWithPhoneNumber,
+  RecaptchaVerifier,
+  onAuthStateChanged,
+  signInWithRedirect, //for MFA  functions ( use in microsoft as default ) 
+} from 'firebase/auth';
  
-// // import { handleEmailVerification } from './yourVerificationModule'; // Uncomment if you have a separate module for handling email verification
-// //import { handleEmailVerification } from './auth'; // Ensure this function is exported
+// import { handleEmailVerification } from './yourVerificationModule'; // Uncomment if you have a separate module for handling email verification
+//import { handleEmailVerification } from './auth'; // Ensure this function is exported
 
-// // Email Verification Logic
-// export const handleEmailVerification = async (user) => {
-//     if (user.emailVerified) {
-//         return user;
-//     } else {
-//         await sendEmailVerification(user);
-//         await signOut(auth);
-//         throw new Error('Please verify your email address. A verification email has been sent.');
-//     }
-// };
+// Email Verification Logic
+export const handleEmailVerification = async (user) => {
+    if (user.emailVerified) {
+        return user;
+    } else {
+        await sendEmailVerification(user);
+        await signOut(auth);
+        throw new Error('Please verify your email address. A verification email has been sent.');
+    }
+};
 
-// // Detailed Authentication Functions
+// Detailed Authentication Functions
 
-// // Sign in with Google
-// export const signInWithGoogle = async () => {
-//     try {
-//       const googleProvider = new GoogleAuthProvider();
-//       const result = await signInWithPopup(auth, googleProvider);
-//       // Optionally handle email verification
-//        await handleEmailVerification(result.user);
-//      // return result.user;
-//     } catch (error) {
-//       console.error("Error during Google sign-in:", error);
-//       throw error;
-//     }
-//   };
+// Sign in with Google
+export const signInWithGoogle = async () => {
+    try {
+      const googleProvider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, googleProvider);
+      // Optionally handle email verification
+       await handleEmailVerification(result.user);
+     // return result.user;
+    } catch (error) {
+      console.error("Error during Google sign-in:", error);
+      throw error;
+    }
+  };
 
  
 
-// // Sign in with GitHub
-// export const signInWithGitHub = async () => {
-//   try {
-//     const githubProvider = new GithubAuthProvider();
-//     const result = await signInWithPopup(auth, githubProvider);
-//     // Optionally handle email verification
-//     await handleEmailVerification(result.user);
-//     // return result.user;
-//   } catch (error) {
-//     console.error("Error during GitHub sign-in:", error);
-//     throw error;
-//   }
-// };
+// Sign in with GitHub
+export const signInWithGitHub = async () => {
+  try {
+    const githubProvider = new GithubAuthProvider();
+    const result = await signInWithPopup(auth, githubProvider);
+    // Optionally handle email verification
+    await handleEmailVerification(result.user);
+    // return result.user;
+  } catch (error) {
+    console.error("Error during GitHub sign-in:", error);
+    throw error;
+  }
+};
 
-// // Sign in with Facebook
-// export const signInWithFacebook = async () => {
-//     try {
-//       const facebookProvider = new FacebookAuthProvider();
-//       const result = await signInWithPopup(auth, facebookProvider);
-//       // Optionally handle email verification
-//        await handleEmailVerification(result.user);
-//      // return result.user;
-//     } catch (error) {
-//       console.error("Error during Facebook sign-in:", error);
-//       throw error;
-//     }
-//   };
+// Sign in with Facebook
+export const signInWithFacebook = async () => {
+    try {
+      const facebookProvider = new FacebookAuthProvider();
+      const result = await signInWithPopup(auth, facebookProvider);
+      // Optionally handle email verification
+       await handleEmailVerification(result.user);
+     // return result.user;
+    } catch (error) {
+      console.error("Error during Facebook sign-in:", error);
+      throw error;
+    }
+  };
 
-//   // Sign in with Twitter
-// export const signInWithTwitter = async () => {
-//     try {
-//       const twitterProvider = new TwitterAuthProvider();
-//       const result = await signInWithPopup(auth, twitterProvider);
-//       // Optionally handle email verification
-//         await handleEmailVerification(result.user);
-//      // return result.user;
-//     } catch (error) {
-//       console.error("Error during Twitter sign-in:", error);
-//       throw error;
-//     }
-//   };
+  // Sign in with Twitter
+export const signInWithTwitter = async () => {
+    try {
+      const twitterProvider = new TwitterAuthProvider();
+      const result = await signInWithPopup(auth, twitterProvider);
+      // Optionally handle email verification
+        await handleEmailVerification(result.user);
+     // return result.user;
+    } catch (error) {
+      console.error("Error during Twitter sign-in:", error);
+      throw error;
+    }
+  };
 
 
-// // Detailed Sign in with Microsoft
-// export const signInWithMicrosoft = async () => {
-//     try {
-//         const microsoftProvider = new OAuthProvider('microsoft.com');
-//         const result = await signInWithPopup(auth, microsoftProvider);
+// Detailed Sign in with Microsoft
+export const signInWithMicrosoft = async () => {
+    try {
+        const microsoftProvider = new OAuthProvider('microsoft.com');
+        const result = await signInWithPopup(auth, microsoftProvider);
         
-//         // If you have a function to handle email verification after third-party sign-in
-//        return await handleEmailVerification(result.user);
+        // If you have a function to handle email verification after third-party sign-in
+       return await handleEmailVerification(result.user);
         
-//         // If email verification is not required or handled differently
-//        // return result.user;
-//     } catch (error) {
-//         console.error("Error during Microsoft sign-in:", error);
-//         throw error; // Re-throw the error to handle it in the calling component
-//     }
-// };
+        // If email verification is not required or handled differently
+       // return result.user;
+    } catch (error) {
+        console.error("Error during Microsoft sign-in:", error);
+        throw error; // Re-throw the error to handle it in the calling component
+    }
+};
 
-//  // Sign in with Microsoft using Redirect
-// export const signInWithMicrosoftRedirect = async () => {
-//     try {
-//         const microsoftProvider = new OAuthProvider('microsoft.com');
-//         await signInWithRedirect(auth, microsoftProvider);
-//           // If you have a function to handle email verification after third-party sign-in
-//           return await handleEmailVerification(result.user);
+ // Sign in with Microsoft using Redirect
+export const signInWithMicrosoftRedirect = async () => {
+    try {
+        const microsoftProvider = new OAuthProvider('microsoft.com');
+        await signInWithRedirect(auth, microsoftProvider);
+          // If you have a function to handle email verification after third-party sign-in
+          return await handleEmailVerification(result.user);
         
-//           // If email verification is not required or handled differently
-//          // return result.user;
-//     } catch (error) {
-//         console.error("Error during Microsoft sign-in with redirect:", error);
-//         throw error;
-//     }
-// };
+          // If email verification is not required or handled differently
+         // return result.user;
+    } catch (error) {
+        console.error("Error during Microsoft sign-in with redirect:", error);
+        throw error;
+    }
+};
 
-// // Sign in with Yahoo
-// export const signInWithYahoo = async () => {
-//     try {
-//       const yahooProvider = new OAuthProvider('yahoo.com');
-//       const result = await signInWithPopup(auth, yahooProvider);
-//       // Optionally handle email verification
-//       await handleEmailVerification(result.user);
-//       // return result.user;
-//     } catch (error) {
-//       console.error("Error during Yahoo sign-in:", error);
-//       throw error;
-//     }
-//   };
+// Sign in with Yahoo
+export const signInWithYahoo = async () => {
+    try {
+      const yahooProvider = new OAuthProvider('yahoo.com');
+      const result = await signInWithPopup(auth, yahooProvider);
+      // Optionally handle email verification
+      await handleEmailVerification(result.user);
+      // return result.user;
+    } catch (error) {
+      console.error("Error during Yahoo sign-in:", error);
+      throw error;
+    }
+  };
 
-//   // Sign in with Apple 
-// //    Apple may not always provide the user's email by default. By adding the 'email' scope, you ensure that your application receives the user's email address upon successful authentication.
-// // Other Providers: May offer basic profile information by default, reducing the need to add common scopes unless additional data is required.
+  // Sign in with Apple 
+//    Apple may not always provide the user's email by default. By adding the 'email' scope, you ensure that your application receives the user's email address upon successful authentication.
+// Other Providers: May offer basic profile information by default, reducing the need to add common scopes unless additional data is required.
 
-// export const signInWithApple = async () => {
-//     try {
-//         const appleProvider = new OAuthProvider('apple.com');
-//         appleProvider.addScope('email'); // Request email scope
-//         appleProvider.addScope('name');  // Request name scope (optional)
-//         const result = await signInWithPopup(auth, appleProvider);
-//         return await handleEmailVerification(result.user);
-//          // return result.user;
-//     } catch (error) {
-//         console.error("Error during Apple sign-in:", error);
-//         throw error;
-//     }
-// };
-// // Basic Authentication Functions
+export const signInWithApple = async () => {
+    try {
+        const appleProvider = new OAuthProvider('apple.com');
+        appleProvider.addScope('email'); // Request email scope
+        appleProvider.addScope('name');  // Request name scope (optional)
+        const result = await signInWithPopup(auth, appleProvider);
+        return await handleEmailVerification(result.user);
+         // return result.user;
+    } catch (error) {
+        console.error("Error during Apple sign-in:", error);
+        throw error;
+    }
+};
+// Basic Authentication Functions
 
-// // Register with Email and Password
-// export const registerWithEmail = async (email, password) => {
-//   const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-//   await sendEmailVerification(userCredential.user);
-//   return userCredential;
-// };
-// export const registerWithEmailPassword = async (email, password) => {
-//     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-//     await sendEmailVerification(userCredential.user);
-//     return userCredential;
-//   };
+// Register with Email and Password
+export const registerWithEmail = async (email, password) => {
+  const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+  await sendEmailVerification(userCredential.user);
+  return userCredential;
+};
+export const registerWithEmailPassword = async (email, password) => {
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    await sendEmailVerification(userCredential.user);
+    return userCredential;
+  };
   
-// // Login with Email and Password- the name  loginWithEmail for more security.
-// export const loginWithEmail = (email, password) => {
-//   return signInWithEmailAndPassword(auth, email, password);
-// };
-// // Login with Email and Password- the name  loginWithEmail for more security.
-// export const loginWithEmailPassword = (email, password) => {
-//     return signInWithEmailAndPassword(auth, email, password);
-//   };
+// Login with Email and Password- the name  loginWithEmail for more security.
+export const loginWithEmail = (email, password) => {
+  return signInWithEmailAndPassword(auth, email, password);
+};
+/* // Login with Email and Password- the name  loginWithEmail for more security.
+export const loginWithEmailPassword = (email, password) => {
+    return signInWithEmailAndPassword(auth, email, password);
+  }; */
   
-// // Logout
-// export const logout = () => {
-//   return signOut(auth);
+// Logout
+export const logout = () => {
+  return signOut(auth);
+};
+
+// Send Password Reset Email
+export const resetPassword = (email) => {
+  return sendPasswordResetEmail(auth, email);
+};
+
+// baasic Third-Party Authentication Functions
+
+// Sign in with Google
+/* export const signInWithGoogle = () => {
+  const googleProvider = new GoogleAuthProvider();
+  return signInWithPopup(auth, googleProvider);
+};
+ */
+// Sign in with GitHub
+/* export const signInWithGitHub = () => {
+  const githubProvider = new GithubAuthProvider();
+  return signInWithPopup(auth, githubProvider);
+};
+ */
+// Sign in with Facebook
+/* export const signInWithFacebook = () => {
+  const facebookProvider = new FacebookAuthProvider();
+  return signInWithPopup(auth, facebookProvider);
+} */;
+
+// Sign in with Twitter
+/* export const signInWithTwitter = () => {
+  const twitterProvider = new TwitterAuthProvider();
+  return signInWithPopup(auth, twitterProvider);
+}; */
+
+// Sign in with Microsoft
+/* export const signInWithMicrosoft = () => {
+  const microsoftProvider = new OAuthProvider('microsoft.com');
+  return signInWithPopup(auth, microsoftProvider);
+};
+ */
+// sign In With Apple
+/* export const signInWithApple = async () => {
+    try {
+        const result = await signInWithPopup(auth, appleProvider);
+        return await handleEmailVerification(result.user);
+    } catch (error) {
+        console.error("Error during Apple sign-in:", error);
+        throw error;
+    }
+}; */
+
+// Phone Authentication Function
+export const signInWithPhone = (phoneNumber, appVerifier) => {
+  return signInWithPhoneNumber(auth, phoneNumber, appVerifier);
+};
+
+// Initialize Recaptcha
+export const initializeRecaptcha = () => {
+  if (!window.recaptchaVerifier) {
+    window.recaptchaVerifier = new RecaptchaVerifier('recaptcha-container', {
+      size: 'invisible',
+      callback: (response) => {
+        // reCAPTCHA solved, allow signInWithPhoneNumber.
+      },
+    }, auth);
+  }
+};
+export const setupRecaptcha = (elementId) => {
+    return new RecaptchaVerifier(elementId, {
+        'size': 'normal ',//invisible
+        'callback': (response) => {
+            console.log("reCAPTCHA solved", response);
+        }
+    }, auth);
+};
+// Auth State Listener
+export const authStateListener = (callback) => {
+  return onAuthStateChanged(auth, callback);
+};
+
+// Additional Authentication Functions (Commented Out)
+
+// // Update User Profile
+// export const updateUserProfile = (profile) => {
+//   return updateProfile(auth.currentUser, profile);
 // };
 
-// // Send Password Reset Email
-// export const resetPassword = (email) => {
-//   return sendPasswordResetEmail(auth, email);
+// // Update User Email
+// export const updateUserEmail = (email) => {
+//   return updateEmail(auth.currentUser, email);
 // };
 
-// // baasic Third-Party Authentication Functions
-
-// // Sign in with Google
-// /* export const signInWithGoogle = () => {
-//   const googleProvider = new GoogleAuthProvider();
-//   return signInWithPopup(auth, googleProvider);
-// };
-//  */
-// // Sign in with GitHub
-// /* export const signInWithGitHub = () => {
-//   const githubProvider = new GithubAuthProvider();
-//   return signInWithPopup(auth, githubProvider);
-// };
-//  */
-// // Sign in with Facebook
-// /* export const signInWithFacebook = () => {
-//   const facebookProvider = new FacebookAuthProvider();
-//   return signInWithPopup(auth, facebookProvider);
-// } */;
-
-// // Sign in with Twitter
-// /* export const signInWithTwitter = () => {
-//   const twitterProvider = new TwitterAuthProvider();
-//   return signInWithPopup(auth, twitterProvider);
-// }; */
-
-// // Sign in with Microsoft
-// /* export const signInWithMicrosoft = () => {
-//   const microsoftProvider = new OAuthProvider('microsoft.com');
-//   return signInWithPopup(auth, microsoftProvider);
-// };
-//  */
-// // sign In With Apple
-// /* export const signInWithApple = async () => {
-//     try {
-//         const result = await signInWithPopup(auth, appleProvider);
-//         return await handleEmailVerification(result.user);
-//     } catch (error) {
-//         console.error("Error during Apple sign-in:", error);
-//         throw error;
-//     }
-// }; */
-
-// // Phone Authentication Function
-// export const signInWithPhone = (phoneNumber, appVerifier) => {
-//   return signInWithPhoneNumber(auth, phoneNumber, appVerifier);
+// // Update User Password
+// export const updateUserPassword = (password) => {
+//   return updatePassword(auth.currentUser, password);
 // };
 
-// // Initialize Recaptcha
-// export const initializeRecaptcha = () => {
-//   if (!window.recaptchaVerifier) {
-//     window.recaptchaVerifier = new RecaptchaVerifier('recaptcha-container', {
-//       size: 'invisible',
-//       callback: (response) => {
-//         // reCAPTCHA solved, allow signInWithPhoneNumber.
-//       },
-//     }, auth);
-//   }
-// };
-// export const setupRecaptcha = (elementId) => {
-//     return new RecaptchaVerifier(elementId, {
-//         'size': 'normal ',//invisible
-//         'callback': (response) => {
-//             console.log("reCAPTCHA solved", response);
-//         }
-//     }, auth);
-// };
-// // Auth State Listener
-// export const authStateListener = (callback) => {
-//   return onAuthStateChanged(auth, callback);
+// // Reauthenticate User
+// export const reauthenticate = (credential) => {
+//   return reauthenticateWithCredential(auth.currentUser, credential);
 // };
 
-// // Additional Authentication Functions (Commented Out)
+// // Link Credential to User
+// export const linkCredential = (credential) => {
+//   return linkWithCredential(auth.currentUser, credential);
+// };
 
-// // // Update User Profile
-// // export const updateUserProfile = (profile) => {
-// //   return updateProfile(auth.currentUser, profile);
-// // };
+// // Link Provider via Popup
+// export const linkWithPopupProvider = (provider) => {
+//   return linkWithPopup(auth.currentUser, provider);
+// };
 
-// // // Update User Email
-// // export const updateUserEmail = (email) => {
-// //   return updateEmail(auth.currentUser, email);
-// // };
+// // Link Provider via Redirect
+// export const linkWithRedirectProvider = (provider) => {
+//   return linkWithRedirect(auth.currentUser, provider);
+// };
 
-// // // Update User Password
-// // export const updateUserPassword = (password) => {
-// //   return updatePassword(auth.currentUser, password);
-// // };
+// // Unlink Provider
+// export const unlinkProvider = (providerId) => {
+//   return unlink(auth.currentUser, providerId);
+// };
 
-// // // Reauthenticate User
-// // export const reauthenticate = (credential) => {
-// //   return reauthenticateWithCredential(auth.currentUser, credential);
-// // };
+// // Delete User
+// export const deleteCurrentUser = () => {
+//   return deleteUser(auth.currentUser);
+// };
 
-// // // Link Credential to User
-// // export const linkCredential = (credential) => {
-// //   return linkWithCredential(auth.currentUser, credential);
-// // };
-
-// // // Link Provider via Popup
-// // export const linkWithPopupProvider = (provider) => {
-// //   return linkWithPopup(auth.currentUser, provider);
-// // };
-
-// // // Link Provider via Redirect
-// // export const linkWithRedirectProvider = (provider) => {
-// //   return linkWithRedirect(auth.currentUser, provider);
-// // };
-
-// // // Unlink Provider
-// // export const unlinkProvider = (providerId) => {
-// //   return unlink(auth.currentUser, providerId);
-// // };
-
-// // // Delete User
-// // export const deleteCurrentUser = () => {
-// //   return deleteUser(auth.currentUser);
-// // };
-
-// // // Generic OAuth Sign-In Function
-// // export const signInWithOAuth = (provider) => {
-// //   return signInWithPopup(auth, provider);
-// // };
+// // Generic OAuth Sign-In Function
+// export const signInWithOAuth = (provider) => {
+//   return signInWithPopup(auth, provider);
+// };
 
 
 
