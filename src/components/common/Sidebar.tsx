@@ -100,7 +100,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isVisible, toggleSidebar }) => {
           <div>
             <ul className="space-y-2">
               {menuItems.map((item) => (
-                <li key={item.id} className="mb-2">
+                <li
+                  key={item.id}
+                  className={`mb-2 ${
+                    visitedPages.includes(item.path || '') || location.pathname === item.path
+                      ? 'text-white'
+                      : 'text-gray-400'
+                  }`}
+                >
                   {item.submenu ? (
                     <div className="p-2 rounded hover:bg-gray-200">
                       {item.path && (
@@ -111,7 +118,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isVisible, toggleSidebar }) => {
                       <ul className="ml-2 mt-2 bg-gray-500 rounded-lg border border-gray-300">
                         {item.submenu.map((subitem) => (
                           <li key={subitem.id} className="mb-2">
-                            <Link to={subitem.path} className="block p-2 rounded hover:bg-red-200">
+                            <Link
+                              to={subitem.path}
+                              className={`block p-2 rounded hover:bg-red-200 ${
+                                location.pathname === subitem.path
+                                  ? 'text-black-500'
+                                  : 'text-gray-400'
+                              }`}
+                            >
                               {subitem.label}
                             </Link>
                           </li>
@@ -120,7 +134,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isVisible, toggleSidebar }) => {
                     </div>
                   ) : (
                     item.path && (
-                      <Link to={item.path} className="block p-2 rounded hover:bg-red-200">
+                      <Link
+                        to={item.path}
+                        className={`block p-2 rounded hover:bg-red-200 ${
+                          location.pathname === item.path ? 'text-black-500' : 'text-gray-400'
+                        }`}
+                      >
                         {item.label}
                       </Link>
                     )
@@ -142,6 +161,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isVisible, toggleSidebar }) => {
 };
 
 export default Sidebar;
+
 
 
 //==JS VERSIon===============
