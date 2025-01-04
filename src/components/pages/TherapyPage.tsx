@@ -83,7 +83,7 @@ const TherapyPage: React.FC = () => {
         <TextInput placeholder="Type here..." displayText={displayText} saveKeystrokeData={saveKeystrokeData} />
       </div>
 
-      <div className="absolute center-820 right-0 w-1/3 z-225 p-4">
+      <div className="absolute center-1820 left-30 w-1/3 z-5 p-4">
         <TextDisplay displayText={displayText} setDisplayText={setDisplayText} />
       </div>
     </div>

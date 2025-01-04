@@ -120,7 +120,8 @@ const MultifunctionAnimation: React.FC = () => {
 
     p5.draw = () => {
       if (!isAnimating) return;
-
+// Drawing your wave or other animation
+p5.noFill();
       p5.clear();
       p5.background(p5.color(settings.bgColor));
       p5.stroke(p5.color(settings.lineColor));

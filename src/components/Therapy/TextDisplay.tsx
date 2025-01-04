@@ -77,39 +77,28 @@ const TextDisplay: React.FC<TextDisplayProps> = ({ displayText, setDisplayText }
   ];
 
   return (
-    <div
+    
+    <div 
       style={{
-        position: 'relative',
-        top: '40%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
-        width: '90%',
-        maxWidth: '600px',
-        border: 'none',
-        borderRadius: '4px',
+        position: 'absolute',
+        top: '100px', // Adjust based on the height of the pink controller
+        left: '20px', // Align close to the pink controller
+        width: '300px', // Fixed width
         padding: '20px',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'stretch',
-        zIndex: 1000,
+        backgroundColor: 'white',
+        borderRadius: '8px',
+        boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)',
+        zIndex: 100,
       }}
     >
       <div
         style={{
-          flexGrow: 1,
-          background: 'rgba(240, 248, 255, 0.0)',
-          borderRadius: '4px',
-          marginRight: '15px',
-          padding: '10px',
           display: 'flex',
-          flexDirection: 'column',
           justifyContent: 'center',
-          width: '90%',
+          gap: '10px',
+          marginBottom: '10px',
         }}
       >
-        <span>{displayText || 'Select an option to display text'}</span>
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column' }}>
         <button
           onClick={() =>
             setDisplayText(
@@ -130,6 +119,15 @@ const TextDisplay: React.FC<TextDisplayProps> = ({ displayText, setDisplayText }
         >
           Latin Text
         </button>
+      </div>
+      <div
+        style={{
+          textAlign: 'center',
+          overflowY: 'auto',
+          maxHeight: '300px', // Add vertical scroll if text overflows
+        }}
+      >
+        <span>{displayText || 'Select an option to display text'}</span>
       </div>
     </div>
   );
