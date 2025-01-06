@@ -118,7 +118,7 @@ const TextInput: React.FC<TextInputProps> = ({ placeholder, displayText, saveKey
           style={{
             width: '100%',
             height: '300px',
-            fontFamily: font,
+            fontFamily: '6px',
             fontSize: `${fontSize}px`,
             fontWeight: isBold ? 'bold' : 'normal',
             color: textColor,
@@ -148,7 +148,7 @@ const TextInput: React.FC<TextInputProps> = ({ placeholder, displayText, saveKey
               <option value="Georgia">Georgia</option>
             </select>
           </div>
-          <div className="w-full md:w-1/3">
+          <div className="w-full md:w-1/3 text -xs">
             <label>Font Size:</label>
             <select value={fontSize} onChange={(e) => setFontSize(parseInt(e.target.value))} className="border p-2 rounded w-full">
               {[...Array(31)].map((_, i) => (

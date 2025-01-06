@@ -57,7 +57,7 @@ const TherapyPage: React.FC = () => {
         </button>
         <button
           onClick={() => setCurrentAnimation('color')}
-          className={`p-2 mx-2 ${currentAnimation === 'color' ? 'bg-blue-500 text-white rounded' : 'bg-gray-200'}`}
+          className={`p-2 mx-2 ${currentAnimation === 'color' ? 'bg-blue-500 text-m-white rounded' : 'bg-gray-200'}`}
         >
           Color Animation
         </button>
@@ -78,14 +78,15 @@ const TherapyPage: React.FC = () => {
       {currentAnimation === 'color' && (
         <ColorAnimation settings={settings} setSettings={setSettings} />
       )}
-
-      <div className="relative w-full z-25 p-4">
+<div>   className="w-1/2 flex flex-col items-start space-y-4"
+      <div className="absolute w-full z-25 p-4">
         <TextInput placeholder="Type here..." displayText={displayText} saveKeystrokeData={saveKeystrokeData} />
       </div>
 
-      <div className="absolute center-1820 left-30 w-1/3 z-5 p-4">
+      <div className="relative center-1820 right-30 w-1/3 z-5 p-4">
         <TextDisplay displayText={displayText} setDisplayText={setDisplayText} />
       </div>
+    </div>
     </div>
   );
 };
