@@ -81,8 +81,8 @@ const TextDisplay: React.FC<TextDisplayProps> = ({ displayText, setDisplayText }
     <div 
       style={{
         position: 'relative',
-        top: '320px', // Adjust based on the height of the pink controller
-        left: '500px', // Align close to the pink controller
+        top: '330px', // Adjust based on the height of the pink controller
+        left: '1000px', // Align close to the pink controller
         width: '300px', // Fixed width
         padding: '20px',
         backgroundColor: 'white',

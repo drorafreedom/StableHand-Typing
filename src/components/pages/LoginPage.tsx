@@ -1,6 +1,60 @@
  // src/components/pages/LoginPage.tsx
+//04.20.25
+// src/components/pages/LoginPage.tsx
+import React, { useState, FC } from 'react';
+import { useNavigate } from 'react-router-dom';
+import LoginForm from '../organisms/LoginForm';
+import PhoneLoginPanel from '../common/PhoneLoginPanel';
+import { Frame3 } from '../common/Frame';
 
-import React, { useState } from 'react';
+type Method = 'email' | 'phone';
+
+const LoginPage: FC = () => {
+  const [method, setMethod] = useState<Method>('email');
+  const navigate = useNavigate();
+
+  const handlePhoneEnrollRequested = () => {
+    setMethod('phone');
+  };
+
+  return (
+    <Frame3>
+      <div className="w-full max-w-md mx-auto">
+        {/* Toggle between Email vs Phone panel */}
+        <div className="flex mb-6">
+          <button
+            type="button"
+            className={`flex-1 py-2 ${method === 'email' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
+            onClick={() => setMethod('email')}
+          >
+            Email
+          </button>
+          <button
+            type="button"
+            className={`flex-1 py-2 ${method === 'phone' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
+            onClick={() => setMethod('phone')}
+          >
+            Phone
+          </button>
+        </div>
+
+        {method === 'email' ? (
+          <LoginForm onPhoneEnrollRequested={handlePhoneEnrollRequested} />
+        ) : (
+          <PhoneLoginPanel
+            clearEmailAndPasswordErrors={() => { /* implement clearing logic if needed */ }}
+          />
+        )}
+      </div>
+    </Frame3>
+  );
+};
+
+export default LoginPage;
+
+
+
+/* import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import LoginForm from '../organisms/LoginForm';
 import { loginWithEmail } from '../../firebase/auth';
@@ -56,7 +110,7 @@ const LoginPage: React.FC = () => {
   );
 };
 
-export default LoginPage;
+export default LoginPage; */
  
   
   //+++++++++++JS version+++++++++++++++++

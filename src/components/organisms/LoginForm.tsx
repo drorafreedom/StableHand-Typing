@@ -1,7 +1,187 @@
 // src/components/organisms/LoginForm.tsx
 // TS version
 
-import React, { useState } from "react";
+//4.20.25 
+
+// src/components/organisms/LoginForm.tsx
+import React, { useState, useEffect, FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  signInWithEmailAndPassword,
+  PhoneAuthProvider,
+  PhoneMultiFactorGenerator,
+  multiFactor,
+  getMultiFactorResolver,
+  MultiFactorResolver,
+  RecaptchaVerifier,
+  UserCredential
+} from 'firebase/auth';
+import { auth } from '../../firebase/firebase';
+import EmailField from '../common/EmailField';
+import PasswordField from '../common/PasswordField';
+import InputField from '../common/InputField';
+import Button from '../common/Button';
+import Alert from '../common/Alert';
+
+// Extend global window for reCAPTCHA
+declare global {
+  interface Window {
+    recaptchaVerifier?: RecaptchaVerifier;
+  }
+}
+
+type Banner = { text: string; type: 'info' | 'success' | 'error' };
+
+export default function LoginForm(): JSX.Element {
+  const navigate = useNavigate();
+
+  // Email/password
+  const [email, setEmail] = useState<string>('');
+  const [emailErrors, setEmailErrors] = useState<string[]>([]);
+  const [password, setPassword] = useState<string>('');
+  const [passwordErrors, setPasswordErrors] = useState<string[]>([]);
+
+  // SMS/MFA
+  const [smsCode, setSmsCode] = useState<string>('');
+  const [verificationId, setVerificationId] = useState<string>('');
+  const [resolver, setResolver] = useState<MultiFactorResolver | null>(null);
+  const [enrolling, setEnrolling] = useState<boolean>(false);
+
+  // Banner/feedback
+  const [banner, setBanner] = useState<Banner>({ text: '', type: 'info' });
+
+  // Initialize invisible reCAPTCHA once
+  useEffect(() => {
+    if (!window.recaptchaVerifier) {
+      // Correct parameter order: auth first, then containerId, then options
+      window.recaptchaVerifier = new RecaptchaVerifier(
+        auth,
+        'recaptcha-container',
+        { size: 'invisible' }
+      );
+      // Render the invisible widget
+      window.recaptchaVerifier.render().catch(console.error);
+    }
+  }, []);
+
+  // STEP 1: attempt email+password sign-in (and possibly start MFA enrollment)
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setBanner({ text: '', type: 'info' });
+
+    try {
+      const cred: UserCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = cred.user;
+
+      // Start MFA enrollment
+      setEnrolling(true);
+      setBanner({ text: 'Sending enrollment SMS…', type: 'info' });
+
+      const session = await multiFactor(user).getSession();
+      const provider = new PhoneAuthProvider(auth);
+      // Prompt for phone number when enrolling
+      const phoneInput = window.prompt('Enter phone # (+1...)') || '';
+      const id = await provider.verifyPhoneNumber(
+        { phoneNumber: phoneInput, session },
+        window.recaptchaVerifier!
+      );
+      setVerificationId(id);
+    } catch (err: any) {
+      if (err.code === 'auth/multi-factor-auth-required') {
+        // MFA challenge flow
+        const mResolver = getMultiFactorResolver(auth, err);
+        setResolver(mResolver);
+
+        const hint = mResolver.hints[0];
+        setBanner({ text: `Code sent to …${hint.phoneNumber.slice(-4)}`, type: 'info' });
+
+        const provider = new PhoneAuthProvider(auth);
+        const id = await provider.verifyPhoneNumber(
+          { multiFactorHint: hint, session: mResolver.session },
+          window.recaptchaVerifier!
+        );
+        setVerificationId(id);
+      } else {
+        setBanner({ text: err.message || 'Login failed', type: 'error' });
+      }
+    }
+  }
+
+  // STEP 2: verify SMS code for enrollment or sign-in
+  async function handleVerify() {
+    setBanner({ text: '', type: 'info' });
+    if (!verificationId) return;
+
+    try {
+      const phoneCred = PhoneAuthProvider.credential(verificationId, smsCode);
+      const assertion = PhoneMultiFactorGenerator.assertion(phoneCred);
+
+      if (enrolling) {
+        await multiFactor(auth.currentUser!).enroll(assertion, 'Phone');
+        setBanner({ text: 'Phone linked! Redirecting…', type: 'success' });
+        await auth.currentUser!.reload();
+      } else if (resolver) {
+        await resolver.resolveSignIn(assertion);
+        setBanner({ text: 'MFA OK—Redirecting…', type: 'success' });
+      }
+
+      setTimeout(() => navigate('/stablehand-welcome'), 1500);
+    } catch (err: any) {
+      setBanner({ text: err.message || 'Verification failed', type: 'error' });
+    }
+  }
+
+  return (
+    <div>
+      {/* STEP 1: Email/Password */}
+      {!verificationId && (
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <EmailField
+            email={email}
+            setEmail={setEmail}
+            setEmailErrors={setEmailErrors}
+            errors={emailErrors}
+          />
+          <PasswordField
+            password={password}
+            setPassword={setPassword}
+            setPasswordErrors={setPasswordErrors}
+            errors={passwordErrors}
+          />
+
+          {banner.text && <Alert message={banner.text} type={banner.type} />}
+
+          <Button type="submit" className="w-full bg-blue-600 text-white">
+            {enrolling ? 'Link Phone' : 'Log In'}
+          </Button>
+        </form>
+      )}
+
+      <div id="recaptcha-container"></div>
+
+      {/* STEP 2: SMS code UI */}
+      {verificationId && (
+        <div className="mt-4 space-y-4">
+          <InputField
+            label="SMS Code"
+            type="text"
+            value={smsCode}
+            onChange={e => setSmsCode(e.target.value)}
+            placeholder="123456"
+          />
+          {banner.text && <Alert message={banner.text} type={banner.type} />}
+
+          <Button onClick={handleVerify} className="w-full bg-green-600 text-white">
+            Verify Code
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+/* import React, { useState } from "react";
 import {
   signInWithEmailAndPassword,
   RecaptchaVerifier,
@@ -186,7 +366,7 @@ const LoginForm: React.FC = () => {
   );
 };
 
-export default LoginForm;
+export default LoginForm; */
 
 
 //+++++++++++JS VERSIOn++++++++++++++++++

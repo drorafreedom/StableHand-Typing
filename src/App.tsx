@@ -34,6 +34,7 @@ import PrivacyPolicyPage from './components/pages/PrivacyPolicyPage';
 import DataDeletionInstructions from './components/pages/DataDeletionInstructionsPage';
 import TermsOfServicePage from './components/pages/TermsOfServicePage';
 import ErrorBoundary from './components/common/ErrorBoundary';
+import ThirdPartyAuthPanel from './components/common/ThirdPartyAuthPanel';
 
 // Ensure all the routes are defined in the App component
 const App: React.FC = () => {

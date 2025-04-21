@@ -78,12 +78,13 @@ const TherapyPage: React.FC = () => {
       {currentAnimation === 'color' && (
         <ColorAnimation settings={settings} setSettings={setSettings} />
       )}
-<div>   className="w-1/2 flex flex-col items-start space-y-4"
-      <div className="absolute w-full z-25 p-4">
+<div>   
+  <div className="w-1/2 flex flex-col items-start space-y-4"
+        className="absolute w-full z-25 p-4">
         <TextInput placeholder="Type here..." displayText={displayText} saveKeystrokeData={saveKeystrokeData} />
       </div>
 
-      <div className="relative center-1820 right-30 w-1/3 z-5 p-4">
+      <div className="absolute center-1920 right-22 w-1/3 z-7 p-4">
         <TextDisplay displayText={displayText} setDisplayText={setDisplayText} />
       </div>
     </div>

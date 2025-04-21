@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Collapse } from 'react-collapse';
 import buttonStyle from './buttonStyle';
+// import TextDisplay from './TextDisplay';
 
 interface KeyData {
   key: string;
@@ -109,36 +110,42 @@ const TextInput: React.FC<TextInputProps> = ({ placeholder, displayText, saveKey
   }, []);
 
   return (
-    <div className="relative w-100% p-4">
-      <div className="w-full mb-4">
-        <textarea
-          value={inputValue}
-          placeholder={placeholder}
-          onChange={handleInputChange}
-          style={{
-            width: '100%',
-            height: '300px',
-            fontFamily: '6px',
-            fontSize: `${fontSize}px`,
-            fontWeight: isBold ? 'bold' : 'normal',
-            color: textColor,
-            backgroundColor: `rgba(${parseInt(backgroundColor.slice(1, 3), 16)}, ${parseInt(backgroundColor.slice(3, 5), 16)}, ${parseInt(backgroundColor.slice(5, 7), 16)}, ${backgroundOpacity})`,
-            border: '1px solid #ccc',
-            outline: 'none',
-            padding: '10px',
-            borderRadius: '4px',
-            resize: 'vertical',
-            overflowY: 'scroll',
-          }}
-        />
-      </div>
+    <div className="relative w-5/6  right-30 ">
+      <div className="flex flex-row justify-between items-start w-full space-x-4 p-4">
+  {/* Left: Text Input */}
+  <div className="flex-1 text-xs">
+    <textarea
+      value={inputValue}
+      placeholder={placeholder}
+      onChange={handleInputChange}
+      style={{
+        width: '100%',
+        height: '300px',
+        fontFamily: font,
+        fontSize: `${fontSize}px`,
+        fontWeight: isBold ? 'bold' : 'normal',
+        color: textColor,
+        backgroundColor: `rgba(${parseInt(backgroundColor.slice(1, 3), 16)}, ${parseInt(backgroundColor.slice(3, 5), 16)}, ${parseInt(backgroundColor.slice(5, 7), 16)}, ${backgroundOpacity})`,
+        border: '1px solid #ccc',
+        outline: 'none',
+        padding: '10px',
+        borderRadius: '4px',
+        resize: 'vertical',
+        overflowY: 'scroll',
+      }}
+    />
+  </div>
 
-      <button onClick={() => setIsPanelOpen(!isPanelOpen)} className="flex mb-200 bg-red-200 p-2 border rounded w-1/3">
+  {/* Right: Control Panel */}
+ 
+</div>
+
+      <button onClick={() => setIsPanelOpen(!isPanelOpen)} className="flex mb-200 text-xs  bg-gray-100 p-2 border rounded w-1/4 ">
         {isPanelOpen ? ' Hide Text Control' : 'Show Text Controls'}
       </button>
       <Collapse isOpened={isPanelOpen}>
-        <div className="flex flex-wrap mb-200 bg-red-200 p-200 border rounded w-1/3">
-          <div className="w-full md:w-1/3">
+        <div className="flex flex-wrap mb-200  text-xs bg-gray-200 p-200 border rounded w-1/4">
+          <div className="w-full md:w-1/4">
             <label>Font:</label>
             <select value={font} onChange={(e) => setFont(e.target.value)} className="border p-2 rounded w-full">
               <option value="Arial">Arial</option>
@@ -148,7 +155,7 @@ const TextInput: React.FC<TextInputProps> = ({ placeholder, displayText, saveKey
               <option value="Georgia">Georgia</option>
             </select>
           </div>
-          <div className="w-full md:w-1/3 text -xs">
+          <div className="w-full md:w-1/4 text -xs">
             <label>Font Size:</label>
             <select value={fontSize} onChange={(e) => setFontSize(parseInt(e.target.value))} className="border p-2 rounded w-full">
               {[...Array(31)].map((_, i) => (
@@ -158,19 +165,19 @@ const TextInput: React.FC<TextInputProps> = ({ placeholder, displayText, saveKey
               ))}
             </select>
           </div>
-          <div className="w-half md:w-1/3 flex items-center space-x-2">
+          <div className="w-half md:w-1/4 flex items-center space-x-2">
             <label>Bold:</label>
             <input type="checkbox" checked={isBold} onChange={(e) => setIsBold(e.target.checked)} className="border p-2 rounded" />
           </div>
-          <div className="w-full md:w-1/3">
+          <div className="w-full md:w-1/4">
             <label>Text Color:</label>
             <input type="color" value={textColor} onChange={(e) => setTextColor(e.target.value)} className="w-full" />
           </div>
-          <div className="w-full md:w-1/3">
+          <div className="w-full md:w-1/4">
             <label>Background Color:</label>
             <input type="color" value={backgroundColor} onChange={(e) => setBackgroundColor(e.target.value)} className="w-full" />
           </div>
-          <div className="w-full md:w-1/3">
+          <div className="w-full md:w-1/4">
             <label>Background Opacity:</label>
             <input
               type="range"
@@ -184,7 +191,7 @@ const TextInput: React.FC<TextInputProps> = ({ placeholder, displayText, saveKey
           </div>
         </div>
       </Collapse>
-      <div className="bg-red-200 p-200 border rounded w-1/3">
+      <div className="bg-gray-200 p-200 border rounded w-1/4">
         <button onClick={handleSubmit} style={buttonStyle}>
           Submit
         </button>
@@ -192,6 +199,9 @@ const TextInput: React.FC<TextInputProps> = ({ placeholder, displayText, saveKey
           Reset
         </button>
       </div>
+     {/*  <div className="absolute center-1920 right-22 w-1/3 z-7 p-4">
+        <TextDisplay displayText={displayText} setDisplayText={setDisplayText} />
+      </div> */}
     </div>
   );
 };

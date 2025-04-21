@@ -24,7 +24,7 @@ import { getAnalytics, isSupported } from 'firebase/analytics';
 
 
 
-/* const firebaseConfig = {
+/*  const firebaseConfig = {
   apiKey: "AIzaSyAnrwZY_0SAM3mYI13X3RkNuIWkJw3TnSU",
   authDomain: "stablehand-typing.firebaseapp.com",
   databaseURL: "https://stablehand-typing-default-rtdb.firebaseio.com",
@@ -33,7 +33,9 @@ import { getAnalytics, isSupported } from 'firebase/analytics';
   messagingSenderId: "139216749479",
   appId: "1:139216749479:web:bceb35407bcfc06296ac82",
   measurementId: "G-27D34Q1X51"
-}; */
+}; 
+ */
+
 // Replace with your app's Firebase project configuration
 const firebaseConfig = {
   apiKey: "AIzaSyC3gClNJ79vyni7GMr8erF4DZZ8E6iRJL4",
