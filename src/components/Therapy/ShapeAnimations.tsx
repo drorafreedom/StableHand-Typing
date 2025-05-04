@@ -1,3 +1,6 @@
+// // src/components/Therapy/ShapeAnimations.tsx
+
+
 // src/components/Therapy/ShapeAnimations.tsx
 
 import React, { useState } from 'react';
@@ -52,15 +55,75 @@ const ShapeAnimations: React.FC = () => {
 
   const sketch = (p5: any) => {
     let shapes: Shape[] = [];
+    let rowsCount = 0;
+    let colsCount = 0;
+
+    // Compute how many rows & columns fit (for non-random layouts)
+    function computeGrid() {
+      rowsCount = Math.floor(p5.height / (settings.size + settings.rowDistance));
+      colsCount = Math.floor(p5.width  / (settings.size + settings.columnDistance));
+    }
+
+    // Create all Shape instances, each with its own fillColor
+    function createShapes() {
+      shapes = [];
+      const total =
+        settings.layoutSelect === 'random'
+          ? settings.numShapes
+          : rowsCount * colsCount;
+
+      // Precompute a color for each shape
+      const fillColors: any[] = new Array(total);
+      if (settings.layoutSelect === 'checkboard') {
+        for (let i = 0; i < total; i++) {
+          const row = Math.floor(i / colsCount);
+          const col = i % colsCount;
+          const usePrimary = (row + col) % 2 === 0;
+          fillColors[i] = p5.color(usePrimary ? settings.shapeColor : settings.secondColor);
+        }
+      } else if (settings.palette === 'rainbow') {
+        for (let i = 0; i < total; i++) {
+          const hue = (i / total) * 360;
+          fillColors[i] = p5.color(hue, 100, 100);
+        }
+      } else if (settings.palette === 'pastel') {
+        for (let i = 0; i < total; i++) {
+          const hue = (i / total) * 360;
+          fillColors[i] = p5.color(hue, 60, 80);
+        }
+      } else {
+        for (let i = 0; i < total; i++) {
+          fillColors[i] = p5.color(settings.shapeColor);
+        }
+      }
+
+      // Instantiate shapes
+      for (let i = 0; i < total; i++) {
+        shapes.push(new Shape(p5, settings, i, rowsCount, colsCount, fillColors[i]));
+        shapes.push(new Shape(p5, settings, i, rowsCount, colsCount, fillColors[i]));
+      }
+   
+   
+    }
 
     p5.setup = () => {
       p5.createCanvas(p5.windowWidth, p5.windowHeight);
+      // switch color mode for HSB palettes
+      p5.colorMode(p5.HSB, 360, 100, 100);
+      computeGrid();
+      createShapes();
+    };
+
+    p5.windowResized = () => {
+      p5.resizeCanvas(p5.windowWidth, p5.windowHeight);
+      computeGrid();
       createShapes();
     };
 
     p5.updateWithProps = (props: { settings: Settings; isAnimating: boolean }) => {
       if (props.settings) {
-        setSettings(props.settings);
+        Object.assign(settings, props.settings);
+        computeGrid();
         createShapes();
       }
       if (props.isAnimating !== undefined) {
@@ -70,66 +133,97 @@ const ShapeAnimations: React.FC = () => {
 
     p5.draw = () => {
       p5.background(settings.bgColor);
-      for (let shape of shapes) {
-        shape.move();
-        shape.display();
+      for (const s of shapes) {
+        s.move();
+        s.display();
       }
     };
 
-    p5.windowResized = () => {
-      p5.resizeCanvas(p5.windowWidth, p5.windowHeight);
-      createShapes();
-    };
-
-    function createShapes() {
-      shapes = [];
-      let totalShapes: number;
-      let rows: number, cols: number;
-
-      if (settings.layoutSelect === 'random') {
-        totalShapes = settings.numShapes;
-      } else {
-        rows = Math.floor(p5.height / (settings.size + settings.rowDistance));
-        cols = Math.floor(p5.width / (settings.size + settings.columnDistance));
-        totalShapes = rows * cols;
-      }
-
-      for (let i = 0; i < totalShapes; i++) {
-        shapes.push(new Shape(p5, settings, i, rows, cols));
-      }
-    }
-
+    // Shape class now holds its own fillColor
     class Shape {
       private p5: any;
       private settings: Settings;
-      private index: number;
-      private rows: number;
-      private cols: number;
+      public index: number;
+      public rows: number;
+      public cols: number;
       private x: number;
       private y: number;
       private angle: number;
       private speed: number;
+      private fillColor: any;
 
-      constructor(p5: any, settings: Settings, index: number, rows: number, cols: number) {
+      constructor(
+        p5: any,
+        settings: Settings,
+        index: number,
+        rows: number,
+        cols: number,
+        fillColor: any
+      ) {
         this.p5 = p5;
         this.settings = settings;
         this.index = index;
         this.rows = rows;
         this.cols = cols;
+        this.fillColor = fillColor;
         this.initPosition();
       }
 
-      initPosition() {
+  /*     initPosition() {
         if (this.settings.layoutSelect === 'random') {
           this.x = this.p5.random(this.p5.width);
           this.y = this.p5.random(this.p5.height);
         } else {
-          this.x = (this.index % this.cols) * (this.settings.size + this.settings.columnDistance) + this.settings.columnOffset;
-          this.y = Math.floor(this.index / this.cols) * (this.settings.size + this.settings.rowDistance) + this.settings.rowOffset;
+          this.x =
+            (this.index % this.cols) *
+              (this.settings.size + this.settings.columnDistance) +
+            this.settings.columnOffset;
+          this.y =
+            Math.floor(this.index / this.cols) *
+              (this.settings.size + this.settings.rowDistance) +
+            this.settings.rowOffset;
         }
         this.angle = this.settings.angle;
         this.speed = this.settings.speed;
-      }
+      } */
+
+        
+        
+          initPosition() {
+            const {
+              layoutSelect,
+              size,
+              columnDistance,
+              rowDistance,
+              rowOffset,
+              columnOffset,
+            } = this.settings;
+        
+            if (layoutSelect === 'random') {
+              this.x = this.p5.random(this.p5.width);
+              this.y = this.p5.random(this.p5.height);
+            } else {
+              // how many fit in each dimension
+              const cols = Math.floor(this.p5.width / (size + columnDistance));
+              const rows = Math.floor(this.p5.height / (size + rowDistance));
+              // grid coords
+              const colIndex = this.index % cols;
+              const rowIndex = Math.floor(this.index / cols);
+              // fixed cell spacing
+              const cellWidth  = size + columnDistance;
+              const cellHeight = size + rowDistance;
+              // skew: each row slides right by rowOffset, each column drops down by columnOffset
+              this.x = colIndex * cellWidth  + rowIndex * rowOffset;
+              this.y = rowIndex * cellHeight + colIndex * columnOffset;
+            }
+        
+            this.angle = this.settings.angle;
+            this.speed = this.settings.speed;
+          }
+        
+          // … rest of Shape …
+         
+        
 
       move() {
         switch (this.settings.direction) {
@@ -146,14 +240,28 @@ const ShapeAnimations: React.FC = () => {
             this.x += this.speed;
             break;
           case 'oscillateUpDown':
-            this.y += Math.sin(this.p5.frameCount * 0.05) * this.settings.speed * 0.01 * this.settings.oscillationRange;
+            this.y +=
+              Math.sin(this.p5.frameCount * 0.05) *
+              this.settings.speed *
+              0.01 *
+              this.settings.oscillationRange;
             break;
           case 'oscillateRightLeft':
-            this.x += Math.sin(this.p5.frameCount * 0.05) * this.settings.speed * 0.01 * this.settings.oscillationRange;
+            this.x +=
+              Math.sin(this.p5.frameCount * 0.05) *
+              this.settings.speed *
+              0.01 *
+              this.settings.oscillationRange;
             break;
           case 'circular':
-            this.x += Math.cos(this.p5.frameCount * this.settings.rotationSpeed * 0.001 + this.index) * this.settings.rotationRadius * 0.1;
-            this.y += Math.sin(this.p5.frameCount * this.settings.rotationSpeed * 0.001 + this.index) * this.settings.rotationRadius * 0.1;
+            this.x +=
+              Math.cos(this.p5.frameCount * this.settings.rotationSpeed * 0.001 + this.index) *
+              this.settings.rotationRadius *
+              0.1;
+            this.y +=
+              Math.sin(this.p5.frameCount * this.settings.rotationSpeed * 0.001 + this.index) *
+              this.settings.rotationRadius *
+              0.1;
             break;
           default:
             break;
@@ -169,9 +277,7 @@ const ShapeAnimations: React.FC = () => {
         this.p5.push();
         this.p5.translate(this.x, this.y);
         this.p5.rotate(this.angle);
-
-        let shapeColor = this.settings.palette === 'none' ? this.settings.shapeColor : '#000';
-        this.p5.fill(shapeColor);
+        this.p5.fill(this.fillColor);
 
         switch (this.settings.shapeType) {
           case 'circle':
@@ -182,9 +288,12 @@ const ShapeAnimations: React.FC = () => {
             break;
           case 'triangle':
             this.p5.triangle(
-              -this.settings.size / 2, this.settings.size / 2,
-              this.settings.size / 2, this.settings.size / 2,
-              0, -this.settings.size / 2
+              -this.settings.size / 2,
+              this.settings.size / 2,
+              this.settings.size / 2,
+              this.settings.size / 2,
+              0,
+              -this.settings.size / 2
             );
             break;
           case 'chevron':
@@ -235,6 +344,323 @@ const ShapeAnimations: React.FC = () => {
 };
 
 export default ShapeAnimations;
+
+
+// import React, { useState } from 'react';
+// import ControlPanelShape from './ControlPanelShape';
+// import { ReactP5Wrapper } from 'react-p5-wrapper';
+
+// interface Settings {
+//   shapeType: 'circle' | 'square' | 'triangle' | 'chevron' | 'diamond';
+//   numShapes: number;
+//   size: number;
+//   direction: 'static' | 'up' | 'down' | 'left' | 'right' | 'oscillateUpDown' | 'oscillateRightLeft' | 'circular';
+//   angle: number;
+//   speed: number;
+//   rotationSpeed: number;
+//   rotationRadius: number;
+//   bgColor: string;
+//   shapeColor: string;
+//   secondColor: string;
+//   palette: 'none' | 'rainbow' | 'pastel';
+//   rowOffset: number;
+//   columnOffset: number;
+//   rowDistance: number;
+//   columnDistance: number;
+//   layoutSelect: 'random' | 'regular' | 'checkboard';
+//   oscillationRange: number;
+// }
+
+// const ShapeAnimations: React.FC = () => {
+//   const defaultSettings: Settings = {
+//     shapeType: 'circle',
+//     numShapes: 10,
+//     size: 50,
+//     direction: 'static',
+//     angle: 0,
+//     speed: 5,
+//     rotationSpeed: 0.02,
+//     rotationRadius: 150,
+//     bgColor: '#FFFFFF',
+//     shapeColor: '#007BFF',
+//     secondColor: '#FF0000',
+//     palette: 'none',
+//     rowOffset: 0,
+//     columnOffset: 0,
+//     rowDistance: 50,
+//     columnDistance: 50,
+//     layoutSelect: 'random',
+//     oscillationRange: 100,
+//   };
+
+//   const [settings, setSettings] = useState<Settings>(defaultSettings);
+//   const [isAnimating, setIsAnimating] = useState<boolean>(true);
+
+//   const sketch = (p5: any) => {
+//     let shapes: Shape[] = [];
+
+//     p5.setup = () => {
+
+   
+//         p5.createCanvas(p5.windowWidth, p5.windowHeight);
+//         // switch to HSB for easy hue-based coloring
+//         p5.colorMode(p5.HSB, 360, 100, 100);
+//         createShapes();
+//       };
+      
+      
+
+//     p5.updateWithProps = (props: { settings: Settings; isAnimating: boolean }) => {
+//       if (props.settings) {
+//         setSettings(props.settings);
+//         createShapes();
+//       }
+//       if (props.isAnimating !== undefined) {
+//         props.isAnimating ? p5.loop() : p5.noLoop();
+//       }
+//     };
+
+//     /* p5.draw = () => {
+//       p5.background(settings.bgColor);
+//       for (let shape of shapes) {
+//         shape.move();
+//         shape.display();
+//       }
+//     }; */
+
+//     p5.draw = () => {
+//   p5.background(settings.bgColor);
+
+//   const totalShapes = shapes.length;
+
+//   for (let shape of shapes) {
+//     // compute its row/col if you need for checkboard
+//     const colIndex = shape['index'] % shape['cols'];
+//     const rowIndex = Math.floor(shape['index'] / shape['cols']);
+
+//     // figure out what fill to use:
+//     let c: p5.Color;
+//     if (settings.layoutSelect === 'checkboard') {
+//       // alternate between primary & second color
+//       c = p5.color(
+//         ( (rowIndex + colIndex) % 2 === 0 )
+//           ? p5.color(settings.shapeColor)
+//           : p5.color(settings.secondColor)
+//       );
+//     } else if (settings.palette === 'rainbow') {
+//       // evenly spread hue 0→360
+//       const hue = (shape['index'] / totalShapes) * 360;
+//       c = p5.color(hue, 100, 100);
+//     } else if (settings.palette === 'pastel') {
+//       const hue = (shape['index'] / totalShapes) * 360;
+//       c = p5.color(hue, 60, 80);  // softer saturation & brightness
+//     } else {
+//       // no palette, just single color
+//       c = p5.color(settings.shapeColor);
+//     }
+
+//     p5.fill(c);
+
+//     // now draw & move it
+//     shape.move();
+//     shape.display();
+//   }
+// };
+
+
+//     p5.windowResized = () => {
+//       p5.resizeCanvas(p5.windowWidth, p5.windowHeight);
+//       createShapes();
+//     };
+
+//     function createShapes() {
+//       shapes = [];
+//       let totalShapes: number;
+//       let rows: number, cols: number;
+
+//       if (settings.layoutSelect === 'random') {
+//         totalShapes = settings.numShapes;
+//       } else {
+//         rows = Math.floor(p5.height / (settings.size + settings.rowDistance));
+//         cols = Math.floor(p5.width / (settings.size + settings.columnDistance));
+//         totalShapes = rows * cols;
+//       }
+
+//       for (let i = 0; i < totalShapes; i++) {
+//         shapes.push(new Shape(p5, settings, i, rows, cols));
+//       }
+//     }
+
+//     class Shape {
+//       private p5: any;
+//       private settings: Settings;
+//       private index: number;
+//       private rows: number;
+//       private cols: number;
+//       private x: number;
+//       private y: number;
+//       private angle: number;
+//       private speed: number;
+
+//       constructor(p5: any, settings: Settings, index: number, rows: number, cols: number) {
+//         this.p5 = p5;
+//         this.settings = settings;
+//         this.index = index;
+//         this.rows = rows;
+//         this.cols = cols;
+//         this.initPosition();
+//       }
+
+//       initPosition() {
+//         if (this.settings.layoutSelect === 'random') {
+//           this.x = this.p5.random(this.p5.width);
+//           this.y = this.p5.random(this.p5.height);
+//         } else {
+//           this.x = (this.index % this.cols) * (this.settings.size + this.settings.columnDistance) + this.settings.columnOffset;
+//           this.y = Math.floor(this.index / this.cols) * (this.settings.size + this.settings.rowDistance) + this.settings.rowOffset;
+//         }
+//         this.angle = this.settings.angle;
+//         this.speed = this.settings.speed;
+//       }
+
+//       move() {
+//         switch (this.settings.direction) {
+//           case 'up':
+//             this.y -= this.speed;
+//             break;
+//           case 'down':
+//             this.y += this.speed;
+//             break;
+//           case 'left':
+//             this.x -= this.speed;
+//             break;
+//           case 'right':
+//             this.x += this.speed;
+//             break;
+//           case 'oscillateUpDown':
+//             this.y += Math.sin(this.p5.frameCount * 0.05) * this.settings.speed * 0.01 * this.settings.oscillationRange;
+//             break;
+//           case 'oscillateRightLeft':
+//             this.x += Math.sin(this.p5.frameCount * 0.05) * this.settings.speed * 0.01 * this.settings.oscillationRange;
+//             break;
+//           case 'circular':
+//             this.x += Math.cos(this.p5.frameCount * this.settings.rotationSpeed * 0.001 + this.index) * this.settings.rotationRadius * 0.1;
+//             this.y += Math.sin(this.p5.frameCount * this.settings.rotationSpeed * 0.001 + this.index) * this.settings.rotationRadius * 0.1;
+//             break;
+//           default:
+//             break;
+//         }
+
+//         if (this.x > this.p5.width) this.x = 0;
+//         if (this.x < 0) this.x = this.p5.width;
+//         if (this.y > this.p5.height) this.y = 0;
+//         if (this.y < 0) this.y = this.p5.height;
+//       }
+
+//       display() {
+//         this.p5.push();
+//         this.p5.translate(this.x, this.y);
+//         this.p5.rotate(this.angle);
+//         // inside p5.draw(), before you call display():
+
+// // totalShapes needs to match what you used when creating them:
+// const totalShapes = shapes.length;
+
+// // compute row/col for checkboard if needed
+// const colIndex = this.index % this.cols;
+// const rowIndex = Math.floor(this.index / this.cols);
+
+// let fillColor: string | p5.Color;
+
+// // 1) Checkboard uses two user‐picked colors:
+// if (this.settings.layoutSelect === 'checkboard') {
+//   fillColor = (rowIndex + colIndex) % 2 === 0
+//     ? this.settings.shapeColor
+//     : this.settings.secondColor;
+// }
+// // 2) Rainbow palette: hue from 0→360°
+// else if (this.settings.palette === 'rainbow') {
+//   const hue = (this.index / totalShapes) * 360;
+//   fillColor = this.p5.color(`hsl(${hue},100%,50%)`);
+// }
+// // 3) Pastel palette: softer saturation/lightness
+// else if (this.settings.palette === 'pastel') {
+//   const hue = (this.index / totalShapes) * 360;
+//   fillColor = this.p5.color(`hsl(${hue},60%,80%)`);
+// }
+// // 4) Fallback to single shapeColor
+// else {
+//   fillColor = this.settings.shapeColor;
+// }
+
+// this.p5.fill(fillColor);
+
+
+//       /*   let shapeColor = this.settings.palette === 'none' ? this.settings.shapeColor : '#000';
+//         this.p5.fill(shapeColor); */
+
+//         switch (this.settings.shapeType) {
+//           case 'circle':
+//             this.p5.ellipse(0, 0, this.settings.size);
+//             break;
+//           case 'square':
+//             this.p5.rect(0, 0, this.settings.size, this.settings.size);
+//             break;
+//           case 'triangle':
+//             this.p5.triangle(
+//               -this.settings.size / 2, this.settings.size / 2,
+//               this.settings.size / 2, this.settings.size / 2,
+//               0, -this.settings.size / 2
+//             );
+//             break;
+//           case 'chevron':
+//             this.p5.beginShape();
+//             this.p5.vertex(-this.settings.size / 2, this.settings.size / 2);
+//             this.p5.vertex(0, -this.settings.size / 2);
+//             this.p5.vertex(this.settings.size / 2, this.settings.size / 2);
+//             this.p5.vertex(this.settings.size / 4, this.settings.size / 2);
+//             this.p5.vertex(0, 0);
+//             this.p5.vertex(-this.settings.size / 4, this.settings.size / 2);
+//             this.p5.endShape(this.p5.CLOSE);
+//             break;
+//           case 'diamond':
+//             this.p5.beginShape();
+//             this.p5.vertex(0, -this.settings.size / 2);
+//             this.p5.vertex(this.settings.size / 2, 0);
+//             this.p5.vertex(0, this.settings.size / 2);
+//             this.p5.vertex(-this.settings.size / 2, 0);
+//             this.p5.endShape(this.p5.CLOSE);
+//             break;
+//           default:
+//             break;
+//         }
+//         this.p5.pop();
+//       }
+//     }
+//   };
+
+//   const startAnimation = () => setIsAnimating(true);
+//   const stopAnimation = () => setIsAnimating(false);
+//   const resetAnimation = () => {
+//     setSettings(defaultSettings);
+//     setIsAnimating(true);
+//   };
+
+//   return (
+//     <div className="relative">
+//       <ControlPanelShape
+//         settings={settings}
+//         setSettings={setSettings}
+//         startAnimation={startAnimation}
+//         stopAnimation={stopAnimation}
+//         resetAnimation={resetAnimation}
+//       />
+//       <ReactP5Wrapper sketch={sketch} settings={settings} isAnimating={isAnimating} />
+//     </div>
+//   );
+// };
+
+// export default ShapeAnimations;
 
 //+++++++++++JS version+++++++++++++++++
  /*  // src/components/Therapy/ShapeAnimations.jsx

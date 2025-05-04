@@ -51,6 +51,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isVisible, toggleSidebar }) => {
       submenu: [
         { id: 7, path: '/disclaimer', label: 'Disclaimer' },
         { id: 8, path: '/background', label: 'Background' },
+        { id: 23, path: '/enduserguide', label: 'EndUser Guide' },
         { id: 9, path: '/demographics', label: 'Demographics' },
         { id: 10, path: '/medical-interview', label: 'Medical Interview' },
         { id: 11, path: '/parkinson-interview', label: 'Parkinson Interview' },

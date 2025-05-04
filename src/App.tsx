@@ -35,6 +35,7 @@ import DataDeletionInstructions from './components/pages/DataDeletionInstruction
 import TermsOfServicePage from './components/pages/TermsOfServicePage';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import ThirdPartyAuthPanel from './components/common/ThirdPartyAuthPanel';
+import EndUserPage from './components/pages/EndUserPage';
 
 // Ensure all the routes are defined in the App component
 const App: React.FC = () => {
@@ -86,6 +87,7 @@ const App: React.FC = () => {
           <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
           <Route path="/data-deletion-instructions" element={<DataDeletionInstructions />} />
           <Route path="/terms-of-service" element={<TermsOfServicePage />} />
+          <Route path="/enduserguide" element={<EndUserPage />} />
         </Routes>
       </div>
       {!isTherapyPage && <Footer />}

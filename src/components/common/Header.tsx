@@ -2,7 +2,7 @@
 // TS version
 
 import React from 'react';
-import parkinsonLogo from '../../assets/logos/parkinson-tremors.webp';
+import parkinsonLogo from '../../assets/logos/parkinson-tremors.gif';
 import BrainLogo from '../../assets/logos/stock-vector.jpg';
 
 // Define props interface
