@@ -1,19 +1,19 @@
 // src/components/Therapy/ControlPanelShape.tsx
+
 import React, { useState, useEffect, ChangeEvent } from 'react';
-import { Collapse } from 'react-collapse';
-import { db, storage } from '../../firebase/firebase';
-import { useAuth } from '../../data/AuthContext';
+import { Collapse }      from 'react-collapse';
+import { db, storage }   from '../../firebase/firebase';
+import { useAuth }       from '../../data/AuthContext';
 import {
   doc,
   setDoc,
   getDoc,
   collection,
   getDocs,
-  DocumentData,
 } from 'firebase/firestore';
 import { ref, uploadBytes } from 'firebase/storage';
-import Papa from 'papaparse';
-import Slider from '../common/Slider';
+import Papa              from 'papaparse';
+import Slider            from '../common/Slider';
 
 export interface Settings {
   shapeType: 'circle' | 'square' | 'triangle' | 'chevron' | 'diamond';
@@ -31,7 +31,7 @@ export interface Settings {
   rotationSpeed: number;
   rotationRadius: number;
   oscillationRange: number;
-  angle: number;     // in radians
+  angle: number;     // radians
   speed: number;
   size: number;
   numShapes: number;
@@ -46,7 +46,7 @@ export interface Settings {
   columnDistance: number;
 }
 
-type Message = { message: string; type: 'success' | 'error' };
+type Msg = { message: string; type: 'success' | 'error' };
 
 interface ControlPanelShapeProps {
   settings: Settings;
@@ -63,230 +63,135 @@ const ControlPanelShape: React.FC<ControlPanelShapeProps> = ({
   stopAnimation,
   resetAnimation,
 }) => {
-  const [isOpen, setIsOpen] = useState<boolean>(true);
+  const [isOpen,     setIsOpen]     = useState(true);
+  const [presetName, setPresetName] = useState('');
+  const [presets,    setPresets]    = useState<string[]>([]);
+  const [msg,        setMsg]        = useState<Msg | null>(null);
   const { currentUser } = useAuth();
-  const [presetName, setPresetName] = useState<string>('');
-  const [presetList, setPresetList] = useState<string[]>([]);
-  const [message, setMessage] = useState<Message>({ message: '', type: 'success' });
 
-  // fetch saved preset names
+  // fetch all preset IDs
   useEffect(() => {
-    const fetchPresets = async () => {
-      if (!currentUser) return;
-      try {
-        const userDocsRef = collection(
-          db,
-          `users/${currentUser.uid}/shape-animation-settings`
-        );
-        const snap = await getDocs(userDocsRef);
-        setPresetList(snap.docs.map(d => d.id));
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    fetchPresets();
+    if (!currentUser) return;
+    const refColl = collection(
+      db,
+      `users/${currentUser.uid}/shape-animation-settings`
+    );
+    getDocs(refColl)
+      .then(snap => setPresets(snap.docs.map(d => d.id)))
+      .catch(console.error);
   }, [currentUser]);
 
-  // generic color-input handler
-  const handleColorChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setSettings(prev => ({ ...prev, [name]: value }));
-  };
-
-  // save current settings as "current"
-  const saveCurrentSettings = async () => {
-    if (!currentUser) return;
-    const ts = new Date();
-    const withTs = {
-      ...settings,
-      userId: currentUser.uid,
-      timestamp: ts.toISOString(),
-      localDateTime: ts.toLocaleString(),
-    };
-    try {
-      await setDoc(
-        doc(db, `users/${currentUser.uid}/shape-animation-settings/current`),
-        withTs
-      );
-      const csv = Papa.unparse(
-        Object.entries(withTs).map(([k, v]) => ({ setting: k, value: v }))
-      );
-      const blob = new Blob([csv], { type: 'text/csv' });
-      await uploadBytes(
-        ref(storage, `users/${currentUser.uid}/shape-animation-settings/current.csv`),
-        blob
-      );
-      setMessage({ message: 'Current settings saved!', type: 'success' });
-    } catch (err) {
-      console.error(err);
-      setMessage({ message: 'Error saving current settings.', type: 'error' });
-    }
-  };
-
-  // save under a named preset
-  const savePresetSettings = async () => {
+  // handlers
+  const savePreset = async () => {
     if (!currentUser || !presetName) {
-      setMessage({ message: 'Please enter a preset name.', type: 'error' });
-      return;
+      return setMsg({ message: 'Enter a name first.', type: 'error' });
     }
-    const ts = new Date();
-    const withTs = {
-      ...settings,
-      presetName,
-      userId: currentUser.uid,
-      timestamp: ts.toISOString(),
-      localDateTime: ts.toLocaleString(),
-    };
+    const now = new Date().toISOString();
+    const payload = { ...settings, presetName, userId: currentUser.uid, timestamp: now };
     try {
       await setDoc(
         doc(db, `users/${currentUser.uid}/shape-animation-settings/${presetName}`),
-        withTs
+        payload
       );
+      // also upload CSV
       const csv = Papa.unparse(
-        Object.entries(withTs).map(([k, v]) => ({ setting: k, value: v }))
+        Object.entries(payload).map(([k, v]) => ({ setting: k, value: v }))
       );
       await uploadBytes(
-        ref(
-          storage,
-          `users/${currentUser.uid}/shape-animation-settings/${presetName}.csv`
-        ),
+        ref(storage, `users/${currentUser.uid}/shape-animation-settings/${presetName}.csv`),
         new Blob([csv], { type: 'text/csv' })
       );
-      if (!presetList.includes(presetName)) {
-        setPresetList(list => [...list, presetName]);
-      }
-      setMessage({ message: 'Preset saved!', type: 'success' });
-    } catch (err) {
-      console.error(err);
-      setMessage({ message: 'Error saving preset.', type: 'error' });
+      if (!presets.includes(presetName)) setPresets(ps => [...ps, presetName]);
+      setMsg({ message: 'Preset saved!', type: 'success' });
+    } catch (e) {
+      console.error(e);
+      setMsg({ message: 'Failed to save preset.', type: 'error' });
     }
   };
 
-  // load "current"
-  const loadCurrentSettings = async () => {
-    if (!currentUser) return;
-    try {
-      const snap = await getDoc(
-        doc(db, `users/${currentUser.uid}/shape-animation-settings/current`)
-      );
-      if (snap.exists()) {
-        setSettings(snap.data() as Settings);
-        setMessage({ message: 'Current loaded!', type: 'success' });
-      } else {
-        setMessage({ message: 'No current settings found.', type: 'error' });
-      }
-    } catch (err) {
-      console.error(err);
-      setMessage({ message: 'Error loading current.', type: 'error' });
-    }
-  };
-
-  // load named preset
-  const loadPresetSettings = async () => {
+  const loadPreset = async () => {
     if (!currentUser || !presetName) {
-      setMessage({ message: 'Select a preset to load.', type: 'error' });
-      return;
+      return setMsg({ message: 'Select a preset first.', type: 'error' });
     }
     try {
       const snap = await getDoc(
         doc(db, `users/${currentUser.uid}/shape-animation-settings/${presetName}`)
       );
-      if (snap.exists()) {
-        setSettings(snap.data() as Settings);
-        setMessage({ message: 'Preset loaded!', type: 'success' });
+      if (!snap.exists()) {
+        setMsg({ message: 'Preset not found.', type: 'error' });
       } else {
-        setMessage({ message: 'Preset not found.', type: 'error' });
+        setSettings(snap.data() as Settings);
+        setMsg({ message: 'Preset loaded!', type: 'success' });
       }
-    } catch (err) {
-      console.error(err);
-      setMessage({ message: 'Error loading preset.', type: 'error' });
+    } catch (e) {
+      console.error(e);
+      setMsg({ message: 'Failed to load preset.', type: 'error' });
     }
   };
 
+  const onColorChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setSettings(s => ({ ...s, [name]: value }));
+  };
+
   return (
-    <div
-      className={`
-        fixed top-16 bottom-4 right-4 w-64 p-4 bg-white rounded-lg
-        shadow-lg overflow-y-auto z-50
-      `}
-    >
+    <div className="fixed top-16 right-4 bottom-4 w-72 bg-white shadow-lg rounded-lg p-4 overflow-y-auto z-50">
       <button
-        onClick={() => setIsOpen(open => !open)}
-        className="mb-4 w-full bg-gray-200 text-gray-700 p-2 rounded"
+        onClick={() => setIsOpen(o => !o)}
+        className="w-full bg-gray-200 text-gray-700 text-sm py-2 rounded mb-4"
       >
         {isOpen ? 'Collapse Controls' : 'Expand Controls'}
       </button>
+
       <Collapse isOpened={isOpen}>
         <div className="space-y-4">
-          {/* play / pause / reset */}
-          <div className="flex space-x-2">
-            <button onClick={startAnimation} className="flex-1 bg-green-500 text-white p-2 rounded">
-              Start
-            </button>
-            <button onClick={stopAnimation} className="flex-1 bg-red-500 text-white p-2 rounded">
-              Stop
-            </button>
-            <button onClick={resetAnimation} className="flex-1 bg-gray-500 text-white p-2 rounded">
-              Reset
-            </button>
+          {/* run controls */}
+          <div className="flex space-x-2 text-sm">
+            <button onClick={startAnimation} className="flex-1 bg-green-500 text-white py-2 rounded">Start</button>
+            <button onClick={stopAnimation}  className="flex-1 bg-red-500   text-white py-2 rounded">Stop</button>
+            <button onClick={resetAnimation} className="flex-1 bg-gray-500  text-white py-2 rounded">Reset</button>
           </div>
 
-          {/* preset controls */}
+          {/* preset name + buttons */}
           <input
             type="text"
+            placeholder="Preset name"
             value={presetName}
             onChange={e => setPresetName(e.target.value)}
-            placeholder="Preset Name"
-            className="w-full border p-2 rounded"
+            className="w-full border px-2 py-1 rounded text-sm"
           />
-          <div className="flex space-x-2">
-            <button onClick={saveCurrentSettings} className="flex-1 bg-blue-500 text-white p-2 rounded">
-              Save Current
-            </button>
-            <button onClick={loadCurrentSettings} className="flex-1 bg-yellow-500 text-white p-2 rounded">
-              Load Current
-            </button>
-          </div>
-          <div className="flex space-x-2">
-            <button onClick={savePresetSettings} className="flex-1 bg-blue-600 text-white p-2 rounded">
-              Save Preset
-            </button>
-            <button onClick={loadPresetSettings} className="flex-1 bg-yellow-600 text-white p-2 rounded">
-              Load Preset
-            </button>
+          <div className="flex space-x-2 text-sm">
+            <button onClick={savePreset} className="flex-1 bg-blue-600 text-white py-2 rounded">Save Preset</button>
+            <button onClick={loadPreset} className="flex-1 bg-yellow-600 text-white py-2 rounded">Load Preset</button>
           </div>
           <select
             value={presetName}
             onChange={e => setPresetName(e.target.value)}
-            className="w-full border p-2 rounded"
+            className="w-full border px-2 py-1 rounded text-sm"
           >
-            <option value="">-- Select Preset --</option>
-            {presetList.map(p => (
-              <option key={p} value={p}>
-                {p}
-              </option>
+            <option value="">-- Select --</option>
+            {presets.map(p => (
+              <option key={p} value={p}>{p}</option>
             ))}
           </select>
 
-          {message.message && (
-            <div
-              className={`p-2 rounded ${
-                message.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-              }`}
-            >
-              {message.message}
+          {msg && (
+            <div className={`p-2 rounded text-sm ${
+              msg.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+            }`}>
+              {msg.message}
             </div>
           )}
 
-          {/* --- ALL THE MISSING CONTROLS BELOW --- */}
-
           {/* shapeType */}
-          <div className="space-y-1">
+          <div className="space-y-1 text-sm">
             <label>Select Shape:</label>
             <select
               value={settings.shapeType}
-              onChange={e => setSettings({ ...settings, shapeType: e.target.value as Settings['shapeType'] })}
-              className="w-full border p-2 rounded"
+              onChange={e =>
+                setSettings(s => ({ ...s, shapeType: e.target.value as any }))
+              }
+              className="w-full border px-2 py-1 rounded"
             >
               <option value="circle">Circle</option>
               <option value="square">Square</option>
@@ -297,12 +202,14 @@ const ControlPanelShape: React.FC<ControlPanelShapeProps> = ({
           </div>
 
           {/* direction */}
-          <div className="space-y-1">
+          <div className="space-y-1 text-sm">
             <label>Direction:</label>
             <select
               value={settings.direction}
-              onChange={e => setSettings({ ...settings, direction: e.target.value as Settings['direction'] })}
-              className="w-full border p-2 rounded"
+              onChange={e =>
+                setSettings(s => ({ ...s, direction: e.target.value as any }))
+              }
+              className="w-full border px-2 py-1 rounded"
             >
               <option value="static">Static</option>
               <option value="up">Up</option>
@@ -310,14 +217,14 @@ const ControlPanelShape: React.FC<ControlPanelShapeProps> = ({
               <option value="left">Left</option>
               <option value="right">Right</option>
               <option value="oscillateUpDown">Oscillate Up/Down</option>
-              <option value="oscillateRightLeft">Oscillate Left/Right</option>
+              <option value="oscillateRightLeft">Oscillate L/R</option>
               <option value="circular">Circular</option>
-              <option value="3DVertical">3D Vertical</option>
-              <option value="3DHorizontal">3D Horizontal</option>
+              <option value="3DVertical">3D Vert.</option>
+              <option value="3DHorizontal">3D Horz.</option>
             </select>
           </div>
 
-          {/* circular-only */}
+          {/* circular only */}
           {settings.direction === 'circular' && (
             <>
               <Slider
@@ -326,115 +233,111 @@ const ControlPanelShape: React.FC<ControlPanelShapeProps> = ({
                 max={1}
                 step={0.01}
                 value={settings.rotationSpeed}
-                onChange={v => setSettings({ ...settings, rotationSpeed: v })}
+                onChange={v => setSettings(s => ({ ...s, rotationSpeed: v }))}
               />
               <Slider
                 label="Rotation Radius"
                 min={10}
                 max={500}
                 value={settings.rotationRadius}
-                onChange={v => setSettings({ ...settings, rotationRadius: v })}
+                onChange={v => setSettings(s => ({ ...s, rotationRadius: v }))}
               />
             </>
           )}
 
-          {/* oscillation-only */}
-          {['oscillateUpDown', 'oscillateRightLeft', '3DVertical', '3DHorizontal'].includes(
-            settings.direction
-          ) && (
+          {/* oscillation only */}
+          {['oscillateUpDown','oscillateRightLeft','3DVertical','3DHorizontal'].includes(settings.direction) && (
             <Slider
               label="Oscillation Range"
               min={0}
-              max={
-                settings.direction === 'oscillateUpDown' || settings.direction === '3DVertical'
-                  ? window.innerHeight / 4
-                  : window.innerWidth / 4
-              }
+              max={window.innerWidth/4}
               value={settings.oscillationRange}
-              onChange={v => setSettings({ ...settings, oscillationRange: v })}
+              onChange={v => setSettings(s => ({ ...s, oscillationRange: v }))}
             />
           )}
 
           {/* angle */}
           <Slider
-            label="Angle (deg)"
+            label="Angle (°)"
             min={0}
             max={360}
             step={1}
-            value={(settings.angle * 180) / Math.PI}
+            value={(settings.angle*180)/Math.PI}
             onChange={v =>
-              setSettings({ ...settings, angle: (v * Math.PI) / 180 })
+              setSettings(s => ({ ...s, angle: (v*Math.PI)/180 }))
             }
           />
 
-          {/* speed, size */}
+          {/* speed & size */}
           <Slider
             label="Speed"
             min={1}
             max={20}
+            step={1}
             value={settings.speed}
-            onChange={v => setSettings({ ...settings, speed: v })}
+            onChange={v => setSettings(s => ({ ...s, speed: v }))}
           />
           <Slider
             label="Size"
             min={20}
             max={200}
+            step={1}
             value={settings.size}
-            onChange={v => setSettings({ ...settings, size: v })}
+            onChange={v => setSettings(s => ({ ...s, size: v }))}
           />
 
-          {/* random count */}
+          {/* count if random */}
           {settings.layoutSelect === 'random' && (
             <Slider
               label="Number of Shapes"
               min={1}
               max={100}
               value={settings.numShapes}
-              onChange={v => setSettings({ ...settings, numShapes: v })}
+              onChange={v => setSettings(s => ({ ...s, numShapes: v }))}
             />
           )}
 
           {/* colors */}
-          <div className="space-y-1">
+          <div className="space-y-1 text-sm">
             <label>Background Color:</label>
             <input
-              type="color"
               name="bgColor"
+              type="color"
               value={settings.bgColor}
-              onChange={handleColorChange}
-              className="w-full"
+              onChange={onColorChange}
+              className="w-full h-8 p-0 border rounded"
             />
           </div>
-          <div className="space-y-1">
+          <div className="space-y-1 text-sm">
             <label>Shape Color:</label>
             <input
-              type="color"
               name="shapeColor"
+              type="color"
               value={settings.shapeColor}
-              onChange={handleColorChange}
-              className="w-full"
+              onChange={onColorChange}
+              className="w-full h-8 p-0 border rounded"
             />
           </div>
           {settings.layoutSelect === 'checkboard' && (
-            <div className="space-y-1">
-              <label>Second Shape Color:</label>
+            <div className="space-y-1 text-sm">
+              <label>Second Color:</label>
               <input
-                type="color"
                 name="secondColor"
+                type="color"
                 value={settings.secondColor}
-                onChange={handleColorChange}
-                className="w-full"
+                onChange={onColorChange}
+                className="w-full h-8 p-0 border rounded"
               />
             </div>
           )}
 
           {/* palette */}
-          <div className="space-y-1">
+          <div className="space-y-1 text-sm">
             <label>Palette:</label>
             <select
               value={settings.palette}
-              onChange={e => setSettings({ ...settings, palette: e.target.value as Settings['palette'] })}
-              className="w-full border p-2 rounded"
+              onChange={e => setSettings(s => ({ ...s, palette: e.target.value as any }))}
+              className="w-full border px-2 py-1 rounded"
             >
               <option value="none">None</option>
               <option value="rainbow">Rainbow</option>
@@ -443,14 +346,14 @@ const ControlPanelShape: React.FC<ControlPanelShapeProps> = ({
           </div>
 
           {/* layout */}
-          <div className="space-y-1">
+          <div className="space-y-1 text-sm">
             <label>Layout:</label>
             <select
               value={settings.layoutSelect}
               onChange={e =>
-                setSettings({ ...settings, layoutSelect: e.target.value as Settings['layoutSelect'] })
+                setSettings(s => ({ ...s, layoutSelect: e.target.value as any }))
               }
-              className="w-full border p-2 rounded"
+              className="w-full border px-2 py-1 rounded"
             >
               <option value="random">Random</option>
               <option value="regular">Regular</option>
@@ -466,28 +369,28 @@ const ControlPanelShape: React.FC<ControlPanelShapeProps> = ({
                 min={0}
                 max={100}
                 value={settings.rowOffset}
-                onChange={v => setSettings({ ...settings, rowOffset: v })}
+                onChange={v => setSettings(s => ({ ...s, rowOffset: v }))}
               />
               <Slider
-                label="Column Offset"
+                label="Col Offset"
                 min={0}
                 max={100}
                 value={settings.columnOffset}
-                onChange={v => setSettings({ ...settings, columnOffset: v })}
+                onChange={v => setSettings(s => ({ ...s, columnOffset: v }))}
               />
               <Slider
                 label="Row Distance"
                 min={0}
                 max={100}
                 value={settings.rowDistance}
-                onChange={v => setSettings({ ...settings, rowDistance: v })}
+                onChange={v => setSettings(s => ({ ...s, rowDistance: v }))}
               />
               <Slider
-                label="Column Distance"
+                label="Col Distance"
                 min={0}
                 max={100}
                 value={settings.columnDistance}
-                onChange={v => setSettings({ ...settings, columnDistance: v })}
+                onChange={v => setSettings(s => ({ ...s, columnDistance: v }))}
               />
             </>
           )}
@@ -498,6 +401,7 @@ const ControlPanelShape: React.FC<ControlPanelShapeProps> = ({
 };
 
 export default ControlPanelShape;
+
 
 
 
