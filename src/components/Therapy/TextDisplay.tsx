@@ -1,34 +1,21 @@
 // src/components/Therapy/TextDisplay.tsx
 
-import React, { Dispatch, SetStateAction } from 'react';
+import React from 'react';
 import buttonStyle from './buttonStyle';
 
 interface TextDisplayProps {
   displayText: string;
-  setDisplayText: Dispatch<SetStateAction<string>>;
+  setDisplayText: (t: string) => void;
+  style?: React.CSSProperties;
+  buttonContainerStyle?: React.CSSProperties;
 }
 
-const TextDisplay: React.FC<TextDisplayProps> = ({ displayText, setDisplayText }) => {
-  const fetchQuote = async () => {
-    try {
-      const response = await fetch('https://api.api-ninjas.com/v1/quotes?', {
-        headers: {
-          'X-Api-Key': 'YuQ8PUjiA8l7LHvzUyX7lw==bg18WeGVrSb1cabG', // Replace with your API key
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Error: ${response.status}`);
-      }
-
-      const data = await response.json();
-      if (data && data.length > 0) {
-        setDisplayText(data[0].quote); // Assuming the API returns an array of quotes
-      }
-    } catch (error) {
-      console.error('Fetching quote failed:', error);
-    }
-  };
+const TextDisplay: React.FC<TextDisplayProps> = ({
+  displayText,
+  setDisplayText,
+  style,
+  buttonContainerStyle,
+}) => {
 
   const historicPassages: string[] = [
     "It is a truth universally acknowledged, that a single man in possession of a good fortune, must be in want of a wife - Jane Austen.",
@@ -77,26 +64,21 @@ const TextDisplay: React.FC<TextDisplayProps> = ({ displayText, setDisplayText }
   ];
 
   return (
-    
-    <div 
+    <div
       style={{
-        position: 'relative',
-        top: '330px', // Adjust based on the height of the pink controller
-        left: '1000px', // Align close to the pink controller
-        width: '300px', // Fixed width
-        padding: '20px',
+        width:  'max-content',
+        padding: '1rem',
         backgroundColor: 'white',
-        borderRadius: '8px',
-        boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)',
-        zIndex: 100,
+        borderRadius: '0.5rem',
+        boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
+        ...style         // <-- bottom/right placement + pointer-events: none
       }}
     >
       <div
         style={{
           display: 'flex',
-          justifyContent: 'center',
-          gap: '10px',
-          marginBottom: '10px',
+          gap:     '0.5rem',
+          ...buttonContainerStyle  // <-- pointer-events: auto for the buttons
         }}
       >
         <button
@@ -111,30 +93,21 @@ const TextDisplay: React.FC<TextDisplayProps> = ({ displayText, setDisplayText }
         </button>
         <button
           onClick={() =>
-            setDisplayText(
-              latinTexts[Math.floor(Math.random() * latinTexts.length)]
-            )
+            setDisplayText(latinTexts[Math.floor(Math.random() * latinTexts.length)])
           }
           style={buttonStyle}
         >
           Latin Text
         </button>
       </div>
-      <div
-        style={{
-          textAlign: 'center',
-          overflowY: 'auto',
-          maxHeight: '300px', // Add vertical scroll if text overflows
-        }}
-      >
-        <span>{displayText || 'Select an option to display text'}</span>
+      <div style={{ marginTop: '0.5rem', textAlign: 'center' }}>
+        {displayText || 'Select an option to display text'}
       </div>
     </div>
   );
 };
 
 export default TextDisplay;
-
 
 //+++++++++++JS version+++++++++++++++++
 /*   //src\components\Therapy\TextDisplay.tsx

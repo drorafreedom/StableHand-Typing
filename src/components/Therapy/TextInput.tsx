@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Collapse } from 'react-collapse';
 import buttonStyle from './buttonStyle';
-// import TextDisplay from './TextDisplay';
+ import TextDisplay from './TextDisplay';
 
 interface KeyData {
   key: string;
@@ -17,10 +17,11 @@ interface KeyData {
 interface TextInputProps {
   placeholder: string;
   displayText: string;
+  setDisplayText: React.Dispatch<React.SetStateAction<string>>;   
   saveKeystrokeData: (data: { keyData: KeyData[]; errors: number }) => void;
 }
 
-const TextInput: React.FC<TextInputProps> = ({ placeholder, displayText, saveKeystrokeData }) => {
+const TextInput: React.FC<TextInputProps> = ({ placeholder, displayText, setDisplayText, saveKeystrokeData }) => {
   const [inputValue, setInputValue] = useState<string>('');
   const [keyData, setKeyData] = useState<KeyData[]>([]);
   const [font, setFont] = useState<string>('Arial');

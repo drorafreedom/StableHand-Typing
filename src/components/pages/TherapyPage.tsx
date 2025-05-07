@@ -1,6 +1,6 @@
 // src/components/pages/TherapyPage.tsx
 
-import React, { useState } from 'react';
+import React, { useState,useEffect } from 'react';
 import MultifunctionAnimation from '../Therapy/MultifunctionAnimation';
 import ShapeAnimations from '../Therapy/ShapeAnimations';
 import ColorAnimation from '../Therapy/ColorAnimation';
@@ -26,6 +26,14 @@ const TherapyPage: React.FC = () => {
   const [message, setMessage] = useState<Message | null>(null);
   const [settings, setSettings] = useState<Settings>({});
   const [displayText, setDisplayText] = useState<string>('');
+ 
+
+  // Auto-clear the message after 3 seconds
+  useEffect(() => {
+    if (!message) return
+    const timer = setTimeout(() => setMessage(null), 3000)
+    return () => clearTimeout(timer)
+  }, [message])
 
   const saveKeystrokeData = async (keyData: any) => {
     try {
@@ -79,10 +87,14 @@ const TherapyPage: React.FC = () => {
         <ColorAnimation settings={settings} setSettings={setSettings} />
       )}
 <div>   
-  <div className="w-1/2 flex flex-col items-start space-y-4"
-        className="absolute w-full z-25 p-4">
-        <TextInput placeholder="Type here..." displayText={displayText} saveKeystrokeData={saveKeystrokeData} />
-      </div>
+<TextInput
+      placeholder="Type here…"
+      displayText={displayText}
+      setDisplayText={setDisplayText}       // ← pass it here
+      saveKeystrokeData={saveKeystrokeData}
+    />
+
+
 
       <div className="absolute center-1920 right-22 w-1/3 z-7 p-4">
         <TextDisplay displayText={displayText} setDisplayText={setDisplayText} />
