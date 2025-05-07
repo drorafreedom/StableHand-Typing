@@ -3,7 +3,7 @@
 
 // src/components/Therapy/ShapeAnimations.tsx
 
-import React, { useState } from 'react';
+import React, { useState, useEffect,useCallback } from 'react';
 import ControlPanelShape from './ControlPanelShape';
 import { ReactP5Wrapper } from 'react-p5-wrapper';
 
@@ -53,7 +53,7 @@ const ShapeAnimations: React.FC = () => {
   const [settings, setSettings] = useState<Settings>(defaultSettings);
   const [isAnimating, setIsAnimating] = useState<boolean>(true);
 
-  const sketch = (p5: any) => {
+  const sketch = useCallback((p5: any) => {
     let shapes: Shape[] = [];
     let rowsCount = 0;
     let colsCount = 0;
@@ -320,7 +320,7 @@ const ShapeAnimations: React.FC = () => {
         this.p5.pop();
       }
     }
-  };
+  },[]);
 
   const startAnimation = () => setIsAnimating(true);
   const stopAnimation = () => setIsAnimating(false);

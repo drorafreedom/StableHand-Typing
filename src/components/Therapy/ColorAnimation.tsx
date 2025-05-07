@@ -1,6 +1,6 @@
 // src/components/TherapyPage/ColorAnimation.tsx
 
-import React, { useState } from 'react';
+import React, { useState,useCallback } from 'react';
 import ControlPanelColor from './ControlPanelColor';
 import { ReactP5Wrapper, SketchProps } from 'react-p5-wrapper';
 
@@ -21,7 +21,7 @@ const ColorAnimation: React.FC<{ setCurrentAnimation: (animation: string) => voi
     duration: 1,
   });
 
-  const sketch = (p5: any) => {
+  const sketch = useCallback((p5: any) => {
     let t = 0;
 
     p5.setup = () => {
@@ -75,7 +75,7 @@ const ColorAnimation: React.FC<{ setCurrentAnimation: (animation: string) => voi
     p5.windowResized = () => {
       p5.resizeCanvas(p5.windowWidth, p5.windowHeight);
     };
-  };
+  },[]);
 
   return (
     <div className="relative">

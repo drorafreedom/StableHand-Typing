@@ -1,7 +1,7 @@
 
 // src/components/Therapy/MultifunctionAnimation.tsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect,useCallback } from 'react';
 import ControlPanel from './ControlPanel';
 import { ReactP5Wrapper } from 'react-p5-wrapper';
 
@@ -51,7 +51,7 @@ const MultifunctionAnimation: React.FC = () => {
   const [settings, setSettings] = useState<Settings>(defaultSettings);
   const [isAnimating, setIsAnimating] = useState<boolean>(true);
 
-  const sketch = (p5: any) => {
+ const sketch = useCallback((p5: any) => {
     let x = 0;
     let yOffset = p5.height / 2;
     let time = 0;
@@ -181,7 +181,7 @@ p5.noFill();
     p5.windowResized = () => {
       p5.resizeCanvas(p5.windowWidth, p5.windowHeight);
     };
-  };
+  },[]);
 
   const startAnimation = () => setIsAnimating(true);
   const stopAnimation = () => setIsAnimating(false);
