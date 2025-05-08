@@ -45,7 +45,7 @@ import { getAuth, sendEmailVerification } from 'firebase/auth';
   return errors;
 };
 
-exort const validateCityCountryProfession = (value) => {
+ const validateCityCountryProfession = (value) => {
   const errors = [];
   if (!/^[a-zA-Z\s]+$/.test(value)) {
     errors.push('Only alphabetic characters and spaces are allowed.');
@@ -59,7 +59,7 @@ exort const validateCityCountryProfession = (value) => {
   }
   return errors;
 };
-eport const validateDOB = (dob) => {
+ const validateDOB = (dob) => {
   const errors = [];
   const birthDate = new Date(dob);
   const today = new Date();
