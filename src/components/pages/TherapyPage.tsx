@@ -48,6 +48,7 @@ const TherapyPage: React.FC = () => {
   };
 
   return (
+    
     <div className="relative w-full">
       <div className="flex justify-center text-sm text-gray-600 rounded p-2 mb-4 w-full">
         <DateTimeDisplay />
@@ -71,11 +72,11 @@ const TherapyPage: React.FC = () => {
         </button>
       </div>
 
-      {message && (
+   {/*    {message && (
         <div className={`alert ${message.type === 'error' ? 'bg-red-500' : 'bg-green-500'} text-white p-2 rounded mb-4`}>
           {message.message}
         </div>
-      )}
+      )} */}
 
       {currentAnimation === 'multifunction' && (
         <MultifunctionAnimation settings={settings} setSettings={setSettings} />
@@ -86,7 +87,19 @@ const TherapyPage: React.FC = () => {
       {currentAnimation === 'color' && (
         <ColorAnimation settings={settings} setSettings={setSettings} />
       )}
-<div>   
+{/* down where you render your TextInput/TextDisplay */}
+<div className="relative w-full mt-4 ">
+  {message && (
+    <div className="mb-2 w-1/2 text-left">
+      <div className={`
+          inline-block text-white px-4 py-2 rounded shadow
+          ${message.type === 'error' ? 'bg-red-500' : 'bg-green-500'}
+        `}>
+        {message.message}
+      </div>
+    </div>
+  )}  
+  
 <TextInput
       placeholder="Type here…"
       displayText={displayText}
