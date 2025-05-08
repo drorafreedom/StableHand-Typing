@@ -49,7 +49,7 @@ const TherapyPage: React.FC = () => {
 
   return (
     
-    <div className="relative w-full">
+    <div className="relative w-full ">
       <div className="flex justify-center text-sm text-gray-600 rounded p-2 mb-4 w-full">
         <DateTimeDisplay />
         <button
@@ -88,7 +88,7 @@ const TherapyPage: React.FC = () => {
         <ColorAnimation settings={settings} setSettings={setSettings} />
       )}
 {/* down where you render your TextInput/TextDisplay */}
-<div className="relative w-full mt-4 ">
+<div className="relative w-full ml-52  mt-4 ">
   {message && (
     <div className="mb-2 w-1/2 text-left">
       <div className={`

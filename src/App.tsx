@@ -36,7 +36,7 @@ import TermsOfServicePage from './components/pages/TermsOfServicePage';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import ThirdPartyAuthPanel from './components/common/ThirdPartyAuthPanel';
 import EndUserPage from './components/pages/EndUserPage';
-
+import SidebarToggleButton from './components/common/SidebarToggleButton';
 // Ensure all the routes are defined in the App component
 const App: React.FC = () => {
   const location = useLocation();
@@ -59,7 +59,12 @@ const App: React.FC = () => {
   return (
     <div className="flex flex-col min-h-screen">
       <Sidebar isVisible={isSidebarVisible} toggleSidebar={toggleSidebar} />
-      {!isTherapyPage && <Header toggleSidebar={toggleSidebar} />}
+      {/* {!isTherapyPage && <Header toggleSidebar={toggleSidebar} />} */}
+       {!isTherapyPage 
+    ? <Header toggleSidebar={toggleSidebar} />
+    : <SidebarToggleButton onClick={toggleSidebar} />
+  }
+
       <div className={`flex flex-col flex-grow w-full p-4 ${isSidebarVisible ? 'ml-0' : 'ml-0'}`}>
         <Routes>
           <Route path="/" element={<Welcome />} />
