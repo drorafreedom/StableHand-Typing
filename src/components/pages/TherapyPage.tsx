@@ -89,16 +89,7 @@ const TherapyPage: React.FC = () => {
       )}
 {/* down where you render your TextInput/TextDisplay */}
 <div className="relative w-full ml-52  mt-4 ">
-  {message && (
-    <div className="mb-2 w-1/2 text-left">
-      <div className={`
-          inline-block text-white px-4 py-2 rounded shadow
-          ${message.type === 'error' ? 'bg-red-500' : 'bg-green-500'}
-        `}>
-        {message.message}
-      </div>
-    </div>
-  )}  
+ 
   
 <TextInput
       placeholder="Type here…"
@@ -111,7 +102,16 @@ const TherapyPage: React.FC = () => {
 
       <div className="absolute center-1920 right-22 w-1/3 z-7 p-4">
         <TextDisplay displayText={displayText} setDisplayText={setDisplayText} />
+      {message && (
+    <div className="mb-2 w-1/2 text-left">
+      <div className={`
+          inline-block text-white px-4 py-2 rounded shadow
+          ${message.type === 'error' ? 'bg-red-500' : 'bg-green-500'}
+        `}>
+        {message.message}
       </div>
+    </div>
+  )}   </div>
     </div>
     </div>
   );

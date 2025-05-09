@@ -12,5 +12,13 @@
     "skipLibCheck": true,
     "strict": true
   },
-  "include": ["src"]
+  "include": ["src"],
+
+  // explicitly ignore the broken copies and test folders
+  "exclude": [
+    "node_modules",
+    "src/components/Therapy/Thearpy_not_used",
+    "src/components/Therapy/**/*copy.tsx",
+    "src/utils/validation copy.ts"
+  ]
 }

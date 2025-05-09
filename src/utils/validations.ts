@@ -1,12 +1,10 @@
-//+++++++++++JS version+++++++++++++++++
- // src/utils/validations.js 
-  // JS version
+// src/utils/validations.ts
 
-
-import { getAuth, sendEmailVerification } from 'firebase/auth';
-
- const validateEmail = (email) => {
-  const errors = [];
+/**
+ * Returns an array of error messages, or an empty array if valid.
+ */
+export function validateEmail(email: string): string[] {
+  const errors: string[] = [];
   if (!email.includes('@')) {
     errors.push('Email must contain @');
   }
@@ -17,53 +15,55 @@ import { getAuth, sendEmailVerification } from 'firebase/auth';
     errors.push('Invalid email format');
   }
   return errors;
-};
+}
 
- const validatePhoneNumber = (phoneNumber) => {
-  const errors = [];
+export function validatePhoneNumber(phoneNumber: string): string[] {
+  const errors: string[] = [];
   const phoneRegex = /^\d{10}$/; // Exact 10 digits for US format
   if (!phoneRegex.test(phoneNumber)) {
     errors.push('Phone number must be exactly 10 digits long.');
   }
   return errors;
-};
+}
 
- const validateZipCode = (zip) => {
-  const errors = [];
+export function validateZipCode(zip: string): string[] {
+  const errors: string[] = [];
   const zipRegex = /^\d{5}(-\d{4})?$/; // Matches US ZIP code format
   if (!zipRegex.test(zip)) {
     errors.push('Invalid ZIP code format.');
   }
   return errors;
-};
+}
 
- const validateRequired = (value) => {
-  const errors = [];
-  if (value === null || value.trim() === '') {
+export function validateRequired(value: string | null | undefined): string[] {
+  const errors: string[] = [];
+  if (value == null || value.trim() === '') {
     errors.push('This field is required.');
   }
   return errors;
-};
+}
 
- const validateCityCountryProfession = (value) => {
-  const errors = [];
+export function validateCityCountryProfession(value: string): string[] {
+  const errors: string[] = [];
   if (!/^[a-zA-Z\s]+$/.test(value)) {
     errors.push('Only alphabetic characters and spaces are allowed.');
   }
   return errors;
-};
- const validateText = (value) => {
-  const errors = [];
+}
+
+export function validateText(value: string): string[] {
+  const errors: string[] = [];
   if (!/^[a-zA-Z\s]+$/.test(value)) {
     errors.push('Only alphabetic characters and spaces are allowed.');
   }
   return errors;
-};
- const validateDOB = (dob) => {
-  const errors = [];
+}
+
+export function validateDOB(dob: string): string[] {
+  const errors: string[] = [];
   const birthDate = new Date(dob);
   const today = new Date();
-  const age = today.getFullYear() - birthDate.getFullYear();
+  let age = today.getFullYear() - birthDate.getFullYear();
   const monthDifference = today.getMonth() - birthDate.getMonth();
   if (monthDifference < 0 || (monthDifference === 0 && today.getDate() < birthDate.getDate())) {
     age--;
@@ -72,10 +72,10 @@ import { getAuth, sendEmailVerification } from 'firebase/auth';
     errors.push('Date of Birth must result in an age between 8 and 120 years.');
   }
   return errors;
-};
+}
 
- const validatePassword = (password) => {
-  const errors = [];
+export function validatePassword(password: string): string[] {
+  const errors: string[] = [];
   if (password.length < 8) {
     errors.push('Password must be at least 8 characters long');
   }
@@ -92,45 +92,45 @@ import { getAuth, sendEmailVerification } from 'firebase/auth';
     errors.push('Password must contain at least one special character');
   }
   return errors;
-};
+}
 
- const isCapsLockOn = (event) => {
-  return event.getModifierState && event.getModifierState('CapsLock');
-};
- const validatePositiveNumber = (value) => {
+export function isCapsLockOn(event: KeyboardEvent): boolean {
+  return event.getModifierState?.('CapsLock') ?? false;
+}
+
+export function validatePositiveNumber(value: number): string[] {
   return value >= 0 ? [] : ['Cannot be negative'];
-};
- const sendVerificationEmail = async (user) => {
+}
+
+/**
+ * Wrap Firebase's sendEmailVerification
+ */
+import { sendEmailVerification as fbSendEmailVerification, User } from 'firebase/auth';
+export async function sendVerificationEmail(user: User): Promise<void> {
   try {
-    await sendEmailVerification(user);
+    await fbSendEmailVerification(user);
     console.log('Verification email sent.');
-  } catch (error) {
-    console.error('Error sending verification email:', error);
+  } catch (err) {
+    console.error('Error sending verification email:', err);
+    throw err;
   }
-};
- const validateAge = (value) => {
-  return value >= 8 ? [] : ['Age must be at least 8y'];
-};
+}
 
-//---------------------------------------
-
+/**
+ * Central export for all validators
+ */
 const validations = {
   validateEmail,
   validatePhoneNumber,
   validateZipCode,
   validateRequired,
   validateCityCountryProfession,
+  validateText,
   validateDOB,
-  validateAge,
+  validatePassword,
+  isCapsLockOn,
+  validatePositiveNumber,
   sendVerificationEmail,
-validatePositiveNumber,
-isCapsLockOn,
-validatePassword,
-validateText,
-
 };
 
 export default validations;
-
-
- 
