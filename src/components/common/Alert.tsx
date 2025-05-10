@@ -2,11 +2,12 @@
 import React, { memo } from 'react';
 
 // Define the prop types
-interface AlertProps {
-  message: string;
-  type?: 'success' | 'error' | 'warning' | 'info';
-}
+export type AlertType = 'success' | 'error' | 'warning' | 'info';
 
+export interface AlertProps {
+  message: string;
+  type?: AlertType;
+}
 // Default alert types with corresponding styles
 const alertTypeClass: Record<NonNullable<AlertProps['type']>, string> = {
   success: 'bg-green-100 border-green-400 text-green-700',

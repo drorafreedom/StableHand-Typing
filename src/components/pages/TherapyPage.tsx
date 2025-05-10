@@ -10,6 +10,8 @@ import { doc, setDoc, collection } from 'firebase/firestore';
 import DateTimeDisplay from '../common/DateTimeDisplay';
 import TextDisplay from '../Therapy/TextDisplay';
 import TextInput from '../Therapy/TextInput';
+import Alert, { AlertType } from '../common/Alert'
+
 
 interface Message {
   message: string;
@@ -43,7 +45,7 @@ const TherapyPage: React.FC = () => {
       setMessage({ message: 'Keystroke data saved successfully!', type: 'success' });
     } catch (error) {
       console.error('Error saving keystroke data:', error);
-      setMessage({ message: 'Error saving keystroke data. Please try again.', type: 'error' });
+      setMessage({ message: 'Error saving keystroke data. Are you login? Please try again.', type: 'error' });
     }
   };
 
@@ -105,7 +107,7 @@ const TherapyPage: React.FC = () => {
       {message && (
     <div className="mb-2 w-1/2 text-left">
       <div className={`
-          inline-block text-white px-4 py-2 rounded shadow
+          inline-block text-white text-xs px-4 py-2 rounded shadow
           ${message.type === 'error' ? 'bg-red-500' : 'bg-green-500'}
         `}>
         {message.message}
