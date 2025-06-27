@@ -1,7 +1,20 @@
 // src/data/demographicFields.ts
 
 import * as validations from '../utils/validation';
-
+import {validateEmail,
+  validatePhoneNumber,
+  validateZipCode,
+  validateRequired,
+  validateCityCountryProfession,
+  validateDOB,
+  validateAge,
+  sendVerificationEmail,
+validatePositiveNumber,
+isCapsLockOn,
+validatePassword,
+validateText,
+validateMiddleName,
+validateAgeWithDOB} from '../utils/validation';
 type FieldType =
   | 'input'
   | 'select'
@@ -45,24 +58,46 @@ const industryOptions = [
   'Food services', 'Hotel services', 'Legal services', 'Publishing', 'Military', 'Prefer not to say'
 ];
 
-const demographicFields: Field[] = [
-  { label: 'First Name', name: 'firstName', type: 'input', inputType: 'text', placeholder: 'Enter first name', validate: [validations.validateRequired] },
-  { label: 'Middle Name', name: 'middleName', type: 'input', inputType: 'text', placeholder: 'Enter middle name', validate: [validations.validateMiddleName] },
-  { label: 'Last Name', name: 'lastName', type: 'input', inputType: 'text', placeholder: 'Enter last name', validate: [validations.validateRequired] },
-  { label: 'Date of Birth', name: 'dob', type: 'input', inputType: 'date', placeholder: 'Enter date of birth', validate: [validations.validateDOB] },
-  { label: 'Age', name: 'age', type: 'input', inputType: 'number', placeholder: 'Enter your age', validate: [validations.validateAge] },
-  { label: 'Gender', name: 'gender', type: 'select', options: genderOptions, validate: [validations.validateRequired] },
-  { label: 'Ethnicity', name: 'ethnicity', type: 'selectWithOther', options: ethnicityOptions, validate: [validations.validateRequired] },
-  { label: 'Income', name: 'income', type: 'select', options: incomeOptions, validate: [validations.validateRequired] },
-  { label: 'Employment Status', name: 'employmentStatus', type: 'selectWithOther', options: employmentStatusOptions, validate: [validations.validateRequired] },
-  { label: 'Education Level', name: 'educationLevel', type: 'selectWithOther', options: educationLevelOptions, validate: [validations.validateRequired] },
-  { label: 'City', name: 'city', type: 'input', inputType: 'text', placeholder: 'Enter city', validate: [validations.validateCityCountryProfession] },
-  { label: 'State', name: 'state', type: 'select', options: stateOptions, validate: [validations.validateRequired] },
-  { label: 'Phone Number', name: 'phoneNumber', type: 'input', inputType: 'text', placeholder: 'Enter phone number', validate: [validations.validatePhoneNumber] },
-  { label: 'Hobbies', name: 'hobbies', type: 'multiSelect', options: hobbiesOptions, validate: [validations.validateRequired] },
-];
+/*  //------------------------------------------------ */
+ const demographicFields = [
+ { label: 'First Name', name: 'firstName', type: 'input', inputType: 'text', placeholder: 'Enter first name', validate: [validateRequired] },
+  { label: 'Middle Name', name: 'middleName', type: 'input', inputType: 'text', placeholder: 'Enter middle name', validate: [ validateMiddleName] },
+  { label: 'Last Name', name: 'lastName', type: 'input', inputType: 'text', placeholder: 'Enter last name', validate: [validateRequired] },
+  { label: 'Date of Birth', name: 'dob', type: 'input', inputType: 'date', placeholder: 'Enter date of birth', validate: [validateDOB] },
+  { label: 'Age', name: 'age', type: 'input', inputType: 'number', placeholder: 'Enter your age', validate: [ validateAge ] },
+ { label: 'Gender', name: 'gender', type: 'select', options: genderOptions, validate: [validateRequired] },
+  { label: 'Ethnicity', name: 'ethnicity', type: 'selectWithOther', options: ethnicityOptions, validate: [validateRequired] },
+  { label: 'Income', name: 'income', type: 'select', options: incomeOptions, validate: [validateRequired] },
+  { label: 'Employment Status', name: 'employmentStatus', type: 'selectWithOther', options: employmentStatusOptions, validate: [validateRequired] },
+  { label: 'Education Level', name: 'educationLevel', type: 'selectWithOther', options: educationLevelOptions, validate: [validateRequired] },
+  { label: 'Address', name: 'address', type: 'input', inputType: 'text', placeholder: 'Enter address', validate: [validateRequired] },
+  { label: 'City', name: 'city', type: 'input', inputType: 'text', placeholder: 'Enter city', validate: [ validateCityCountryProfession] },
+  { label: 'State', name: 'state', type: 'select', options: stateOptions, validate: [validateRequired] },
+  { label: 'ZIP Code', name: 'zip', type: 'input', inputType: 'text', placeholder: 'Enter ZIP code', validate: [ validateZipCode] },
+  { label: 'Country', name: 'country', type: 'selectWithOther', options: countryOptions, validate: [ validateCityCountryProfession] },
+ { label: 'Where Do You Reside', name: 'residency', type: 'selectWithOther', options: residencyOptions, validate: [ validateCityCountryProfession] },
+{ label: 'Phone Number', name: 'phoneNumber', type: 'input', inputType: 'text', placeholder: 'Enter phone number', validate: [ validatePhoneNumber] },
+ { label: 'Email', name: 'email', type: 'input', inputType: 'email', placeholder: 'Enter email', validate: [ validateEmail] },
+ { label: 'Country of Birth', name: 'countryOfBirth', type: 'selectWithOther', options: countryOptions, validate: [ validateCityCountryProfession] },
+ { label: 'Citizenship', name: 'citizenship', type: 'selectWithOther', options: countryOptions, validate: [ validateCityCountryProfession] },
+ { label: '1st Languages', name: '1stlanguages', type: 'selectWithOther', options: languageOptions, validate: [validateRequired] },  
 
-export { demographicFields };
+  { label: '2nd Languages', name: '2languages2', type: 'multiSelect', options: languageOptions, validate: [validateRequired] }, //multiSelect
+   //{ label: '2nd Languages', name: '2languages', type: 'selectWithOther', options: languageOptions, validate: [validateRequired ] },
+
+    { label: 'Profession', name: 'profession', type: 'selectWithOther', options: industryOptions, validate: [ validateCityCountryProfession] },
+  { label: 'Marital Status', name: 'maritalStatus', type: 'select', options: maritalStatusOptions, validate: [validateRequired] },
+  { label: 'Number of Dependents', name: 'dependents', type: 'input', inputType: 'number', placeholder: 'Enter number of natural kids', validate: [ validatePositiveNumber]},
+  { label: 'Natural Kids', name: 'naturalKids', type: 'input', inputType: 'number', placeholder: 'Enter number of natural kids', validate: [ validatePositiveNumber] },
+  { label: 'Adopted Kids', name: 'adoptedKids', type: 'input', inputType: 'number', placeholder: 'Enter number of adopted kids', validate: [ validatePositiveNumber] },
+  
+  //  { label: 'What type of Pets Do You Have', name: 'petsTypes1', type: 'multiSelect', options: petsTypeOptions, validate: [validateRequired ] }, //multiSelect  
+ { label: 'What type of Pets Do You Have', name: 'petsTypes', type: 'multiSelectWithOther', options: petsTypeOptions, validate: [ validateCityCountryProfession] },
+
+  { label: 'Pets', name: 'pets', type: 'input', inputType: 'number', placeholder: 'Enter number of pets', validate: [ validatePositiveNumber] },
+  { label: 'Hobbies', name: 'hobbies', type: 'multiSelect', options: hobbiesOptions, validate: [validateRequired] }  
+ ] 
+ export  {demographicFields} ;
 
 //+++++++++++JS version+++++++++++++++++
 //   // src/data/demographicFields.js

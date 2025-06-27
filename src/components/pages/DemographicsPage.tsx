@@ -1,4 +1,5 @@
 // src/components/pages/DemographicsPage.tsx
+
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { collection, doc, setDoc } from 'firebase/firestore';
@@ -52,19 +53,22 @@ const DemographicsPage: React.FC = () => {
     setGlobalMessage(null);
   };
 
-  const handleMultiSelectChange = (selectedOptions: { value: string }[], name: string) => {
-    const values = selectedOptions ? selectedOptions.map((option) => option.value) : [];
-    setFormData((prev) => ({ ...prev, [name]: values }));
+ const handleMultiSelectChange = (selectedValues: string[], name: string) => {
+  setFormData((prev) => ({ ...prev, [name]: selectedValues }));
 
-    const field = demographicFields.find((field) => field.name === name);
-    if (field && field.validate) {
-      const validationErrors = field.validate.map((validate) => validate(values, formData)).flat();
-      setErrors((prev) => ({ ...prev, [name]: validationErrors }));
-    } else {
-      setErrors((prev) => ({ ...prev, [name]: [] }));
-    }
-    setGlobalMessage(null);
-  };
+  const field = demographicFields.find((field) => field.name === name);
+  if (field && field.validate) {
+    const validationErrors = field.validate
+      .map((validate) => validate(selectedValues, formData))
+      .flat();
+    setErrors((prev) => ({ ...prev, [name]: validationErrors }));
+  } else {
+    setErrors((prev) => ({ ...prev, [name]: [] }));
+  }
+
+  setGlobalMessage(null);
+};
+
 
   const validateAllFields = (): boolean => {
     const newErrors: { [key: string]: string[] } = {};
@@ -201,26 +205,27 @@ const DemographicsPage: React.FC = () => {
             } else if (field.type === 'multiSelect') {
               return (
                 <MultiSelectField
-                  key={field.name}
-                  label={field.label}
-                  name={field.name}
-                  value={formData[field.name] || []}
-                  onChange={(selectedOptions) => handleMultiSelectChange(selectedOptions, field.name)}
-                  options={field.options}
-                  errors={errors[field.name]}
-                />
+  key={field.name}
+  label={field.label}
+  name={field.name}
+  value={formData[field.name] || []}  // still using string[]
+  onChange={(selectedOptions) => handleMultiSelectChange(selectedOptions, field.name)}
+  options={field.options}
+  errors={errors[field.name]}
+/>
               );
             } else if (field.type === 'multiSelectWithOther') {
               return (
-                <MultiSelectWithOtherField
-                  key={field.name}
-                  label={field.label}
-                  name={field.name}
-                  values={formData[field.name] || []}
-                  onChange={(selectedOptions) => handleMultiSelectChange(selectedOptions, field.name)}
-                  options={field.options}
-                  errors={errors[field.name]}
-                />
+             <MultiSelectWithOtherField
+  key={field.name}
+  label={field.label}
+  name={field.name}
+  values={formData[field.name] || []}
+  onChange={(selectedOptions) => handleMultiSelectChange(selectedOptions, field.name)}
+  options={field.options}
+  errors={errors[field.name]}
+/>
+
               );
             }
             return null;

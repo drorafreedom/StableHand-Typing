@@ -1,7 +1,70 @@
 // src/components/common/MultiSelectField.tsx
-// TS version
+
+//new version TS 
+
+// src/components/common/MultiSelectField.tsx
 
 import React from 'react';
+import Select from 'react-select';
+import Alert from './Alert';
+
+interface MultiSelectFieldProps {
+  label: string;
+  name: string;
+  value: string[];
+  onChange: (values: string[], name: string) => void;
+  options: string[];
+  errors?: string[];
+}
+
+const MultiSelectField: React.FC<MultiSelectFieldProps> = ({
+  label,
+  name,
+  value,
+  onChange,
+  options,
+  errors = [],
+}) => {
+  const formattedOptions = options.map((opt) => ({ label: opt, value: opt }));
+
+  const selectedOptions = formattedOptions.filter((opt) =>
+    value.includes(opt.value)
+  );
+
+  const handleChange = (selected: any) => {
+    const values = selected ? selected.map((opt: any) => opt.value) : [];
+    onChange(values, name);
+  };
+
+  return (
+    <div className="mb-4">
+      <label className="block text-sm font-medium text-gray-700">
+        {label}
+      </label>
+      <Select
+        isMulti
+        options={formattedOptions}
+        value={selectedOptions}
+        onChange={handleChange}
+        className="mt-1 text-sm"
+        classNamePrefix="react-select"
+      />
+      {errors.length > 0 && (
+        <div className="mt-1">
+          {errors.map((error, idx) => (
+            <Alert key={idx} message={error} type="error" />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default MultiSelectField;
+
+// TS version
+
+/* import React from 'react';
 import Select, { MultiValue } from 'react-select';
 import Alert from './Alert';
 
@@ -56,7 +119,7 @@ const MultiSelectField: React.FC<MultiSelectFieldProps> = ({
 };
 
 export default MultiSelectField;
-
+ */
 /* 
 // src/components/common/MultiSelectField.tsx
 import React from 'react';

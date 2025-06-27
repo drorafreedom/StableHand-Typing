@@ -61,8 +61,22 @@ const MedicalInterviewPage: React.FC = () => {
     }
     setGlobalMessage(null); // Clear global message on individual field change
   };
+const handleMultiSelectChange = (selectedValues: string[], name: string) => {
+  setFormData((prev) => ({ ...prev, [name]: selectedValues }));
 
-  const handleMultiSelectChange = (selectedOptions: { value: string }[], name: string): void => {
+  const field = demographicFields.find((field) => field.name === name);
+  if (field && field.validate) {
+    const validationErrors = field.validate
+      .map((validate) => validate(selectedValues, formData))
+      .flat();
+    setErrors((prev) => ({ ...prev, [name]: validationErrors }));
+  } else {
+    setErrors((prev) => ({ ...prev, [name]: [] }));
+  }
+
+  setGlobalMessage(null);
+};
+/*   const handleMultiSelectChange = (selectedOptions: { value: string }[], name: string): void => {
     const values = selectedOptions ? selectedOptions.map((option) => option.value) : [];
     setFormData((prev) => ({ ...prev, [name]: values }));
 
@@ -78,7 +92,7 @@ const MedicalInterviewPage: React.FC = () => {
       setErrors((prev) => ({ ...prev, [name]: [] }));
     }
     setGlobalMessage(null); // Clear global message on individual field change
-  };
+  }; */
 
   const validateAllFields = (): boolean => {
     const newErrors: ErrorData = {};
