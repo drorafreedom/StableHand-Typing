@@ -31,10 +31,24 @@ const MultiSelectField: React.FC<MultiSelectFieldProps> = ({
     value.includes(opt.value)
   );
 
-  const handleChange = (selected: any) => {
+  /* const handleChange = (selected: any) => {
     const values = selected ? selected.map((opt: any) => opt.value) : [];
     onChange(values, name);
-  };
+  }; */
+  //Selecting “Prefer not to say” deselects everything else.
+
+//Selecting anything else removes “Prefer not to say” from selection.
+const handleChange = (selected: any) => {
+  let values = selected ? selected.map((opt: any) => opt.value) : [];
+
+  if (values.includes('Prefer not to say')) {
+    values = ['Prefer not to say']; // Only allow this one if selected
+  } else {
+    values = values.filter((val) => val !== 'Prefer not to say'); // Remove if others are picked
+  }
+
+  onChange(values, name);
+};
 
   return (
     <div className="mb-4">

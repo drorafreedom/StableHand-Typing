@@ -221,18 +221,39 @@ export const isCapsLockOn = (event: KeyboardEvent): boolean => {
 };
 
 //---------------------------------------validatePositiveNumber
-/* export const validatePositiveNumber = (value: number): string[] => {
-  return value >= 0 ? [] : ['Cannot be negative'];
-}; */
+ 
 
-export const validatePositiveNumber = (value: number): string[] => {
-  const errors: string[] = [];
-  if (value < 0) {
-    errors.push("Value cannot be negative.");
+/* export const validatePositiveNumber = (value) => {
+  const errors = [];
+
+  if (!value || typeof value !== 'string' || value.trim() === '') {
+    return ['This field is required.'];
+  } else {
+  if (value === undefined || value === null || value < 0) {
+    errors.push('Cannot be negative');
   }
   return errors;
 };
+}
+ */
 
+export const validatePositiveNumber = (value: string | number) => {
+  const errors: string[] = [];
+
+  if (value === undefined || value === null || value === '') {
+    return ['This field is required.'];
+  }
+
+  const num = Number(value);
+
+  if (isNaN(num)) {
+    errors.push('Must be a valid number.');
+  } else if (num < 0) {
+    errors.push('Cannot be negative.');
+  }
+
+  return errors;
+};
 // ** Continue with all additional functions and comments in this style...**
  //---------------------------------------sendVerificationEmail
 export const sendVerificationEmail = async (user: any): Promise<void> => {
