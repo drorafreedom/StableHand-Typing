@@ -155,6 +155,25 @@ export const validateCityCountryProfession = (value: string): string[] => {
   return errors;
 };
 
+//--------------------------------------validateMultiSelectField
+
+export const validateMultiSelectField = (values: string[]): string[] => {
+  const errors: string[] = [];
+
+  if (!Array.isArray(values) || values.length === 0) {
+    errors.push('This field is required.');
+  } else if (
+    values.length === 1 &&
+    (values[0] === '' || values[0].trim() === '')
+  ) {
+    errors.push('Please specify a value.');
+  }
+
+  return errors;
+};
+
+
+
 //---------------------------------------validateText
 export const validateText = (value: string): string[] => {
   const errors: string[] = [];
@@ -437,6 +456,7 @@ const validations = {
   validateAgeWithDOB,
   getFriendlyErrorMessage,
   compareAgeWithDOB,
+  validateMultiSelectField
 };
 
 // const validations = {

@@ -14,6 +14,7 @@ isCapsLockOn,
 validatePassword,
 validateText,
 validateMiddleName,
+validateMultiSelectField,
 validateAgeWithDOB} from '../utils/validation';
 type FieldType =
   | 'input'
@@ -35,10 +36,10 @@ const genderOptions = ['Male', 'Female', 'HomoSexual', 'BiSexual', 'TransSexual'
 const ethnicityOptions = ['White', 'Caucasian', 'African-American', 'Black', 'Native Hawaiian or Pacific Islander', 'Asian', 'Hispanic', 'Prefer not to say'];
 const incomeOptions = ['<20,000', '20,000-50,000', '50,000-100,000', '100,000+', 'Prefer not to say'];
 const employmentStatusOptions = ['Employed', 'Unemployed', 'Retired', 'Self-Employed', 'Seeking opportunities', 'Prefer not to say'];
-const educationLevelOptions = ['High School', 'Associate Degree', "Bachelor's Degree", "Master's Degree", 'Doctorate', 'Prefer not to say'];
+const educationLevelOptions = ['None','High School', 'Associate Degree', "Bachelor's Degree", "Master's Degree", 'Doctorate', 'Prefer not to say'];
 const maritalStatusOptions = ['Single', 'Married', 'Divorced', 'Widowed', 'Prefer not to say'];
 const languageOptions = ['English', 'Spanish', 'Portuguese', 'French', 'Mandarin', 'Chinese', 'Hindi', 'Arabic', 'Prefer not to say'];
-const stateOptions = [
+const stateOptions = ['NA',
   'Alabama', 'Alaska', 'Arizona', 'Arkansas', 'California', 'Colorado', 'Connecticut', 'Delaware', 'Florida', 'Georgia',
   'Hawaii', 'Idaho', 'Illinois', 'Indiana', 'Iowa', 'Kansas', 'Kentucky', 'Louisiana', 'Maine', 'Maryland', 'Massachusetts',
   'Michigan', 'Minnesota', 'Mississippi', 'Missouri', 'Montana', 'Nebraska', 'Nevada', 'New Hampshire', 'New Jersey', 
@@ -48,12 +49,12 @@ const stateOptions = [
 ];
 const countryOptions = ['United States', 'Canada', 'Mexico', 'United Kingdom', 'Germany', 'France', 'India', 'China', 'Japan'];
 const residencyOptions = ['North America', 'Europe', 'Africa', 'South America', 'Asia', 'Australia', 'Caribbean Islands', 'Pacific Islands', 'Prefer not to say'];
-const petsTypeOptions = ['None', 'Dog', 'Cat', 'Fish', 'Bird', 'Reptile', 'Prefer not to say'];
-const hobbiesOptions = [
+const petsTypeOptions = ['None', 'Dog', 'Cat', 'Fish', 'Bird','Rabit', 'Reptile', 'Prefer not to say'];
+const hobbiesOptions = ['None',
   'Biking', 'Fashion', 'Design', 'Crafts', 'Traveling', 'Camping', 'Gourmet food', 'Physical fitness', 'Music', 
   'Sewing', 'Art', 'Antiques', 'Reading', 'Prefer not to answer'
 ];
-const industryOptions = [
+const industryOptions = ['None',
   'Agriculture', 'Utilities', 'Finance', 'Entertainment', 'Education', 'Health care', 'Information services', 'Data processing',
   'Food services', 'Hotel services', 'Legal services', 'Publishing', 'Military', 'Prefer not to say'
 ];
@@ -92,10 +93,10 @@ const industryOptions = [
   { label: 'Adopted Kids', name: 'adoptedKids', type: 'input', inputType: 'number', placeholder: 'Enter number of adopted kids', validate: [ validatePositiveNumber] },
   
   //  { label: 'What type of Pets Do You Have', name: 'petsTypes1', type: 'multiSelect', options: petsTypeOptions, validate: [validateRequired ] }, //multiSelect  
- { label: 'What type of Pets Do You Have', name: 'petsTypes', type: 'multiSelectWithOther', options: petsTypeOptions, validate: [ validateCityCountryProfession] },
+ { label: 'What type of Pets Do You Have', name: 'petsTypes', type: 'multiSelectWithOther', options: petsTypeOptions, validate: [ validateMultiSelectField] },
 
   { label: 'Pets', name: 'pets', type: 'input', inputType: 'number', placeholder: 'Enter number of pets', validate: [ validatePositiveNumber] },
-  { label: 'Hobbies', name: 'hobbies', type: 'multiSelect', options: hobbiesOptions, validate: [validateRequired] }  
+  { label: 'Hobbies', name: 'hobbies', type: 'multiSelectWithOther', options: hobbiesOptions, validate: [validateMultiSelectField] }  
  ] 
  export  {demographicFields} ;
 

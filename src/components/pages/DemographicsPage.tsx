@@ -25,6 +25,7 @@ import {
   validateDOB,
   validateAge,
   compareAgeWithDOB,
+  validateMultiSelectField,
 } from '../../utils/validation';
 import { Frame3 } from '../common/Frame';
 

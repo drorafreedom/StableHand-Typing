@@ -1,19 +1,18 @@
 
 // src/components/common/MultiSelectWithOtherField.tsx
-// TS version
+//TS version new with prefer not to say/ none as exlcusive . also the other is updated and the other popupbox disapears. it is correct 
 
 import React, { useState, useEffect } from 'react';
 import Select, { MultiValue } from 'react-select';
 import Alert from './Alert';
 
-// Define props interface
 interface MultiSelectWithOtherFieldProps {
   label: string;
   name: string;
-  values: string[]; // Array of selected values
-  onChange: (selectedValues: string[], name: string) => void; // Callback for change events
-  options: string[]; // Array of selectable options
-  errors?: string[]; // Optional array of error messages
+  values: string[];
+  onChange: (selectedValues: string[], name: string) => void;
+  options: string[];
+  errors?: string[];
 }
 
 const MultiSelectWithOtherField: React.FC<MultiSelectWithOtherFieldProps> = ({
@@ -24,67 +23,114 @@ const MultiSelectWithOtherField: React.FC<MultiSelectWithOtherFieldProps> = ({
   options,
   errors = [],
 }) => {
-  const [isOtherSelected, setIsOtherSelected] = useState<boolean>(true);
-  const [otherValue, setOtherValue] = useState<string>('');
+  const [otherValue, setOtherValue] = useState('');
+  const [showOtherInput, setShowOtherInput] = useState(false);
+
+  const standardOptions = options.map((opt) => ({ label: opt, value: opt }));
+  const allOptions = [...standardOptions, { label: 'Other', value: 'Other' }];
 
   useEffect(() => {
-    if (values.includes('Other')) {
-      setIsOtherSelected(true);
-    } else {
-      setIsOtherSelected(false);
-      setOtherValue('');
+    // Check if there's a custom "Other" value already
+    const existingOther = values.find(
+      (v) => !options.includes(v) && v !== 'Other' && v !== 'None' && v !== 'Prefer not to say'
+    );
+    if (existingOther) {
+      setOtherValue(existingOther);
     }
   }, [values]);
 
-  const handleChange = (selectedOptions: MultiValue<{ label: string; value: string }>) => {
-    const selectedValues = selectedOptions ? selectedOptions.map((option) => option.value) : [];
-    setIsOtherSelected(selectedValues.includes('Other'));
-    onChange(selectedValues, name);
+  const handleChange = (selected: MultiValue<{ label: string; value: string }>) => {
+    let selectedValues = selected ? selected.map((opt) => opt.value) : [];
+
+    // Exclusivity logic for None or Prefer not to say
+    if (selectedValues.includes('None')) {
+      setOtherValue('');
+      setShowOtherInput(false);
+      return onChange(['None'], name);
+    }
+
+    if (selectedValues.includes('Prefer not to say')) {
+      setOtherValue('');
+      setShowOtherInput(false);
+      return onChange(['Prefer not to say'], name);
+    }
+
+    // Handle "Other" logic
+    if (selectedValues.includes('Other')) {
+      setShowOtherInput(true);
+    } else {
+      setShowOtherInput(false);
+      setOtherValue('');
+    }
+
+    // Remove old custom other (not in options or special)
+    const filtered = selectedValues.filter(
+      (v) => options.includes(v) || v === 'Other'
+    );
+
+    onChange(filtered, name);
   };
 
   const handleOtherChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = e.target.value;
-    setOtherValue(newValue);
-    const newValues = values.includes('Other')
-      ? values.map((v) => (v === 'Other' ? newValue : v))
-      : [...values, newValue];
-    onChange(newValues, name);
+    const input = e.target.value;
+    setOtherValue(input);
+
+    // Remove "Other" and previous custom entries
+    const nonCustom = values.filter(
+      (v) => options.includes(v) && v !== 'Other'
+    );
+
+    // If there's input, add it to values
+    const updated = input.trim() ? [...nonCustom, input.trim()] : nonCustom;
+
+    onChange(updated, name);
   };
 
-  const formattedOptions = options.map((option) => ({ label: option, value: option }));
+  const handleOtherKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      setShowOtherInput(false);
+    }
+  };
+
+  const selected = values.map((val) => {
+    return allOptions.find((opt) => opt.value === val) || { label: val, value: val };
+  });
 
   return (
     <div className="mb-4">
       <label htmlFor={name} className="block text-sm font-medium text-gray-700">
         {label}
       </label>
+
       <Select
         id={name}
         isMulti
         name={name}
-        value={formattedOptions.filter((option) => values.includes(option.value))}
+        value={selected}
         onChange={handleChange}
-        options={[...formattedOptions, { label: 'Other', value: 'Other' }]}
-        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+        options={allOptions}
+        className="mt-1 text-sm"
+        classNamePrefix="react-select"
       />
-      {isOtherSelected && (
+
+      {showOtherInput && (
         <input
-          id={`${name}_other`}
           type="text"
-          name={`${name}_other`}
           value={otherValue}
           onChange={handleOtherChange}
+          onKeyDown={handleOtherKeyDown}
           placeholder="Please specify"
           className={`mt-2 block w-full p-2 border ${
-            errors.length > 0 ? 'border-red-500' : 'border-gray-300'
+            errors.length ? 'border-red-500' : 'border-gray-300'
           } rounded-md`}
-          autoComplete="off"
         />
       )}
+
       {errors.length > 0 && (
         <div className="mt-2">
-          {errors.map((error, index) => (
-            <Alert key={index} message={error} type="error" />
+          {errors.map((error, idx) => (
+            <Alert key={idx} message={error} type="error" />
           ))}
         </div>
       )}
@@ -93,40 +139,148 @@ const MultiSelectWithOtherField: React.FC<MultiSelectWithOtherFieldProps> = ({
 };
 
 export default MultiSelectWithOtherField;
-//example 
-/* import React, { useState } from 'react';
-import MultiSelectWithOtherField from './MultiSelectWithOtherField';
+//TS version new with prefer not to say/ none as exlcusive . also the other is updated and the other popupbox  doesnt disappear  . it is correct  also 
+ 
+/* import React, { useState, useEffect } from 'react';
+import Select, { MultiValue } from 'react-select';
+import Alert from './Alert';
 
-const ExampleForm = () => {
-  const [selectedValues, setSelectedValues] = useState<string[]>([]);
-  const options = ['Option 1', 'Option 2', 'Option 3'];
-  const [errors, setErrors] = useState<string[]>([]);
+interface MultiSelectWithOtherFieldProps {
+  label: string;
+  name: string;
+  values: string[];
+  onChange: (selectedValues: string[], name: string) => void;
+  options: string[];
+  errors?: string[];
+}
 
-  const handleChange = (values: string[], name: string) => {
-    if (values.length > 3) {
-      setErrors(['You can select up to 3 options only.']);
+const MultiSelectWithOtherField: React.FC<MultiSelectWithOtherFieldProps> = ({
+  label,
+  name,
+  values,
+  onChange,
+  options,
+  errors = [],
+}) => {
+  const [otherValue, setOtherValue] = useState('');
+  const [showOtherInput, setShowOtherInput] = useState(false);
+
+  const standardOptions = options.map((opt) => ({ label: opt, value: opt }));
+  const specialOptions = [
+    { label: 'Other', value: 'Other' },
+   // { label: 'Prefer not to say', value: 'Prefer not to say' },
+  ];
+
+  const allOptions = [...standardOptions, ...specialOptions];
+
+  useEffect(() => {
+    const hasCustomOther = values.find(
+      (v) => !options.includes(v) && v !== 'Prefer not to say' && v !== 'None'
+    );
+    if (hasCustomOther) {
+      setOtherValue(hasCustomOther);
+      setShowOtherInput(true);
     } else {
-      setErrors([]);
+      setOtherValue('');
+      setShowOtherInput(false);
     }
-    setSelectedValues(values);
+  }, [values]);
+
+  const handleChange = (selected: MultiValue<{ label: string; value: string }>) => {
+    let selectedValues = selected ? selected.map((opt) => opt.value) : [];
+
+    // Exclusivity logic for 'Prefer not to say'
+    if (selectedValues.includes('Prefer not to say')) {
+      selectedValues = ['Prefer not to say'];
+      setShowOtherInput(false);
+      setOtherValue('');
+      
+    }
+      else if (selectedValues.includes('None')) {
+      selectedValues = ['None'];
+      setShowOtherInput(false);
+      setOtherValue('');
+      
+    } 
+    
+    else {
+      selectedValues = selectedValues.filter((v) => v !== 'Prefer not to say' || v !== 'None') ;
+
+      if (selectedValues.includes('Other')) {
+        setShowOtherInput(true);
+      } else {
+        setShowOtherInput(false);
+        setOtherValue('');
+      }
+    }
+
+    // Filter out old custom value if not in options
+    const cleanValues = selectedValues.filter(
+      (v) => v === 'Other' || options.includes(v)
+    );
+
+    onChange(cleanValues, name);
   };
 
+  const handleOtherChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value.trim();
+    setOtherValue(val);
+
+    const withoutOldOther = values.filter((v) => options.includes(v));
+    const updated = val ? [...withoutOldOther, val] : withoutOldOther;
+
+    onChange(updated, name);
+    
+  };
+
+  const selected = values.map((val) => {
+    return allOptions.find((opt) => opt.value === val) || { label: val, value: val };
+  });
+
   return (
-    <form className="p-4">
-      <MultiSelectWithOtherField
-        label="Select Options"
-        name="multiSelectWithOther"
-        values={selectedValues}
+    <div className="mb-4">
+      <label htmlFor={name} className="block text-sm font-medium text-gray-700">
+        {label}
+      </label>
+
+      <Select
+        id={name}
+        isMulti
+        name={name}
+        value={selected}
         onChange={handleChange}
-        options={options}
-        errors={errors}
+        options={allOptions}
+        className="mt-1 text-sm"
+        classNamePrefix="react-select"
       />
-    </form>
+
+      {showOtherInput && (
+        <input
+          type="text"
+          value={otherValue}
+          onChange={handleOtherChange}
+          placeholder="Please specify"
+          className={`mt-2 block w-full p-2 border ${
+            errors.length ? 'border-red-500' : 'border-gray-300'
+          } rounded-md`}
+        />
+      )}
+
+      {errors.length > 0 && (
+        <div className="mt-2">
+          {errors.map((error, idx) => (
+            <Alert key={idx} message={error} type="error" />
+          ))}
+        </div>
+      )}
+    </div>
   );
 };
 
-export default ExampleForm;
+export default MultiSelectWithOtherField;
  */
+ 
+ 
 
 
 // =================JS version===============================
