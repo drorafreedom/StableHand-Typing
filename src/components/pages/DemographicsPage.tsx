@@ -15,7 +15,7 @@ import AutosizeInputField from '../common/AutosizeInputField';
 import Button from '../common/Button';
 import Alert from '../common/Alert';
 import DateTimeDisplay from '../common/DateTimeDisplay';
-import { demographicFields, DemographicField } from '../../data/demographicFields';
+import { demographicFields, DemographicFields } from '../../data/demographicFields';
 import { ref, uploadString } from 'firebase/storage';
 import {
   validatePositiveNumber,

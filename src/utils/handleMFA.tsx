@@ -1,35 +1,35 @@
 import {
   getMultiFactorResolver,
   MultiFactorResolver,
+  MultiFactorError,
   PhoneAuthProvider,
   PhoneMultiFactorGenerator,
-  RecaptchaVerifier,
-  AuthError,
+  RecaptchaVerifier
 } from "firebase/auth";
 import { auth } from "../firebase/firebase";
 
 export async function handleMFA(
-  error: AuthError,
+  error: MultiFactorError, // ✅ Must be MultiFactorError!
   setError: (message: string) => void,
   setSuccessMessage: (message: string) => void
 ): Promise<void> {
   try {
     const resolver: MultiFactorResolver = getMultiFactorResolver(auth, error);
-    const selectedHint = resolver.hints[0]; // Adjust selection logic as needed
+    const selectedHint = resolver.hints[0]; // Use first hint (or present a UI if needed)
 
     const phoneInfoOptions = {
       multiFactorHint: selectedHint,
       session: resolver.session,
     };
 
-    // Ensure the appVerifier is defined (e.g., reCAPTCHA)
     const appVerifier = new RecaptchaVerifier(
       "recaptcha-container",
       { size: "invisible" },
       auth
     );
 
-    const verificationId = await PhoneAuthProvider.verifyPhoneNumber(
+    const phoneAuthProvider = new PhoneAuthProvider(auth);
+    const verificationId = await phoneAuthProvider.verifyPhoneNumber(
       phoneInfoOptions,
       appVerifier
     );
@@ -57,7 +57,7 @@ export async function handleMFA(
   // src/utils/handleMFA.jsx
   // JS version
 
-export async function handleMFA(error, setError, setSuccessMessage) {
+/* export async function handleMFA(error, setError, setSuccessMessage) {
   try {
     const resolver = getMultiFactorResolver(auth, error);
     const selectedHint = resolver.hints[0]; // Adjust selection logic as needed
@@ -81,5 +81,5 @@ export async function handleMFA(error, setError, setSuccessMessage) {
     console.error("MFA resolution failed:", mfaError);
     setError(mfaError.message || "Failed to resolve MFA.");
   }
-}
+} */
 
