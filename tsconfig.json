@@ -19,10 +19,15 @@
   // explicitly ignore the broken copies and test folders
   "exclude": [
     "node_modules",
-    "src/components/Therapy/Thearpy_not_used",
+    "src/components/Therapy/unused",
     "src/components/Therapy/**/*copy.tsx",
     "src/components/***/**/* copy.tsx",
-    "src/utils/validation copy.ts"
+    "src/utils/unused",
+    "src/stylesNotUsed",
+    "src/firebase/unused",
+    "src/components/atoms/not used",
+    "src/components/common/unused",
+    "src/components/organisms/unused/"
   ]
   
 }
