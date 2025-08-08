@@ -11,7 +11,9 @@ interface EmailFieldProps {
   email: string;
   setEmail: (value: string) => void;
   setEmailErrors: (errors: string[]) => void;
+  errors?: string[]; // Add this optional prop
 }
+
 
 // Define the ref interface
 export interface EmailFieldRef {
@@ -42,6 +44,7 @@ const EmailField = forwardRef<EmailFieldRef, EmailFieldProps>(
     return (
       <div>
         <InputField
+        name="Email"
           label="Email"
           type="email"
           value={email}

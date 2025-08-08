@@ -40,6 +40,7 @@ export default function LoginForm(): JSX.Element {
   const [emailErrors, setEmailErrors] = useState<string[]>([]);
   const [password, setPassword] = useState<string>('');
   const [passwordErrors, setPasswordErrors] = useState<string[]>([]);
+const [loginAttempts, setLoginAttempts] = useState<number>(0);
 
   // SMS/MFA
   const [smsCode, setSmsCode] = useState<string>('');
@@ -65,47 +66,65 @@ export default function LoginForm(): JSX.Element {
   }, []);
 
   // STEP 1: attempt email+password sign-in (and possibly start MFA enrollment)
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setBanner({ text: '', type: 'info' });
+ async function handleSubmit(e: FormEvent) {
+  e.preventDefault();
+  setBanner({ text: '', type: 'info' });
 
-    try {
-      const cred: UserCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = cred.user;
+  try {
+    const cred: UserCredential = await signInWithEmailAndPassword(auth, email, password);
+    const user = cred.user;
 
-      // Start MFA enrollment
-      setEnrolling(true);
-      setBanner({ text: 'Sending enrollment SMS…', type: 'info' });
+    // ✅ MFA step only starts after a valid password
+    setEnrolling(true);
+    setBanner({ text: 'Sending enrollment SMS…', type: 'info' });
 
-      const session = await multiFactor(user).getSession();
+    const session = await multiFactor(user).getSession();
+    const provider = new PhoneAuthProvider(auth);
+    const phoneInput = window.prompt('Enter phone # (+1...)') || '';
+    const id = await provider.verifyPhoneNumber(
+      { phoneNumber: phoneInput, session },
+      window.recaptchaVerifier!
+    );
+    setVerificationId(id);
+
+  } catch (err: any) {
+    // ✅ Track failed attempts regardless of error type
+    setLoginAttempts((prev) => prev + 1);
+
+    // ✅ MFA
+    if (err.code === 'auth/multi-factor-auth-required') {
+      const mResolver = getMultiFactorResolver(auth, err);
+      setResolver(mResolver);
+      const hint = mResolver.hints[0];
+      setBanner({
+        text: `Code sent to …${hint.phoneNumber?.slice(-4) || '***'}`,
+        type: 'info',
+      });
+
       const provider = new PhoneAuthProvider(auth);
-      // Prompt for phone number when enrolling
-      const phoneInput = window.prompt('Enter phone # (+1...)') || '';
       const id = await provider.verifyPhoneNumber(
-        { phoneNumber: phoneInput, session },
+        { multiFactorHint: hint, session: mResolver.session },
         window.recaptchaVerifier!
       );
       setVerificationId(id);
-    } catch (err: any) {
-      if (err.code === 'auth/multi-factor-auth-required') {
-        // MFA challenge flow
-        const mResolver = getMultiFactorResolver(auth, err);
-        setResolver(mResolver);
+      return; // prevent fallthrough
+    }
 
-        const hint = mResolver.hints[0];
-        setBanner({ text: `Code sent to …${hint.phoneNumber.slice(-4)}`, type: 'info' });
-
-        const provider = new PhoneAuthProvider(auth);
-        const id = await provider.verifyPhoneNumber(
-          { multiFactorHint: hint, session: mResolver.session },
-          window.recaptchaVerifier!
-        );
-        setVerificationId(id);
-      } else {
-        setBanner({ text: err.message || 'Login failed', type: 'error' });
-      }
+    // ✅ 3-attempt limit
+    if (loginAttempts + 1 >= 3) {
+      setBanner({
+        text: 'Too many attempts. Redirecting to reset password page.',
+        type: 'error',
+      });
+      setTimeout(() => navigate('/reset-password'), 2000);
+    } else {
+      setBanner({
+        text: err.message || 'Login failed. Please check your credentials.',
+        type: 'error',
+      });
     }
   }
+}
 
   // STEP 2: verify SMS code for enrollment or sign-in
   async function handleVerify() {

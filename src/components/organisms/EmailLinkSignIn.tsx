@@ -85,7 +85,7 @@ export default EmailLinkSignIn;
 //+++++++++++JS VERSIOn++++++++++++++++++
 // /src/components/organisms/EmailLinkSignIn.jsx
 //JS versioin
-import React, { useState } from 'react';
+/* import React, { useState } from 'react';
 import { getAuth, sendSignInLinkToEmail, signInWithEmailLink } from 'firebase/auth';
 
 function EmailLinkSignIn() {
@@ -137,3 +137,4 @@ function EmailLinkSignIn() {
 }
 
 export default EmailLinkSignIn;
+ */

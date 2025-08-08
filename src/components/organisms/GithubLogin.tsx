@@ -52,7 +52,7 @@ export default GithubLogin;
 
 //src\components\organisms\GithubLogin.js
 //JS version
-import React from 'react';
+/* import React from 'react';
 import { getAuth, signInWithPopup, GithubAuthProvider } from "firebase/auth";
 import { auth, GithubAuthProvider } from '../../firebase/firebase';
 
@@ -86,4 +86,4 @@ const Login = () => {
   );
 };
 
-export default Login;
+export default Login; */

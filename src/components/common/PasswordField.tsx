@@ -9,9 +9,11 @@ import Alert from './Alert';
 // Define the props interface
 interface PasswordFieldProps {
   password: string;
-  setPassword: (value: string) => void; // Callback to update the password
-  setPasswordErrors: (errors: string[]) => void; // Callback to update password errors
+  setPassword: (value: string) => void;
+  setPasswordErrors: (errors: string[]) => void;
+  errors?: string[]; // Add this line
 }
+
 
 // Define the ref interface
 export interface PasswordFieldRef {
@@ -49,6 +51,7 @@ const PasswordField = forwardRef<PasswordFieldRef, PasswordFieldProps>(
       <div>
         {/* Input field for the password */}
         <InputField
+        name="Password"
           label="Password"
           type="password"
           value={password}
