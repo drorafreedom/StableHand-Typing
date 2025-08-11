@@ -1,20 +1,19 @@
 // src/components/organisms/LoginForm.tsx
 // TS version
-
-//4.20.25 
-
 // src/components/organisms/LoginForm.tsx
-import React, { useState, useEffect, FormEvent } from 'react';
+// 2025-08-11 — clean MFA flow with 3-attempt limit + idle timeout
+
+import React, { useEffect, useMemo, useRef, useState, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   signInWithEmailAndPassword,
   PhoneAuthProvider,
   PhoneMultiFactorGenerator,
-  multiFactor,
   getMultiFactorResolver,
-  MultiFactorResolver,
+  type MultiFactorResolver,
   RecaptchaVerifier,
-  UserCredential
+  type UserCredential,
+  type PhoneMultiFactorInfo,
 } from 'firebase/auth';
 import { auth } from '../../firebase/firebase';
 import EmailField from '../common/EmailField';
@@ -23,137 +22,242 @@ import InputField from '../common/InputField';
 import Button from '../common/Button';
 import Alert from '../common/Alert';
 
-// Extend global window for reCAPTCHA
 declare global {
   interface Window {
     recaptchaVerifier?: RecaptchaVerifier;
+    grecaptcha?: any;
   }
 }
 
 type Banner = { text: string; type: 'info' | 'success' | 'error' };
 
+// ---------- Behaviour knobs ----------
+const MAX_CODE_ATTEMPTS = 3;         // 3 tries then back to login
+const MFA_IDLE_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes idle → back to login
+// ------------------------------------
+
 export default function LoginForm(): JSX.Element {
   const navigate = useNavigate();
 
   // Email/password
-  const [email, setEmail] = useState<string>('');
+  const [email, setEmail] = useState('');
   const [emailErrors, setEmailErrors] = useState<string[]>([]);
-  const [password, setPassword] = useState<string>('');
+  const [password, setPassword] = useState('');
   const [passwordErrors, setPasswordErrors] = useState<string[]>([]);
-const [loginAttempts, setLoginAttempts] = useState<number>(0);
 
-  // SMS/MFA
-  const [smsCode, setSmsCode] = useState<string>('');
-  const [verificationId, setVerificationId] = useState<string>('');
+  // MFA state
   const [resolver, setResolver] = useState<MultiFactorResolver | null>(null);
-  const [enrolling, setEnrolling] = useState<boolean>(false);
+  const [verificationId, setVerificationId] = useState('');
+  const [smsCode, setSmsCode] = useState('');
+  const [codeSent, setCodeSent] = useState(false);
+  const [codeAttempts, setCodeAttempts] = useState(0);
 
-  // Banner/feedback
+  // Timers
+  const idleTimerRef = useRef<number | null>(null);
+
+  // UI
   const [banner, setBanner] = useState<Banner>({ text: '', type: 'info' });
+  const [busy, setBusy] = useState(false);
 
-  // Initialize invisible reCAPTCHA once
-  useEffect(() => {
+  // We are in MFA step if we have either a resolver or a verificationId
+  const inMfaStep = useMemo(() => Boolean(resolver || verificationId), [resolver, verificationId]);
+
+  // ---- Helpers ----
+  async function ensureRecaptcha() {
+    // Create or reset an invisible reCAPTCHA for Firebase PhoneAuth
     if (!window.recaptchaVerifier) {
-      // Correct parameter order: auth first, then containerId, then options
-      window.recaptchaVerifier = new RecaptchaVerifier(
-        auth,
-        'recaptcha-container',
-        { size: 'invisible' }
-      );
-      // Render the invisible widget
-      window.recaptchaVerifier.render().catch(console.error);
+      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', { size: 'invisible' });
+      await window.recaptchaVerifier.render();
+      return;
     }
-  }, []);
+    const widgetId = await window.recaptchaVerifier.render();
+    if (window.grecaptcha?.reset) window.grecaptcha.reset(widgetId);
+  }
 
-  // STEP 1: attempt email+password sign-in (and possibly start MFA enrollment)
- async function handleSubmit(e: FormEvent) {
-  e.preventDefault();
-  setBanner({ text: '', type: 'info' });
-
-  try {
-    const cred: UserCredential = await signInWithEmailAndPassword(auth, email, password);
-    const user = cred.user;
-
-    // ✅ MFA step only starts after a valid password
-    setEnrolling(true);
-    setBanner({ text: 'Sending enrollment SMS…', type: 'info' });
-
-    const session = await multiFactor(user).getSession();
-    const provider = new PhoneAuthProvider(auth);
-    const phoneInput = window.prompt('Enter phone # (+1...)') || '';
-    const id = await provider.verifyPhoneNumber(
-      { phoneNumber: phoneInput, session },
-      window.recaptchaVerifier!
-    );
-    setVerificationId(id);
-
-  } catch (err: any) {
-    // ✅ Track failed attempts regardless of error type
-    setLoginAttempts((prev) => prev + 1);
-
-    // ✅ MFA
-    if (err.code === 'auth/multi-factor-auth-required') {
-      const mResolver = getMultiFactorResolver(auth, err);
-      setResolver(mResolver);
-      const hint = mResolver.hints[0];
-      setBanner({
-        text: `Code sent to …${hint.phoneNumber?.slice(-4) || '***'}`,
-        type: 'info',
-      });
-
-      const provider = new PhoneAuthProvider(auth);
-      const id = await provider.verifyPhoneNumber(
-        { multiFactorHint: hint, session: mResolver.session },
-        window.recaptchaVerifier!
-      );
-      setVerificationId(id);
-      return; // prevent fallthrough
-    }
-
-    // ✅ 3-attempt limit
-    if (loginAttempts + 1 >= 3) {
-      setBanner({
-        text: 'Too many attempts. Redirecting to reset password page.',
-        type: 'error',
-      });
-      setTimeout(() => navigate('/reset-password'), 2000);
-    } else {
-      setBanner({
-        text: err.message || 'Login failed. Please check your credentials.',
-        type: 'error',
-      });
+  function clearIdleTimer() {
+    if (idleTimerRef.current) {
+      window.clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = null;
     }
   }
-}
 
-  // STEP 2: verify SMS code for enrollment or sign-in
-  async function handleVerify() {
+  function startIdleTimer() {
+    clearIdleTimer();
+    idleTimerRef.current = window.setTimeout(() => {
+      // Idle timeout → back to login
+      resetToLogin('Session timed out. Please log in again.');
+    }, MFA_IDLE_TIMEOUT_MS) as unknown as number;
+  }
+
+  function clearMfaState() {
+    setResolver(null);
+    setVerificationId('');
+    setSmsCode('');
+    setCodeSent(false);
+    setCodeAttempts(0);
+    clearIdleTimer();
+  }
+
+  function resetToLogin(message?: string) {
+    clearMfaState();
+    setPassword(''); // scrub password on reset
+    setBanner({ text: message ?? 'Returning to login…', type: 'info' });
+    // If your login is this component itself, just clearing state is enough.
+    // If you have a dedicated /login route, uncomment:
+    // navigate('/login');
+  }
+
+  // When entering the MFA step, (re)start the idle timer
+  useEffect(() => {
+    if (inMfaStep) {
+      startIdleTimer();
+    } else {
+      clearIdleTimer();
+    }
+    return () => clearIdleTimer();
+  }, [inMfaStep]);
+
+  // Bump the idle timer on relevant user interactions
+  useEffect(() => {
+    if (inMfaStep) startIdleTimer();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [smsCode, codeSent]);
+
+  // -------- EMAIL/PASSWORD SUBMIT --------
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (busy) return;
+    if (emailErrors.length || passwordErrors.length) return;
+
+    setBusy(true);
     setBanner({ text: '', type: 'info' });
-    if (!verificationId) return;
+    clearMfaState();
 
     try {
-      const phoneCred = PhoneAuthProvider.credential(verificationId, smsCode);
-      const assertion = PhoneMultiFactorGenerator.assertion(phoneCred);
+      const cred: UserCredential = await signInWithEmailAndPassword(auth, email, password);
 
-      if (enrolling) {
-        await multiFactor(auth.currentUser!).enroll(assertion, 'Phone');
-        setBanner({ text: 'Phone linked! Redirecting…', type: 'success' });
-        await auth.currentUser!.reload();
-      } else if (resolver) {
-        await resolver.resolveSignIn(assertion);
-        setBanner({ text: 'MFA OK—Redirecting…', type: 'success' });
+      // If no MFA is required, go straight in.
+      setBanner({ text: 'Login successful! Redirecting…', type: 'success' });
+      setTimeout(() => navigate('/stablehand-welcome'), 800);
+      return;
+    } catch (err: any) {
+      // If MFA is required, Firebase throws auth/multi-factor-auth-required
+      if (err?.code === 'auth/multi-factor-auth-required') {
+        try {
+          const mResolver = getMultiFactorResolver(auth, err);
+          setResolver(mResolver);
+
+          await ensureRecaptcha();
+          const hint = mResolver.hints[0] as PhoneMultiFactorInfo | undefined;
+          const provider = new PhoneAuthProvider(auth);
+
+          const id = await provider.verifyPhoneNumber(
+            { multiFactorHint: hint, session: mResolver.session },
+            window.recaptchaVerifier!
+          );
+
+          setVerificationId(id);
+          setCodeSent(true);
+
+          const masked = hint?.phoneNumber ? `…${hint.phoneNumber.slice(-4)}` : 'your phone';
+          setBanner({ text: `We sent a code to ${masked}.`, type: 'info' });
+          startIdleTimer();
+          return;
+        } catch (mfaErr: any) {
+          setBanner({
+            text: mfaErr?.message || 'Could not send the verification code. Please try again.',
+            type: 'error',
+          });
+          clearMfaState();
+          return;
+        }
       }
 
-      setTimeout(() => navigate('/stablehand-welcome'), 1500);
-    } catch (err: any) {
-      setBanner({ text: err.message || 'Verification failed', type: 'error' });
+      // Any other login failure
+      setBanner({ text: 'Login failed. Check your email and password.', type: 'error' });
+    } finally {
+      setBusy(false);
     }
+  }
+
+  // -------- VERIFY MFA CODE --------
+  async function handleVerify() {
+    if (!resolver || !verificationId) return;
+    if (busy) return;
+
+    setBusy(true);
+    setBanner({ text: '', type: 'info' });
+
+    try {
+      const phoneCred = PhoneAuthProvider.credential(verificationId, smsCode.trim());
+      const assertion = PhoneMultiFactorGenerator.assertion(phoneCred);
+      await resolver.resolveSignIn(assertion);
+
+      setBanner({ text: 'MFA successful! Redirecting…', type: 'success' });
+      clearIdleTimer();
+      setTimeout(() => navigate('/stablehand-welcome'), 800);
+    } catch (err: any) {
+      // Count incorrect attempts
+      const next = codeAttempts + 1;
+      setCodeAttempts(next);
+      setSmsCode('');
+
+      if (err?.code === 'auth/invalid-verification-code' || err?.code === 'auth/argument-error') {
+        if (next >= MAX_CODE_ATTEMPTS) {
+          // 3 strikes → back to login
+          resetToLogin('Too many incorrect codes. Please log in again.');
+        } else {
+          setBanner({
+            text: `The code is incorrect or expired. (${next}/${MAX_CODE_ATTEMPTS})`,
+            type: 'error',
+          });
+          startIdleTimer();
+        }
+      } else {
+        setBanner({ text: err?.message || 'Verification failed. Please try again.', type: 'error' });
+        startIdleTimer();
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // -------- RESEND MFA CODE --------
+  async function handleResend() {
+    if (!resolver) return;
+    if (busy) return;
+
+    setBusy(true);
+    try {
+      await ensureRecaptcha();
+      const hint = resolver.hints[0] as PhoneMultiFactorInfo | undefined;
+      const provider = new PhoneAuthProvider(auth);
+      const newId = await provider.verifyPhoneNumber(
+        { multiFactorHint: hint, session: resolver.session },
+        window.recaptchaVerifier!
+      );
+
+      setVerificationId(newId);
+      setCodeSent(true);
+      setSmsCode('');
+      setCodeAttempts(0); // reset counter after a new code is sent
+      setBanner({ text: 'A new code was sent.', type: 'success' });
+      startIdleTimer();
+    } catch (err: any) {
+      setBanner({ text: err?.message || 'Failed to resend code. Please try again.', type: 'error' });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // -------- BACK TO LOGIN (cancel MFA) --------
+  function handleBackToLogin() {
+    resetToLogin('Cancelled. You can try logging in again.');
   }
 
   return (
-    <div>
-      {/* STEP 1: Email/Password */}
-      {!verificationId && (
+    <div className="space-y-4">
+      {!inMfaStep && (
         <form onSubmit={handleSubmit} className="space-y-4">
           <EmailField
             email={email}
@@ -170,34 +274,258 @@ const [loginAttempts, setLoginAttempts] = useState<number>(0);
 
           {banner.text && <Alert message={banner.text} type={banner.type} />}
 
-          <Button type="submit" className="w-full bg-blue-600 text-white">
-            {enrolling ? 'Link Phone' : 'Log In'}
+          <Button type="submit" disabled={busy} className="w-full bg-blue-600 text-white">
+            Log In
           </Button>
         </form>
       )}
 
-      <div id="recaptcha-container"></div>
+      {/* reCAPTCHA container – managed by ensureRecaptcha() */}
+      <div id="recaptcha-container" />
 
-      {/* STEP 2: SMS code UI */}
-      {verificationId && (
-        <div className="mt-4 space-y-4">
+      {inMfaStep && (
+        <div className="space-y-4">
           <InputField
+            name="smsCode"
             label="SMS Code"
             type="text"
             value={smsCode}
-            onChange={e => setSmsCode(e.target.value)}
+            onChange={(e) => setSmsCode(e.target.value)}
             placeholder="123456"
           />
+
           {banner.text && <Alert message={banner.text} type={banner.type} />}
 
-          <Button onClick={handleVerify} className="w-full bg-green-600 text-white">
-            Verify Code
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              onClick={handleVerify}
+              disabled={busy || !smsCode.trim()}
+              className="flex-1 bg-green-600 text-white"
+            >
+              Verify
+            </Button>
+
+            <Button
+              type="button"
+              onClick={handleResend}
+              disabled={busy}
+              className="flex-1"
+            >
+              {codeSent ? 'Resend code' : 'Send code'}
+            </Button>
+
+            <Button type="button" onClick={handleBackToLogin} className="flex-1">
+              Back to login
+            </Button>
+          </div>
+
+          <div className="text-xs text-gray-500">
+            Attempts: {codeAttempts}/{MAX_CODE_ATTEMPTS} • Idle timeout: {(MFA_IDLE_TIMEOUT_MS / 60000).toFixed(0)} min
+          </div>
         </div>
       )}
     </div>
   );
 }
+
+
+//4.20.25 
+
+// // src/components/organisms/LoginForm.tsx
+// import React, { useState, useEffect, FormEvent } from 'react';
+// import { useNavigate } from 'react-router-dom';
+// import {
+//   signInWithEmailAndPassword,
+//   PhoneAuthProvider,
+//   PhoneMultiFactorGenerator,
+//   multiFactor,
+//   getMultiFactorResolver,
+//   MultiFactorResolver,
+//   RecaptchaVerifier,
+//   UserCredential
+// } from 'firebase/auth';
+// import { auth } from '../../firebase/firebase';
+// import EmailField from '../common/EmailField';
+// import PasswordField from '../common/PasswordField';
+// import InputField from '../common/InputField';
+// import Button from '../common/Button';
+// import Alert from '../common/Alert';
+
+// // Extend global window for reCAPTCHA
+// declare global {
+//   interface Window {
+//     recaptchaVerifier?: RecaptchaVerifier;
+//   }
+// }
+
+// type Banner = { text: string; type: 'info' | 'success' | 'error' };
+
+// export default function LoginForm(): JSX.Element {
+//   const navigate = useNavigate();
+
+//   // Email/password
+//   const [email, setEmail] = useState<string>('');
+//   const [emailErrors, setEmailErrors] = useState<string[]>([]);
+//   const [password, setPassword] = useState<string>('');
+//   const [passwordErrors, setPasswordErrors] = useState<string[]>([]);
+// const [loginAttempts, setLoginAttempts] = useState<number>(0);
+
+//   // SMS/MFA
+//   const [smsCode, setSmsCode] = useState<string>('');
+//   const [verificationId, setVerificationId] = useState<string>('');
+//   const [resolver, setResolver] = useState<MultiFactorResolver | null>(null);
+//   const [enrolling, setEnrolling] = useState<boolean>(false);
+
+//   // Banner/feedback
+//   const [banner, setBanner] = useState<Banner>({ text: '', type: 'info' });
+
+//   // Initialize invisible reCAPTCHA once
+//   useEffect(() => {
+//     if (!window.recaptchaVerifier) {
+//       // Correct parameter order: auth first, then containerId, then options
+//       window.recaptchaVerifier = new RecaptchaVerifier(
+//         auth,
+//         'recaptcha-container',
+//         { size: 'invisible' }
+//       );
+//       // Render the invisible widget
+//       window.recaptchaVerifier.render().catch(console.error);
+//     }
+//   }, []);
+
+//   // STEP 1: attempt email+password sign-in (and possibly start MFA enrollment)
+//  async function handleSubmit(e: FormEvent) {
+//   e.preventDefault();
+//   setBanner({ text: '', type: 'info' });
+
+//   try {
+//     const cred: UserCredential = await signInWithEmailAndPassword(auth, email, password);
+//     const user = cred.user;
+
+//     // ✅ MFA step only starts after a valid password
+//     setEnrolling(true);
+//     setBanner({ text: 'Sending enrollment SMS…', type: 'info' });
+
+//     const session = await multiFactor(user).getSession();
+//     const provider = new PhoneAuthProvider(auth);
+//     const phoneInput = window.prompt('Enter phone # (+1...)') || '';
+//     const id = await provider.verifyPhoneNumber(
+//       { phoneNumber: phoneInput, session },
+//       window.recaptchaVerifier!
+//     );
+//     setVerificationId(id);
+
+//   } catch (err: any) {
+//     // ✅ Track failed attempts regardless of error type
+//     setLoginAttempts((prev) => prev + 1);
+
+//     // ✅ MFA
+//     if (err.code === 'auth/multi-factor-auth-required') {
+//       const mResolver = getMultiFactorResolver(auth, err);
+//       setResolver(mResolver);
+//       const hint = mResolver.hints[0];
+//       setBanner({
+//         text: `Code sent to …${hint.phoneNumber?.slice(-4) || '***'}`,
+//         type: 'info',
+//       });
+
+//       const provider = new PhoneAuthProvider(auth);
+//       const id = await provider.verifyPhoneNumber(
+//         { multiFactorHint: hint, session: mResolver.session },
+//         window.recaptchaVerifier!
+//       );
+//       setVerificationId(id);
+//       return; // prevent fallthrough
+//     }
+
+//     // ✅ 3-attempt limit
+//     if (loginAttempts + 1 >= 3) {
+//       setBanner({
+//         text: 'Too many attempts. Redirecting to reset password page.',
+//         type: 'error',
+//       });
+//       setTimeout(() => navigate('/reset-password'), 2000);
+//     } else {
+//       setBanner({
+//         text: err.message || 'Login failed. Please check your credentials.',
+//         type: 'error',
+//       });
+//     }
+//   }
+// }
+
+//   // STEP 2: verify SMS code for enrollment or sign-in
+//   async function handleVerify() {
+//     setBanner({ text: '', type: 'info' });
+//     if (!verificationId) return;
+
+//     try {
+//       const phoneCred = PhoneAuthProvider.credential(verificationId, smsCode);
+//       const assertion = PhoneMultiFactorGenerator.assertion(phoneCred);
+
+//       if (enrolling) {
+//         await multiFactor(auth.currentUser!).enroll(assertion, 'Phone');
+//         setBanner({ text: 'Phone linked! Redirecting…', type: 'success' });
+//         await auth.currentUser!.reload();
+//       } else if (resolver) {
+//         await resolver.resolveSignIn(assertion);
+//         setBanner({ text: 'MFA OK—Redirecting…', type: 'success' });
+//       }
+
+//       setTimeout(() => navigate('/stablehand-welcome'), 1500);
+//     } catch (err: any) {
+//       setBanner({ text: err.message || 'Verification failed', type: 'error' });
+//     }
+//   }
+
+//   return (
+//     <div>
+//       {/* STEP 1: Email/Password */}
+//       {!verificationId && (
+//         <form onSubmit={handleSubmit} className="space-y-4">
+//           <EmailField
+//             email={email}
+//             setEmail={setEmail}
+//             setEmailErrors={setEmailErrors}
+//             errors={emailErrors}
+//           />
+//           <PasswordField
+//             password={password}
+//             setPassword={setPassword}
+//             setPasswordErrors={setPasswordErrors}
+//             errors={passwordErrors}
+//           />
+
+//           {banner.text && <Alert message={banner.text} type={banner.type} />}
+
+//           <Button type="submit" className="w-full bg-blue-600 text-white">
+//             {enrolling ? 'Link Phone' : 'Log In'}
+//           </Button>
+//         </form>
+//       )}
+
+//       <div id="recaptcha-container"></div>
+
+//       {/* STEP 2: SMS code UI */}
+//       {verificationId && (
+//         <div className="mt-4 space-y-4">
+//           <InputField
+//             label="SMS Code"
+//             type="text"
+//             value={smsCode}
+//             onChange={e => setSmsCode(e.target.value)}
+//             placeholder="123456"
+//           />
+//           {banner.text && <Alert message={banner.text} type={banner.type} />}
+
+//           <Button onClick={handleVerify} className="w-full bg-green-600 text-white">
+//             Verify Code
+//           </Button>
+//         </div>
+//       )}
+//     </div>
+//   );
+// }
 
 
 /* import React, { useState } from "react";
