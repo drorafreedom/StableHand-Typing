@@ -3,31 +3,38 @@
     "target": "ESNext",
     "module": "ESNext",
     "jsx": "react-jsx",
-    "noEmit": true,
-    "isolatedModules": true,
     "moduleResolution": "Node",
-    "allowJs": true,
+    "noEmit": true,
+
+    "strict": true,
+    "noImplicitAny": false,
+    "strictNullChecks": false,
+
+    "allowJs": false,
     "checkJs": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "strict": true,
-    "noImplicitAny": false,//adding to supress build errors
-    "strictNullChecks" :false // adding to supress build errors 
-  },
-  "include": ["src"],
+    "isolatedModules": true,
 
-  // explicitly ignore the broken copies and test folders
+    "baseUrl": ".",
+    "paths": { "@/*": ["src/*"] },
+
+    "types": ["vite/client"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"]
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/vite-env.d.ts"],
   "exclude": [
     "node_modules",
-    "src/components/Therapy/unused",
-    "src/components/Therapy/**/*copy.tsx",
-    "src/components/***/**/* copy.tsx",
-    "src/utils/unused",
-    "src/stylesNotUsed",
-    "src/firebase/unused",
-    "src/components/atoms/not used",
-    "src/components/common/unused",
-    "src/components/organisms/unused/"
+    "dist",
+    "src/**/unused/**",
+    "src/**/not_used/**",
+    "src/**/not used/**",
+    "src/**/* copy.ts",
+    "src/**/* copy.tsx",
+    "src/**/*copy.ts",
+    "src/**/*copy.tsx"
   ]
-  
 }
+
+
+ 

@@ -499,7 +499,7 @@ export default function LoginForm(): JSX.Element {
             </div>
           )}
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap text-xs gap-2">
             <Button
               onClick={handleVerify}
               disabled={actionsDisabled || !smsCode.trim()}

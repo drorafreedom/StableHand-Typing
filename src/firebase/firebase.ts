@@ -24,7 +24,7 @@ import { getAnalytics, isSupported } from 'firebase/analytics';
 
 
 
-/*  const firebaseConfig = {
+ const firebaseConfig = {
   apiKey: "AIzaSyAnrwZY_0SAM3mYI13X3RkNuIWkJw3TnSU",
   authDomain: "stablehand-typing.firebaseapp.com",
   databaseURL: "https://stablehand-typing-default-rtdb.firebaseio.com",
@@ -34,10 +34,10 @@ import { getAnalytics, isSupported } from 'firebase/analytics';
   appId: "1:139216749479:web:bceb35407bcfc06296ac82",
   measurementId: "G-27D34Q1X51"
 }; 
- */
+
 
 // Replace with your app's Firebase project configuration
-const firebaseConfig = {
+/* const firebaseConfig = {
   apiKey: "AIzaSyC3gClNJ79vyni7GMr8erF4DZZ8E6iRJL4",
   authDomain: "stable-b543e.firebaseapp.com",
   projectId: "stable-b543e",
@@ -46,7 +46,7 @@ const firebaseConfig = {
   appId: "1:431840563462:web:79e0223459910a5f640e87",
   measurementId: "G-4FZ1TS12TD",
 };
-
+ */
 // Initialize Firebase only once
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 

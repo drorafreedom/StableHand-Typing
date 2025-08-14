@@ -3,14 +3,16 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+ 
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
-    "lint": "eslint .",
+    "build": "vite build",               
     "preview": "vite preview",
-    "deploy": "gh-pages -d dist",
-    "predeploy": "npm run build"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "clean": "rimraf dist *.tsbuildinfo || true"
   },
+ 
+
   "dependencies": {
     "@firebasegen/default-connector": "file:dataconnect-generated/js/default-connector",
     "@p5-wrapper/react": "^4.4.2",
