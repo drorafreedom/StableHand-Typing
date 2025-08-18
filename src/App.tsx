@@ -23,6 +23,7 @@ import AccountPage from './components/pages/AccountPage';
 import ProgressNotesPage from './components/pages/ProgressNotesPage';
 import TherapyPage from './components/pages/TherapyPage';
 import VerifyEmailFinish from './components/pages/VerifyEmailFinish';
+import FeedbackAndProgressPage from './components/pages/FeedbackAndProgressPage'
 // Uncomment if needed
 // import TherapyPage2 from './components/Therapy/TherapyPage2';
 import DisclaimerPage from './components/pages/DisclaimerPage';
@@ -95,6 +96,7 @@ const App: React.FC = () => {
           <Route path="/terms-of-service" element={<TermsOfServicePage />} />
           <Route path="/enduserguide" element={<EndUserPage />} />
           <Route path="/verify-email-finish" element={<VerifyEmailFinish />} />
+           <Route path="/feedbackandprogress-notes" element={<FeedbackAndProgressPage />} />
 
         </Routes>
       </div>

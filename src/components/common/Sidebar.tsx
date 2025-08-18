@@ -56,7 +56,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isVisible, toggleSidebar }) => {
         { id: 10, path: '/medical-interview', label: 'Medical Interview' },
         { id: 11, path: '/parkinson-interview', label: 'Parkinson Interview' },
         { id: 12, path: '/therapy', label: 'Therapy' },
-        { id: 13, path: '/progress-notes', label: 'Progress Notes' },
+        // { id: 13, path: '/progress-notes', label: 'Progress Notes' },
+        { id: 13, path: '/feedbackandprogress-notes', label: 'FeedBack & Progress Notes' },
       ],
     },
     {

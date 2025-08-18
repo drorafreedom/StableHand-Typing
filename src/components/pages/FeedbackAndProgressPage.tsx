@@ -1,4 +1,3 @@
-
 // src/components/pages/FeedbackAndProgressPage.tsx
 
 import React, { useEffect, useMemo, useState } from 'react';
@@ -37,10 +36,10 @@ type FeedbackForm = {
   email?: string;
   sessionLabel?: string; // e.g., "debug run #1"
   // quick ratings (1–5)
-  uiClarity: number | '';
-  performanceSmoothness: number | '';
-  difficultyCalibration: number | '';
-  overall: number | '';
+  uiClarity: string;
+  performanceSmoothness: string;
+  difficultyCalibration: string;
+  overall: string;
   // optional free text
   topPainPoints: string;
   suggestions: string;
@@ -167,12 +166,12 @@ const FeedbackAndProgressPage: React.FC = () => {
     setForm((f) => ({ ...f, bugs: f.bugs.filter((b) => b.id !== id) }));
   };
 
-  const patchBug = <K extends keyof BugReport>(id: string, key: K, value: BugReport[K]) => {
+  function patchBug<K extends keyof BugReport>(id: string, key: K, value: BugReport[K]) {
     setForm((f) => ({
       ...f,
       bugs: f.bugs.map((b) => (b.id === id ? { ...b, [key]: value } : b)),
     }));
-  };
+  }
 
   const uploadBugFiles = async (id: string, files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -292,6 +291,7 @@ const FeedbackAndProgressPage: React.FC = () => {
               value={form.testerId}
               placeholder="e.g., caltech-alias or initials"
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => update('testerId', e.target.value)}
+              errors={undefined}
             />
             <InputField
               label="Email (optional)"
@@ -300,6 +300,7 @@ const FeedbackAndProgressPage: React.FC = () => {
               value={form.email || ''}
               placeholder="Optional contact"
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => update('email', e.target.value)}
+              errors={undefined}
             />
             <InputField
               label="Session Label"
@@ -307,6 +308,7 @@ const FeedbackAndProgressPage: React.FC = () => {
               value={form.sessionLabel || ''}
               placeholder="e.g., debug run #1"
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => update('sessionLabel', e.target.value)}
+              errors={undefined}
             />
           </section>
 
@@ -317,30 +319,34 @@ const FeedbackAndProgressPage: React.FC = () => {
               <SelectField
                 label="UI clarity *"
                 name="uiClarity"
-                value={form.uiClarity === '' ? '' : String(form.uiClarity)}
-                options={[{ label: 'Select', value: '' }, ...ratingOptions.map((r) => ({ label: r, value: r }))]}
-                onChange={(val: string) => update('uiClarity', (val === '' ? '' : Number(val)) as any)}
+                value={form.uiClarity}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => update('uiClarity', e.target.value as any)}
+                options={ratingOptions}
+                errors={undefined}
               />
               <SelectField
                 label="Performance smoothness *"
                 name="performanceSmoothness"
-                value={form.performanceSmoothness === '' ? '' : String(form.performanceSmoothness)}
-                options={[{ label: 'Select', value: '' }, ...ratingOptions.map((r) => ({ label: r, value: r }))]}
-                onChange={(val: string) => update('performanceSmoothness', (val === '' ? '' : Number(val)) as any)}
+                value={form.performanceSmoothness}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => update('performanceSmoothness', e.target.value as any)}
+                options={ratingOptions}
+                errors={undefined}
               />
               <SelectField
                 label="Difficulty calibration *"
                 name="difficultyCalibration"
-                value={form.difficultyCalibration === '' ? '' : String(form.difficultyCalibration)}
-                options={[{ label: 'Select', value: '' }, ...ratingOptions.map((r) => ({ label: r, value: r }))]}
-                onChange={(val: string) => update('difficultyCalibration', (val === '' ? '' : Number(val)) as any)}
+                value={form.difficultyCalibration}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => update('difficultyCalibration', e.target.value as any)}
+                options={ratingOptions}
+                errors={undefined}
               />
               <SelectField
                 label="Overall *"
                 name="overall"
-                value={form.overall === '' ? '' : String(form.overall)}
-                options={[{ label: 'Select', value: '' }, ...ratingOptions.map((r) => ({ label: r, value: r }))]}
-                onChange={(val: string) => update('overall', (val === '' ? '' : Number(val)) as any)}
+                value={form.overall}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => update('overall', e.target.value as any)}
+                options={ratingOptions}
+                errors={undefined}
               />
             </div>
           </section>
@@ -353,6 +359,7 @@ const FeedbackAndProgressPage: React.FC = () => {
               value={form.topPainPoints}
               placeholder="What slowed you down most?"
               onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => update('topPainPoints', e.target.value)}
+              errors={undefined}
             />
             <TextAreaField
               label="Suggestions"
@@ -360,6 +367,7 @@ const FeedbackAndProgressPage: React.FC = () => {
               value={form.suggestions}
               placeholder="Improvements, features, copy, metrics, etc."
               onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => update('suggestions', e.target.value)}
+              errors={undefined}
             />
           </section>
 
@@ -370,19 +378,21 @@ const FeedbackAndProgressPage: React.FC = () => {
               <MultiSelectField
                 label="Device type *"
                 name="deviceType"
-                values={form.deviceType ? [form.deviceType] : []}
+                value={form.deviceType ? [form.deviceType] : []}
+                onChange={(selectedOptions: string[]) => update('deviceType', selectedOptions[0] ?? '')}
                 options={deviceOptions}
-                onChange={(vals: string[]) => update('deviceType', vals[0] ?? '')}
+                errors={undefined}
               />
-              <InputField label="OS *" name="os" value={form.os} onChange={(e: any) => update('os', e.target.value)} />
-              <InputField label="Browser *" name="browser" value={form.browser} onChange={(e: any) => update('browser', e.target.value)} />
-              <InputField label="Screen *" name="screen" value={form.screen} onChange={(e: any) => update('screen', e.target.value)} />
+              <InputField label="OS *" name="os" value={form.os} onChange={(e: any) => update('os', e.target.value)} errors={undefined} />
+              <InputField label="Browser *" name="browser" value={form.browser} onChange={(e: any) => update('browser', e.target.value)} errors={undefined} />
+              <InputField label="Screen *" name="screen" value={form.screen} onChange={(e: any) => update('screen', e.target.value)} errors={undefined} />
               <SelectField
                 label="Connection"
                 name="connection"
                 value={form.connection || ''}
-                options={[{ label: 'Select', value: '' }, { label: 'Wi‑Fi', value: 'Wi‑Fi' }, { label: 'Ethernet', value: 'Ethernet' }, { label: 'Cellular', value: 'Cellular' }]}
-                onChange={(v: string) => update('connection', v)}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => update('connection', e.target.value)}
+                options={["Wi‑Fi", "Ethernet", "Cellular"]}
+                errors={undefined}
               />
             </div>
           </section>
@@ -397,20 +407,23 @@ const FeedbackAndProgressPage: React.FC = () => {
                 value={form.typingTestVariant || ''}
                 placeholder="e.g., A / B / hash"
                 onChange={(e: any) => update('typingTestVariant', e.target.value)}
+                errors={undefined}
               />
               <SelectField
                 label="Moving background *"
                 name="movingBackground"
                 value={form.movingBackground}
-                options={[{ label: 'Select', value: '' }, ...onOffOptions.map((o) => ({ label: o, value: o }))]}
-                onChange={(v: string) => update('movingBackground', v as any)}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => update('movingBackground', e.target.value as any)}
+                options={onOffOptions}
+                errors={undefined}
               />
               <SelectField
                 label="Tremor mode *"
                 name="tremorMode"
                 value={form.tremorMode}
-                options={[{ label: 'Select', value: '' }, ...tremorOptions.map((o) => ({ label: o, value: o }))]}
-                onChange={(v: string) => update('tremorMode', v as any)}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => update('tremorMode', e.target.value as any)}
+                options={tremorOptions}
+                errors={undefined}
               />
             </div>
           </section>
@@ -443,8 +456,9 @@ const FeedbackAndProgressPage: React.FC = () => {
                       label="Severity"
                       name={`severity_${bug.id}`}
                       value={bug.severity}
-                      options={severityOptions.map((s) => ({ label: s, value: s }))}
-                      onChange={(v: any) => patchBug(bug.id, 'severity', v as Severity)}
+                      onChange={(e: React.ChangeEvent<HTMLSelectElement>) => patchBug(bug.id, 'severity', e.target.value as Severity)}
+                      options={severityOptions}
+                      errors={undefined}
                     />
                     <div className="flex flex-col gap-1">
                       <label className="text-sm font-medium">Attachments</label>
@@ -470,6 +484,7 @@ const FeedbackAndProgressPage: React.FC = () => {
                     value={bug.stepsToReproduce}
                     placeholder="Click X, then Y…"
                     onChange={(e: any) => patchBug(bug.id, 'stepsToReproduce', e.target.value)}
+                    errors={undefined}
                   />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <TextAreaField
@@ -477,12 +492,14 @@ const FeedbackAndProgressPage: React.FC = () => {
                       name={`expected_${bug.id}`}
                       value={bug.expected}
                       onChange={(e: any) => patchBug(bug.id, 'expected', e.target.value)}
+                      errors={undefined}
                     />
                     <TextAreaField
                       label="Actual"
                       name={`actual_${bug.id}`}
                       value={bug.actual}
                       onChange={(e: any) => patchBug(bug.id, 'actual', e.target.value)}
+                      errors={undefined}
                     />
                   </div>
                 </div>
@@ -506,52 +523,3 @@ const FeedbackAndProgressPage: React.FC = () => {
 };
 
 export default FeedbackAndProgressPage;
-
-
-
-
-/* // src/components/pages/ProgressNotesPage.tsx
-
-import React from 'react';
-import { Link } from 'react-router-dom';
-import { Frame3 } from '../common/Frame';
-
-const ProgressNotesPage: React.FC = () => {
-  return (
-    <Frame3>
-      <div className="flex flex-col items-center justify-top min-h-screen p-4 bg-gray-100">
-        <div className="w-full max-w-lg bg-gray-200 p-8 rounded-lg shadow-md border border-gray-300">
-          <h1 className="text-4xl font-bold mb-4">Progress Notes Page</h1>
-          <p className="text-lg mb-6">Coming Soon</p>
-          <Link to="/login" className="text-blue-500 hover:text-blue-700">
-            Go to Login
-          </Link>
-        </div>
-      </div>
-    </Frame3>
-  );
-};
-
-export default ProgressNotesPage; */
-
-//+++++++++++JS version+++++++++++++++++
-/* //  src\components\pages\ProgressNotesPage.jsx
-  // JS version
-import React from 'react';
-import { Link } from 'react-router-dom';
-import { Frame3 } from '../common/Frame';
-const ProgressNotesPage = () => {
-  return (
-   <Frame3 >
-
-    <div className="flex flex-col items-center justify-top min-h-screen p-4 bg-gray-100">
-      <div className="w-full max-w-lg bg-gray-200 p-8 rounded-lg shadow-md border border-gray-300">
-        <h1 className="text-4xl font-bold mb-4">ProgressNotesPage</h1>
-        <p className="text-lg mb-6">Coming Soon</p>
-        <Link to="/login" className="text-blue-500 hover:text-blue-700">Go to Login</Link>
-      </div>
-    </div></Frame3>
-  );
-};
- 
-export default  ProgressNotesPage; */
