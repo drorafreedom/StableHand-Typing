@@ -1,104 +1,100 @@
 // src/components/forms/RegistrationForm.tsx
 // TS Version
+
+//###########################################################
 // src/components/organisms/RegistrationForm.tsx
+// Email-first registration with resend & auto-resend after 3 failed checks.
+// Phone is optional at sign-up (saved for first login MFA).
+// 2025-08-16
 
-// 2025-08-12 — Stable register + MFA enroll
-// - Email verification via Firebase-managed page (no continue URL) to avoid "expired/used" loop
-// - MFA enroll with fresh reCAPTCHA per send
-// - Re-auth prompt if auth/requires-recent-login, then auto-retry SMS send
-
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, FormEvent } from 'react';
 import {
   createUserWithEmailAndPassword,
   sendEmailVerification,
-  RecaptchaVerifier,
-  PhoneAuthProvider,
-  PhoneMultiFactorGenerator,
-  multiFactor,
+  reload,
   User,
-  reauthenticateWithCredential,
-  EmailAuthProvider,
 } from 'firebase/auth';
-import { getApp } from 'firebase/app';
+import { useNavigate } from 'react-router-dom';
 import { auth } from '../../firebase/firebase';
+
 import EmailField from '../common/EmailField';
 import PasswordField from '../common/PasswordField';
 import ConfirmPasswordField from '../common/ConfirmPasswordField';
-import InputField from '../common/InputField';
+import PhoneNumberField from '../common/PhoneNumberField'; // your E.164 component
 import Button from '../common/Button';
 import Alert from '../common/Alert';
 
-type Step = 'form' | 'email-sent' | 'verify-sms';
+type Step = 'form' | 'email-sent';
+type Banner = { text: string; type: 'info' | 'success' | 'error' };
 
-declare global {
-  interface Window {
-    recaptchaVerifier?: RecaptchaVerifier;
-    recaptchaContainerEl?: HTMLDivElement | null;
-  }
-}
+const RESEND_COOLDOWN_SECONDS = 60;
+const MAX_FAILED_CHECKS_BEFORE_AUTO_RESEND = 3;
 
-export default function RegistrationForm(): JSX.Element {
-  // form fields
+type Props = {
+  /** optional callback your RegistrationPage already passes */
+  onRegister?: (email: string, password: string, phoneNumber?: string) => void;
+};
+
+export default function RegistrationForm({ onRegister }: Props): JSX.Element {
+  const navigate = useNavigate();
+
+  // form data
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [enablePhone, setEnablePhone] = useState(false);
-  const [phone, setPhone] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState(''); // E.164 from PhoneNumberField
 
-  // validation errors from sub-fields
+  // child-field validation arrays (your components fill these)
   const [emailErrors, setEmailErrors] = useState<string[]>([]);
   const [passwordErrors, setPasswordErrors] = useState<string[]>([]);
   const [confirmPasswordErrors, setConfirmPasswordErrors] = useState<string[]>([]);
   const [phoneErrors, setPhoneErrors] = useState<string[]>([]);
 
-  // state
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [verificationId, setVerificationId] = useState<string | null>(null);
-  const [smsCode, setSmsCode] = useState('');
+  // state machine
   const [step, setStep] = useState<Step>('form');
-  const [banner, setBanner] = useState<{ text: string; type: 'info' | 'success' | 'error' }>({
-    text: '',
-    type: 'info',
-  });
-  const busyRef = useRef(false);
+  const [banner, setBanner] = useState<Banner | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  // re-auth modal
-  const [needReauth, setNeedReauth] = useState(false);
-  const [reauthPassword, setReauthPassword] = useState('');
+  // resend + “check again” logic
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [failedChecks, setFailedChecks] = useState(0);
+  const cooldownTimer = useRef<number | null>(null);
 
-  const setBusy = (b: boolean) => (busyRef.current = b);
+  // Keep the user we just created for resending
+  const [createdUser, setCreatedUser] = useState<User | null>(null);
 
-  // -------- reCAPTCHA lifecycle (fresh container each send) --------
-  function destroyRecaptcha() {
-    try {
-      (window as any).recaptchaVerifier?.clear?.();
-    } catch {}
-    try {
-      if (window.recaptchaContainerEl?.parentNode) {
-        window.recaptchaContainerEl.parentNode.removeChild(window.recaptchaContainerEl);
+  // Clean cooldown timer
+  useEffect(() => {
+    if (resendCooldown > 0) {
+      if (cooldownTimer.current) window.clearInterval(cooldownTimer.current);
+      cooldownTimer.current = window.setInterval(() => {
+        setResendCooldown((s) => {
+          if (s <= 1) {
+            if (cooldownTimer.current) {
+              window.clearInterval(cooldownTimer.current);
+              cooldownTimer.current = null;
+            }
+            return 0;
+          }
+          return s - 1;
+        });
+      }, 1000) as unknown as number;
+    }
+    return () => {
+      if (cooldownTimer.current) {
+        window.clearInterval(cooldownTimer.current);
+        cooldownTimer.current = null;
       }
-    } catch {}
-    window.recaptchaVerifier = undefined;
-    window.recaptchaContainerEl = null;
-  }
+    };
+  }, [resendCooldown]);
 
-  async function buildFreshRecaptcha() {
-    destroyRecaptcha();
-    const el = document.createElement('div');
-    el.style.display = 'none';
-    el.id = `recaptcha-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    document.body.appendChild(el);
-    window.recaptchaContainerEl = el;
-    // v10 signature; will throw on v9 (unlikely) but we’re TS
-    window.recaptchaVerifier = new RecaptchaVerifier(auth as any, el, { size: 'invisible' });
-    await window.recaptchaVerifier.render();
-  }
-
-  // -------- STEP 1: Register + send verification email --------
-  async function handleSubmit(e: React.FormEvent) {
+  // ---------- SUBMIT: create account + send verification email ----------
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (busyRef.current) return;
+    if (busy) return;
 
+    // validate locally
     if (password !== confirmPassword) {
       setBanner({ text: 'Passwords do not match.', type: 'error' });
       return;
@@ -109,24 +105,29 @@ export default function RegistrationForm(): JSX.Element {
     }
 
     setBusy(true);
-    setBanner({ text: '', type: 'info' });
-
+    setBanner(null);
     try {
-      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
+      setCreatedUser(cred.user);
 
-      // SIMPLE + RELIABLE: Firebase-managed verification page.
-      // (If you want in-app later, we can re-enable actionCodeSettings.)
+      // use Firebase-managed verify page (most reliable)
       await sendEmailVerification(cred.user);
 
-      // keep user & a copy of uid for sanity checks
-      setCurrentUser(cred.user);
-      window.localStorage.setItem('reg_uid', cred.user.uid);
+      // Optional: remember phone to prefill at first login (no MFA enrollment here)
+      if (enablePhone && !phoneErrors.length && phoneNumber) {
+        localStorage.setItem('pending_phone_e164', phoneNumber);
+      } else {
+        localStorage.removeItem('pending_phone_e164');
+      }
 
+      // let outer page know (if it cares)
+      onRegister?.(email, password, enablePhone ? phoneNumber : undefined);
+
+      setStep('email-sent');
       setBanner({
-        text: `We sent a verification email to ${email}. Open it and verify, then return here.`,
+        text: `We sent a verification email to ${email}. Open it, click the link, then come back and press “I’ve verified — check again”.`,
         type: 'success',
       });
-      setStep('email-sent');
     } catch (err: any) {
       setBanner({ text: err?.message || 'Registration failed.', type: 'error' });
     } finally {
@@ -134,143 +135,63 @@ export default function RegistrationForm(): JSX.Element {
     }
   }
 
-  // -------- STEP 2: Send SMS for MFA enrollment --------
-  async function handleSendMfaCode() {
-    if (busyRef.current) return;
-
-    const u = auth.currentUser || currentUser;
-    if (!u) {
-      setBanner({ text: 'You are not signed in. Log in, then enroll the phone.', type: 'error' });
+  // ---------- RESEND verification email ----------
+  async function handleResend(auto = false) {
+    if (busy) return;
+    if (!auth.currentUser && !createdUser) {
+      setBanner({ text: 'Not signed in. Please register again.', type: 'error' });
       return;
     }
-
-    const e164 = phone.trim();
-    if (!/^(\+)[1-9]\d{6,14}$/.test(e164)) {
-      setBanner({ text: 'Enter a valid phone (E.164), e.g., +15551234567.', type: 'error' });
-      return;
-    }
-
     setBusy(true);
-    setBanner({ text: '', type: 'info' });
-
     try {
-      await buildFreshRecaptcha();
-      const mfaUser = multiFactor(u);
-      const session = await mfaUser.getSession();
-
-      const provider = new PhoneAuthProvider(auth);
-      const vId = await provider.verifyPhoneNumber({ phoneNumber: e164, session }, window.recaptchaVerifier!);
-
-      setVerificationId(vId);
-      setStep('verify-sms');
-      setBanner({ text: `Code sent to …${e164.slice(-4)}.`, type: 'success' });
-
-      // it’s safe to clean up now
-      try {
-        (window as any).recaptchaVerifier?.clear?.();
-        window.recaptchaContainerEl?.remove();
-      } catch {}
+      const u = auth.currentUser || createdUser!;
+      await sendEmailVerification(u);
+      setBanner({ text: auto ? 'Sent another verification email automatically.' : 'Verification email sent again.', type: 'success' });
+      setFailedChecks(0);
+      setResendCooldown(RESEND_COOLDOWN_SECONDS);
     } catch (err: any) {
-      if (err?.code === 'auth/requires-recent-login') {
-        // show a password prompt and retry after reauth
-        setNeedReauth(true);
-        setBanner({
-          text: 'For security, please confirm your password to continue.',
-          type: 'info',
-        });
-      } else {
-        setBanner({
-          text: `Could not send SMS: ${err?.code || ''} ${err?.message || ''}`,
-          type: 'error',
-        });
-        destroyRecaptcha();
-      }
+      // Most common: auth/too-many-requests
+      setBanner({ text: err?.message || 'Could not resend right now. Please wait a bit.', type: 'error' });
     } finally {
       setBusy(false);
     }
   }
 
-  async function handleReauthAndRetrySms() {
-    const u = auth.currentUser || currentUser;
-    if (!u) {
-      setBanner({ text: 'You are not signed in anymore. Please log in and try again.', type: 'error' });
-      setNeedReauth(false);
-      return;
-    }
-    if (!reauthPassword.trim()) {
-      setBanner({ text: 'Please enter your password to continue.', type: 'error' });
-      return;
-    }
-
+  // ---------- CHECK if verified; after 3 failed checks → auto-resend ----------
+  async function handleCheckVerified() {
+    if (busy) return;
     setBusy(true);
-    setBanner({ text: '', type: 'info' });
-
     try {
-      const cred = EmailAuthProvider.credential(email, reauthPassword);
-      await reauthenticateWithCredential(u, cred);
-      setNeedReauth(false);
-      setReauthPassword('');
-
-      // retry sending SMS
-      await handleSendMfaCode();
-    } catch (err: any) {
-      setBanner({ text: `Re-auth failed: ${err?.code || ''} ${err?.message || ''}`, type: 'error' });
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  // -------- STEP 3: Verify code & enroll phone --------
-  async function handleVerifySms() {
-    if (busyRef.current) return;
-    if (!verificationId) {
-      setBanner({ text: 'No verification in progress. Send the code first.', type: 'error' });
-      return;
-    }
-
-    const u = auth.currentUser || currentUser;
-    if (!u) {
-      setBanner({ text: 'You are not signed in. Log in and try again.', type: 'error' });
-      return;
-    }
-
-    setBusy(true);
-    setBanner({ text: '', type: 'info' });
-
-    try {
-      const phoneCred = PhoneAuthProvider.credential(verificationId, smsCode.trim());
-      const assertion = PhoneMultiFactorGenerator.assertion(phoneCred);
-
-      await multiFactor(u).enroll(assertion, 'Phone');
-
-      await u.reload();
-      const factors = multiFactor(auth.currentUser!).enrolledFactors || [];
-      if (!factors.length) {
-        setBanner({ text: 'Enrollment did not persist. Please try again.', type: 'error' });
+      const u = auth.currentUser || createdUser;
+      if (!u) {
+        setBanner({ text: 'Not signed in. Please register again.', type: 'error' });
         return;
       }
-
-      setBanner({ text: 'Phone enrolled. You can now log in with SMS MFA.', type: 'success' });
+      await reload(u);
+      if (u.emailVerified) {
+        setBanner({ text: 'Email verified! You can now log in.', type: 'success' });
+        // Optionally take them straight to login:
+        setTimeout(() => navigate('/login'), 700);
+        return;
+      }
+      const next = failedChecks + 1;
+      setFailedChecks(next);
+      if (next >= MAX_FAILED_CHECKS_BEFORE_AUTO_RESEND && resendCooldown === 0) {
+        setBanner({ text: `Still not verified. Sending you another verification email…`, type: 'info' });
+        await handleResend(true);
+      } else {
+        setBanner({ text: 'Not verified yet. Please click the link in your email, then press “Check again”.', type: 'info' });
+      }
     } catch (err: any) {
-      setBanner({ text: `Enrollment failed: ${err?.code || ''} ${err?.message || ''}`, type: 'error' });
+      setBanner({ text: err?.message || 'Could not check verification status right now.', type: 'error' });
     } finally {
       setBusy(false);
-      destroyRecaptcha();
     }
   }
-
-  const appInfo = getApp().options as any; // Useful to confirm project at runtime
 
   return (
     <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded shadow space-y-4">
-      {banner.text && <Alert message={banner.text} type={banner.type as any} />}
-
-      {import.meta.env.DEV && (
-        <div className="text-xs text-gray-500 border p-2 rounded">
-          Project: <b>{String(appInfo?.projectId || 'n/a')}</b> • Domain:{' '}
-          <b>{String(appInfo?.authDomain || 'n/a')}</b>
-        </div>
-      )}
+      {banner && <Alert message={banner.text} type={banner.type} />}
 
       {step === 'form' && (
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -284,71 +205,413 @@ export default function RegistrationForm(): JSX.Element {
           />
 
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={enablePhone} onChange={(e) => setEnablePhone(e.target.checked)} />
-            <span>Enable phone as 2nd factor</span>
+            <input
+              type="checkbox"
+              checked={enablePhone}
+              onChange={(e) => setEnablePhone(e.target.checked)}
+            />
+            <span>Save phone for MFA on first login</span>
           </label>
 
           {enablePhone && (
-            <InputField
-              label="Phone"
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="+15551234567"
+            <PhoneNumberField
+              phoneNumber={phoneNumber}
+              setPhoneNumber={setPhoneNumber}
+              setPhoneErrors={setPhoneErrors}
               errors={phoneErrors}
             />
           )}
 
-          <Button type="submit" className="w-full py-2 bg-blue-600 text-white rounded" disabled={busyRef.current}>
-            Send Verification Email
+          <Button type="submit" className="w-full py-2 bg-blue-600 text-white rounded" disabled={busy}>
+            Create account & send verification email
           </Button>
         </form>
       )}
 
       {step === 'email-sent' && (
         <div className="space-y-3">
-          <p>
-            ✅ We sent a verification email to <b>{email}</b>. Verify it on the Firebase page, then come back here to enroll your phone.
-          </p>
-          {enablePhone && (
-            <Button onClick={handleSendMfaCode} className="w-full py-2 bg-indigo-600 text-white rounded" disabled={busyRef.current}>
-              Send SMS for 2FA Enrollment
-            </Button>
-          )}
-        </div>
-      )}
-
-      {step === 'verify-sms' && (
-        <div className="space-y-3">
-          <InputField label="SMS Code" type="text" value={smsCode} onChange={(e) => setSmsCode(e.target.value)} placeholder="123456" errors={[]} />
-          <Button onClick={handleVerifySms} className="w-full py-2 bg-green-600 text-white rounded" disabled={busyRef.current}>
-            Verify & Complete 2FA
-          </Button>
-        </div>
-      )}
-
-      {/* Re-auth modal (simple inline) */}
-      {needReauth && (
-        <div className="p-3 border rounded bg-amber-50 space-y-2">
-          <div className="text-sm">For security, please re-enter your password.</div>
-          <InputField
-            label="Password"
-            type="password"
-            value={reauthPassword}
-            onChange={(e) => setReauthPassword(e.target.value)}
-            placeholder="••••••••"
-          />
           <div className="flex gap-2">
-            <Button onClick={handleReauthAndRetrySms} className="bg-amber-600 text-white flex-1">Confirm</Button>
-            <Button onClick={() => setNeedReauth(false)} className="flex-1">Cancel</Button>
+            <Button onClick={handleCheckVerified} disabled={busy} className="flex-1 bg-green-600 text-white">
+              I’ve verified — check again
+            </Button>
+            <Button onClick={() => navigate('/login')} className="flex-1">
+              Go to login
+            </Button>
           </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => handleResend(false)}
+              disabled={busy || resendCooldown > 0}
+              className="bg-indigo-600 text-white"
+            >
+              {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend verification email'}
+            </Button>
+            <span className="text-sm text-gray-600">
+              {failedChecks > 0 && `Checks failed: ${failedChecks}/${MAX_FAILED_CHECKS_BEFORE_AUTO_RESEND}`}
+            </span>
+          </div>
+
+          <p className="text-xs text-gray-500">
+            Tip: keep this page open after clicking the link, then press “Check again”.
+          </p>
         </div>
       )}
     </div>
   );
 }
 
+//###########################################################
+// src/components/organisms/RegistrationForm.tsx
 
+// 2025-08-12 — Stable register + MFA enroll
+// - Email verification via Firebase-managed page (no continue URL) to avoid "expired/used" loop
+// - MFA enroll with fresh reCAPTCHA per send
+// - Re-auth prompt if auth/requires-recent-login, then auto-retry SMS send
+
+// import React, { useRef, useState } from 'react';
+// import {
+//   createUserWithEmailAndPassword,
+//   sendEmailVerification,
+//   RecaptchaVerifier,
+//   PhoneAuthProvider,
+//   PhoneMultiFactorGenerator,
+//   multiFactor,
+//   User,
+//   reauthenticateWithCredential,
+//   EmailAuthProvider,
+// } from 'firebase/auth';
+// import { getApp } from 'firebase/app';
+// import { auth } from '../../firebase/firebase';
+// import EmailField from '../common/EmailField';
+// import PasswordField from '../common/PasswordField';
+// import ConfirmPasswordField from '../common/ConfirmPasswordField';
+// import InputField from '../common/InputField';
+// import Button from '../common/Button';
+// import Alert from '../common/Alert';
+
+// type Step = 'form' | 'email-sent' | 'verify-sms';
+
+// declare global {
+//   interface Window {
+//     recaptchaVerifier?: RecaptchaVerifier;
+//     recaptchaContainerEl?: HTMLDivElement | null;
+//   }
+// }
+
+// export default function RegistrationForm(): JSX.Element {
+//   // form fields
+//   const [email, setEmail] = useState('');
+//   const [password, setPassword] = useState('');
+//   const [confirmPassword, setConfirmPassword] = useState('');
+//   const [enablePhone, setEnablePhone] = useState(false);
+//   const [phone, setPhone] = useState('');
+
+//   // validation errors from sub-fields
+//   const [emailErrors, setEmailErrors] = useState<string[]>([]);
+//   const [passwordErrors, setPasswordErrors] = useState<string[]>([]);
+//   const [confirmPasswordErrors, setConfirmPasswordErrors] = useState<string[]>([]);
+//   const [phoneErrors, setPhoneErrors] = useState<string[]>([]);
+
+//   // state
+//   const [currentUser, setCurrentUser] = useState<User | null>(null);
+//   const [verificationId, setVerificationId] = useState<string | null>(null);
+//   const [smsCode, setSmsCode] = useState('');
+//   const [step, setStep] = useState<Step>('form');
+//   const [banner, setBanner] = useState<{ text: string; type: 'info' | 'success' | 'error' }>({
+//     text: '',
+//     type: 'info',
+//   });
+//   const busyRef = useRef(false);
+
+//   // re-auth modal
+//   const [needReauth, setNeedReauth] = useState(false);
+//   const [reauthPassword, setReauthPassword] = useState('');
+
+//   const setBusy = (b: boolean) => (busyRef.current = b);
+
+//   // -------- reCAPTCHA lifecycle (fresh container each send) --------
+//   function destroyRecaptcha() {
+//     try {
+//       (window as any).recaptchaVerifier?.clear?.();
+//     } catch {}
+//     try {
+//       if (window.recaptchaContainerEl?.parentNode) {
+//         window.recaptchaContainerEl.parentNode.removeChild(window.recaptchaContainerEl);
+//       }
+//     } catch {}
+//     window.recaptchaVerifier = undefined;
+//     window.recaptchaContainerEl = null;
+//   }
+
+//   async function buildFreshRecaptcha() {
+//     destroyRecaptcha();
+//     const el = document.createElement('div');
+//     el.style.display = 'none';
+//     el.id = `recaptcha-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+//     document.body.appendChild(el);
+//     window.recaptchaContainerEl = el;
+//     // v10 signature; will throw on v9 (unlikely) but we’re TS
+//     window.recaptchaVerifier = new RecaptchaVerifier(auth as any, el, { size: 'invisible' });
+//     await window.recaptchaVerifier.render();
+//   }
+
+//   // -------- STEP 1: Register + send verification email --------
+//   async function handleSubmit(e: React.FormEvent) {
+//     e.preventDefault();
+//     if (busyRef.current) return;
+
+//     if (password !== confirmPassword) {
+//       setBanner({ text: 'Passwords do not match.', type: 'error' });
+//       return;
+//     }
+//     if (emailErrors.length || passwordErrors.length || confirmPasswordErrors.length || phoneErrors.length) {
+//       setBanner({ text: 'Please fix the errors in the form.', type: 'error' });
+//       return;
+//     }
+
+//     setBusy(true);
+//     setBanner({ text: '', type: 'info' });
+
+//     try {
+//       const cred = await createUserWithEmailAndPassword(auth, email, password);
+
+//       // SIMPLE + RELIABLE: Firebase-managed verification page.
+//       // (If you want in-app later, we can re-enable actionCodeSettings.)
+//       await sendEmailVerification(cred.user);
+
+//       // keep user & a copy of uid for sanity checks
+//       setCurrentUser(cred.user);
+//       window.localStorage.setItem('reg_uid', cred.user.uid);
+
+//       setBanner({
+//         text: `We sent a verification email to ${email}. Open it and verify, then return here.`,
+//         type: 'success',
+//       });
+//       setStep('email-sent');
+//     } catch (err: any) {
+//       setBanner({ text: err?.message || 'Registration failed.', type: 'error' });
+//     } finally {
+//       setBusy(false);
+//     }
+//   }
+
+//   // -------- STEP 2: Send SMS for MFA enrollment --------
+//   async function handleSendMfaCode() {
+//     if (busyRef.current) return;
+
+//     const u = auth.currentUser || currentUser;
+//     if (!u) {
+//       setBanner({ text: 'You are not signed in. Log in, then enroll the phone.', type: 'error' });
+//       return;
+//     }
+
+//     const e164 = phone.trim();
+//     if (!/^(\+)[1-9]\d{6,14}$/.test(e164)) {
+//       setBanner({ text: 'Enter a valid phone (E.164), e.g., +15551234567.', type: 'error' });
+//       return;
+//     }
+
+//     setBusy(true);
+//     setBanner({ text: '', type: 'info' });
+
+//     try {
+//       await buildFreshRecaptcha();
+//       const mfaUser = multiFactor(u);
+//       const session = await mfaUser.getSession();
+
+//       const provider = new PhoneAuthProvider(auth);
+//       const vId = await provider.verifyPhoneNumber({ phoneNumber: e164, session }, window.recaptchaVerifier!);
+
+//       setVerificationId(vId);
+//       setStep('verify-sms');
+//       setBanner({ text: `Code sent to …${e164.slice(-4)}.`, type: 'success' });
+
+//       // it’s safe to clean up now
+//       try {
+//         (window as any).recaptchaVerifier?.clear?.();
+//         window.recaptchaContainerEl?.remove();
+//       } catch {}
+//     } catch (err: any) {
+//       if (err?.code === 'auth/requires-recent-login') {
+//         // show a password prompt and retry after reauth
+//         setNeedReauth(true);
+//         setBanner({
+//           text: 'For security, please confirm your password to continue.',
+//           type: 'info',
+//         });
+//       } else {
+//         setBanner({
+//           text: `Could not send SMS: ${err?.code || ''} ${err?.message || ''}`,
+//           type: 'error',
+//         });
+//         destroyRecaptcha();
+//       }
+//     } finally {
+//       setBusy(false);
+//     }
+//   }
+
+//   async function handleReauthAndRetrySms() {
+//     const u = auth.currentUser || currentUser;
+//     if (!u) {
+//       setBanner({ text: 'You are not signed in anymore. Please log in and try again.', type: 'error' });
+//       setNeedReauth(false);
+//       return;
+//     }
+//     if (!reauthPassword.trim()) {
+//       setBanner({ text: 'Please enter your password to continue.', type: 'error' });
+//       return;
+//     }
+
+//     setBusy(true);
+//     setBanner({ text: '', type: 'info' });
+
+//     try {
+//       const cred = EmailAuthProvider.credential(email, reauthPassword);
+//       await reauthenticateWithCredential(u, cred);
+//       setNeedReauth(false);
+//       setReauthPassword('');
+
+//       // retry sending SMS
+//       await handleSendMfaCode();
+//     } catch (err: any) {
+//       setBanner({ text: `Re-auth failed: ${err?.code || ''} ${err?.message || ''}`, type: 'error' });
+//     } finally {
+//       setBusy(false);
+//     }
+//   }
+
+//   // -------- STEP 3: Verify code & enroll phone --------
+//   async function handleVerifySms() {
+//     if (busyRef.current) return;
+//     if (!verificationId) {
+//       setBanner({ text: 'No verification in progress. Send the code first.', type: 'error' });
+//       return;
+//     }
+
+//     const u = auth.currentUser || currentUser;
+//     if (!u) {
+//       setBanner({ text: 'You are not signed in. Log in and try again.', type: 'error' });
+//       return;
+//     }
+
+//     setBusy(true);
+//     setBanner({ text: '', type: 'info' });
+
+//     try {
+//       const phoneCred = PhoneAuthProvider.credential(verificationId, smsCode.trim());
+//       const assertion = PhoneMultiFactorGenerator.assertion(phoneCred);
+
+//       await multiFactor(u).enroll(assertion, 'Phone');
+
+//       await u.reload();
+//       const factors = multiFactor(auth.currentUser!).enrolledFactors || [];
+//       if (!factors.length) {
+//         setBanner({ text: 'Enrollment did not persist. Please try again.', type: 'error' });
+//         return;
+//       }
+
+//       setBanner({ text: 'Phone enrolled. You can now log in with SMS MFA.', type: 'success' });
+//     } catch (err: any) {
+//       setBanner({ text: `Enrollment failed: ${err?.code || ''} ${err?.message || ''}`, type: 'error' });
+//     } finally {
+//       setBusy(false);
+//       destroyRecaptcha();
+//     }
+//   }
+
+//   const appInfo = getApp().options as any; // Useful to confirm project at runtime
+
+//   return (
+//     <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded shadow space-y-4">
+//       {banner.text && <Alert message={banner.text} type={banner.type as any} />}
+
+//       {import.meta.env.DEV && (
+//         <div className="text-xs text-gray-500 border p-2 rounded">
+//           Project: <b>{String(appInfo?.projectId || 'n/a')}</b> • Domain:{' '}
+//           <b>{String(appInfo?.authDomain || 'n/a')}</b>
+//         </div>
+//       )}
+
+//       {step === 'form' && (
+//         <form onSubmit={handleSubmit} className="space-y-4">
+//           <EmailField email={email} setEmail={setEmail} setEmailErrors={setEmailErrors} errors={emailErrors} />
+//           <PasswordField password={password} setPassword={setPassword} setPasswordErrors={setPasswordErrors} errors={passwordErrors} />
+//           <ConfirmPasswordField
+//             confirmPassword={confirmPassword}
+//             setConfirmPassword={setConfirmPassword}
+//             password={password}
+//             setConfirmPasswordErrors={setConfirmPasswordErrors}
+//           />
+
+//           <label className="flex items-center gap-2 text-sm">
+//             <input type="checkbox" checked={enablePhone} onChange={(e) => setEnablePhone(e.target.checked)} />
+//             <span>Enable phone as 2nd factor</span>
+//           </label>
+
+//           {enablePhone && (
+//             <InputField
+//               label="Phone"
+//               type="tel"
+//               value={phone}
+//               onChange={(e) => setPhone(e.target.value)}
+//               placeholder="+15551234567"
+//               errors={phoneErrors}
+//             />
+//           )}
+
+//           <Button type="submit" className="w-full py-2 bg-blue-600 text-white rounded" disabled={busyRef.current}>
+//             Send Verification Email
+//           </Button>
+//         </form>
+//       )}
+
+//       {step === 'email-sent' && (
+//         <div className="space-y-3">
+//           <p>
+//             ✅ We sent a verification email to <b>{email}</b>. Verify it on the Firebase page, then come back here to enroll your phone.
+//           </p>
+//           {enablePhone && (
+//             <Button onClick={handleSendMfaCode} className="w-full py-2 bg-indigo-600 text-white rounded" disabled={busyRef.current}>
+//               Send SMS for 2FA Enrollment
+//             </Button>
+//           )}
+//         </div>
+//       )}
+
+//       {step === 'verify-sms' && (
+//         <div className="space-y-3">
+//           <InputField label="SMS Code" type="text" value={smsCode} onChange={(e) => setSmsCode(e.target.value)} placeholder="123456" errors={[]} />
+//           <Button onClick={handleVerifySms} className="w-full py-2 bg-green-600 text-white rounded" disabled={busyRef.current}>
+//             Verify & Complete 2FA
+//           </Button>
+//         </div>
+//       )}
+
+//       {/* Re-auth modal (simple inline) */}
+//       {needReauth && (
+//         <div className="p-3 border rounded bg-amber-50 space-y-2">
+//           <div className="text-sm">For security, please re-enter your password.</div>
+//           <InputField
+//             label="Password"
+//             type="password"
+//             value={reauthPassword}
+//             onChange={(e) => setReauthPassword(e.target.value)}
+//             placeholder="••••••••"
+//           />
+//           <div className="flex gap-2">
+//             <Button onClick={handleReauthAndRetrySms} className="bg-amber-600 text-white flex-1">Confirm</Button>
+//             <Button onClick={() => setNeedReauth(false)} className="flex-1">Cancel</Button>
+//           </div>
+//         </div>
+//       )}
+//     </div>
+//   );
+// }
+
+
+///888888888888888*****************************************************
 
 /* // 2025-08-11 — email verification (in-app handler) + robust MFA enroll with fresh reCAPTCHA
 
@@ -587,7 +850,8 @@ export default function RegistrationForm({ onRegister }: Props): JSX.Element {
   );
 }
  */
-//----------------------------------------------------------
+
+///888888888888888*****************************************************
 // // src/components/organisms/RegistrationForm.tsx
 // // 2025-08-11 — Robust MFA enrollment (fresh reCAPTCHA per send) + clearer errors
 
@@ -824,7 +1088,7 @@ export default function RegistrationForm({ onRegister }: Props): JSX.Element {
 //   );
 // }
 
-
+///888888888888888*****************************************************
 /* //04.20.25
 
 // src/components/organisms/RegistrationForm.tsx
@@ -1058,6 +1322,7 @@ export default function RegistrationForm(): JSX.Element {
 } */
 
 
+///888888888888888*****************************************************
 // src/components/organisms/RegistrationForm.tsx
 /* import React, { useState, useEffect, FormEvent } from 'react';
 import {
@@ -1292,6 +1557,7 @@ export default function RegistrationForm(): JSX.Element {
 }
  */
 
+///888888888888888*****************************************************
 // import React, { useState } from 'react';
 // import {
 //   getAuth,
@@ -1447,6 +1713,7 @@ export default function RegistrationForm(): JSX.Element {
 */
 
 
+///888888888888888*****************************************************
 //+++++++++++JS version+++++++++++++++++
 // src/components/forms/RegistrationForm.jsx
 
@@ -1500,6 +1767,7 @@ export default RegistrationForm; */
 
 
 
+///888888888888888*****************************************************
 
 // src/components/RegistrationForm.jsx
 //   users receive a verification email after registering but does not prevent Firebase from creating the user record before email verification. T. ( even junk mail) 
@@ -1553,6 +1821,7 @@ const RegistrationForm = () => {
 export default RegistrationForm; */
  
 
+///888888888888888*****************************************************
 // src/components/RegistrationForm.jsx version1
 //doesnt work. it gets error and despite that it create a user including junk . no verification // the interface is ok. including the phone number full implementaiton of flexilbe phone .
 //   import React, { useState, useEffect } from 'react';

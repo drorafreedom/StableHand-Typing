@@ -1,0 +1,53 @@
+What the current (active) file does that the older (disabled) one doesn’t
+
+3 tries → visible countdown → auto-resend
+
+Has autoResend state + timer and the startAutoResendCountdown() effect that kicks in as soon as codeAttempts >= 3.
+
+Shows “Too many attempts. Auto-resending in Ns…”.
+
+Disables Verify/Resend while the countdown runs.
+
+Fires resendCodeInternal(true) automatically at 0.
+
+Clears the countdown on resend, success, back-to-login, and unmount.
+
+Stronger cleanup
+
+Adds clearAutoResendTimer() and calls it from clearMfaState(), on unmount, and after successful verify/resend.
+
+Fresh invisible reCAPTCHA is rebuilt for each (re)send, and the container is always removed.
+
+Safer rate-limit UX
+
+Rate-limit (auth/too-many-requests) backoff banners only shown while in the MFA step.
+
+actionsDisabled also factors in autoResend > 0, so users can’t spam buttons during countdown.
+
+UI feedback
+
+Adds the extra banner for the countdown and an “Attempts: x/3 • Idle timeout: Ns” footer.
+
+What the older (disabled) file had that the new one changes
+
+No countdown
+
+It had a config ON_MAX_ATTEMPTS_ACTION: 'auto-resend' | 'reset-to-login'.
+
+On the 3rd wrong code it immediately auto-resent (or reset) with no visible countdown and buttons stayed enabled.
+
+Result: felt “sudden” and easy to double-click into weird states.
+
+Slightly simpler state
+
+No autoResend state/timer to manage.
+
+Fewer cleanup points (no countdown to clear).
+
+Same core flows otherwise
+
+Same first-login phone enrollment modal trigger if enrolledFactors.length === 0.
+
+Same reCAPTCHA rebuild on each (re)send.
+
+Same RL backoff (exponential seconds), idle timeout, email-link fallback, etc.

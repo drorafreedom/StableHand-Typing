@@ -1,11 +1,8 @@
 // src/components/organisms/LoginForm.tsx
 // TS version
-
+ //############################################
 // src/components/organisms/LoginForm.tsx
-
-// src/components/organisms/LoginForm.tsx
-// 5. 2025-08-11 — Fix RL loop: reset RL on back-to-login & hide RL banner outside MFA.
-// Robust reCAPTCHA lifecycle, auto-resend after 3 attempts, idle timeout, email-link fallback.
+// 08.17.25 – MFA with guaranteed 3-attempt countdown + auto-resend
 
 import React, { useEffect, useMemo, useRef, useState, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -19,13 +16,17 @@ import {
   type UserCredential,
   type PhoneMultiFactorInfo,
   sendSignInLinkToEmail,
+  multiFactor,
+  type User,
 } from 'firebase/auth';
 import { auth } from '../../firebase/firebase';
+
 import EmailField from '../common/EmailField';
 import PasswordField from '../common/PasswordField';
 import InputField from '../common/InputField';
 import Button from '../common/Button';
 import Alert from '../common/Alert';
+import EnrollPhoneModal from '../common/EnrollPhoneModal';
 
 declare global {
   interface Window {
@@ -37,18 +38,15 @@ declare global {
 
 type Banner = { text: string; type: 'info' | 'success' | 'error' };
 
-// ---------- Behaviour knobs ----------
-const MAX_CODE_ATTEMPTS = 3;                 // tries allowed before policy kicks in
-const MFA_IDLE_TIMEOUT_MS = 2 * 60 * 1000;   // 2 minutes idle → back to login
+// ---------- knobs ----------
+const MAX_CODE_ATTEMPTS = 3;
+const AUTO_RESEND_COOLDOWN_SECONDS = 30;      // countdown shown after 3rd wrong code
+const MFA_IDLE_TIMEOUT_MS = 2 * 60 * 1000;
 const EMAIL_LINK_FINISH_PATH = '/finish-email-signin';
-const ON_MAX_ATTEMPTS_ACTION: 'auto-resend' | 'reset-to-login' = 'auto-resend';
+const RL_BASE_SECONDS = 60;
+const RL_MAX_SECONDS  = 15 * 60;
+// ----------------------------
 
-// Rate-limit backoff (for auth/too-many-requests)
-const RL_BASE_SECONDS = 60;                  // start with 60s
-const RL_MAX_SECONDS  = 15 * 60;             // cap at 15 minutes
-// ------------------------------------
-
-// Error codes that often indicate stale session/recaptcha
 const SESSION_ERROR_CODES = new Set([
   'auth/multi-factor-session-expired',
   'auth/invalid-app-credential',
@@ -66,25 +64,32 @@ export default function LoginForm(): JSX.Element {
   const [password, setPassword] = useState('');
   const [passwordErrors, setPasswordErrors] = useState<string[]>([]);
 
-  // MFA state
+  // MFA
   const [resolver, setResolver] = useState<MultiFactorResolver | null>(null);
   const [verificationId, setVerificationId] = useState('');
   const [smsCode, setSmsCode] = useState('');
   const [codeSent, setCodeSent] = useState(false);
   const [codeAttempts, setCodeAttempts] = useState(0);
 
-  // Idle timers
+  // NEW: auto-resend countdown
+  const [autoResend, setAutoResend] = useState(0); // seconds remaining; 0 = inactive
+  const autoResendTimerRef = useRef<number | null>(null);
+
+  // First-login enrollment
+  const [loggedInUser, setLoggedInUser] = useState<User | null>(null);
+  const [showEnroll, setShowEnroll] = useState(false);
+
+  // Idle
   const idleTimeoutRef = useRef<number | null>(null);
   const idleIntervalRef = useRef<number | null>(null);
   const [idleSecondsLeft, setIdleSecondsLeft] = useState(Math.floor(MFA_IDLE_TIMEOUT_MS / 1000));
 
-  // Rate-limit state
+  // Rate-limit
   const [rlLevel, setRlLevel] = useState(0);
-  const [rlUntil, setRlUntil] = useState<number>(0); // epoch ms
+  const [rlUntil, setRlUntil] = useState<number>(0);
   const [rlSecondsLeft, setRlSecondsLeft] = useState<number>(0);
   const rlIntervalRef = useRef<number | null>(null);
 
-  // Track whether we’re in MFA step (for banner scoping)
   const inMfaStep = useMemo(() => Boolean(resolver || verificationId), [resolver, verificationId]);
   const inMfaRef = useRef(inMfaStep);
   useEffect(() => { inMfaRef.current = inMfaStep; }, [inMfaStep]);
@@ -93,26 +98,21 @@ export default function LoginForm(): JSX.Element {
   const [banner, setBanner] = useState<Banner>({ text: '', type: 'info' });
   const [busy, setBusy] = useState(false);
 
-  // Helpers
+  // helpers
   const now = () => Date.now();
   const isRateLimited = () => rlUntil > now();
 
-  // ===== reCAPTCHA lifecycle (fresh container every time) =====
+  // ===== reCAPTCHA lifecycle =====
   function destroyRecaptcha() {
+    try { (window as any).recaptchaVerifier?.clear?.(); } catch {}
     try {
-      if ((window as any).recaptchaVerifier?.clear) {
-        (window as any).recaptchaVerifier.clear();
-      }
-    } catch { /* noop */ }
-    try {
-      if (window.recaptchaContainerEl && window.recaptchaContainerEl.parentNode) {
+      if (window.recaptchaContainerEl?.parentNode) {
         window.recaptchaContainerEl.parentNode.removeChild(window.recaptchaContainerEl);
       }
-    } catch { /* noop */ }
+    } catch {}
     window.recaptchaVerifier = undefined;
     window.recaptchaContainerEl = null;
   }
-
   async function buildFreshRecaptcha(): Promise<void> {
     destroyRecaptcha();
     const el = document.createElement('div');
@@ -120,22 +120,15 @@ export default function LoginForm(): JSX.Element {
     el.id = `recaptcha-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     document.body.appendChild(el);
     window.recaptchaContainerEl = el;
-    window.recaptchaVerifier = new RecaptchaVerifier(auth, el, { size: 'invisible' });
+    window.recaptchaVerifier = new RecaptchaVerifier(auth as any, el, { size: 'invisible' });
     await window.recaptchaVerifier.render();
   }
 
-  // ===== Idle timers =====
+  // ===== idle timers =====
   function clearIdleTimers() {
-    if (idleTimeoutRef.current) {
-      window.clearTimeout(idleTimeoutRef.current);
-      idleTimeoutRef.current = null;
-    }
-    if (idleIntervalRef.current) {
-      window.clearInterval(idleIntervalRef.current);
-      idleIntervalRef.current = null;
-    }
+    if (idleTimeoutRef.current) { window.clearTimeout(idleTimeoutRef.current); idleTimeoutRef.current = null; }
+    if (idleIntervalRef.current) { window.clearInterval(idleIntervalRef.current); idleIntervalRef.current = null; }
   }
-
   function startIdleTimer() {
     clearIdleTimers();
     setIdleSecondsLeft(Math.floor(MFA_IDLE_TIMEOUT_MS / 1000));
@@ -147,12 +140,9 @@ export default function LoginForm(): JSX.Element {
     }, 1000) as unknown as number;
   }
 
-  // ===== Rate-limit cooldown =====
+  // ===== RL timers =====
   function clearRlInterval() {
-    if (rlIntervalRef.current) {
-      window.clearInterval(rlIntervalRef.current);
-      rlIntervalRef.current = null;
-    }
+    if (rlIntervalRef.current) { window.clearInterval(rlIntervalRef.current); rlIntervalRef.current = null; }
   }
   function startRateLimit(seconds: number) {
     const until = now() + seconds * 1000;
@@ -162,22 +152,15 @@ export default function LoginForm(): JSX.Element {
     rlIntervalRef.current = window.setInterval(() => {
       const left = Math.max(0, Math.ceil((until - now()) / 1000));
       setRlSecondsLeft(left);
-      if (left <= 0) {
-        // auto-clear when done
-        resetRateLimit();
-      }
+      if (left <= 0) resetRateLimit();
     }, 1000) as unknown as number;
   }
   function bumpRateLimit() {
     const nextSeconds = Math.min(RL_BASE_SECONDS * Math.pow(2, rlLevel), RL_MAX_SECONDS);
     setRlLevel((l) => Math.min(l + 1, 30));
     startRateLimit(nextSeconds);
-    // Only show the RL banner while in the MFA step (prevents loop on login screen)
     if (inMfaRef.current) {
-      setBanner({
-        text: `Too many attempts. Please wait ${nextSeconds}s before trying again.`,
-        type: 'error',
-      });
+      setBanner({ text: `Too many attempts. Please wait ${nextSeconds}s before trying again.`, type: 'error' });
     }
   }
   function resetRateLimit() {
@@ -187,7 +170,41 @@ export default function LoginForm(): JSX.Element {
     clearRlInterval();
   }
 
-  // MFA + RL state resets
+  // ===== auto-resend countdown =====
+  function clearAutoResendTimer() {
+    if (autoResendTimerRef.current) { window.clearInterval(autoResendTimerRef.current); autoResendTimerRef.current = null; }
+    setAutoResend(0);
+  }
+  function startAutoResendCountdown() {
+    clearAutoResendTimer();
+    setAutoResend(AUTO_RESEND_COOLDOWN_SECONDS);
+    setBanner({ text: `Too many attempts. Auto-resending in ${AUTO_RESEND_COOLDOWN_SECONDS}s…`, type: 'error' });
+    autoResendTimerRef.current = window.setInterval(() => {
+      setAutoResend((s) => {
+        const next = s - 1;
+        if (next <= 0) {
+          window.clearInterval(autoResendTimerRef.current!);
+          autoResendTimerRef.current = null;
+          // only resend if still in MFA, still have a resolver
+          if (inMfaRef.current && resolver) {
+            void resendCodeInternal(true);
+          }
+          return 0;
+        }
+        return next;
+      });
+    }, 1000) as unknown as number;
+  }
+
+  // Guarantee the countdown starts as soon as attempts hit 3
+  useEffect(() => {
+    if (inMfaStep && codeAttempts >= MAX_CODE_ATTEMPTS && autoResend === 0) {
+      startAutoResendCountdown();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [codeAttempts, inMfaStep]);
+
+  // ===== clear groups =====
   function clearMfaState() {
     setResolver(null);
     setVerificationId('');
@@ -196,37 +213,34 @@ export default function LoginForm(): JSX.Element {
     setCodeAttempts(0);
     clearIdleTimers();
     destroyRecaptcha();
+    clearAutoResendTimer();
   }
-
   function resetToLogin(message?: string) {
     clearMfaState();
-    resetRateLimit();            // << fix: clear RL when returning to login
+    resetRateLimit();
     setPassword('');
     setBanner({ text: message ?? 'Returning to login…', type: 'info' });
-    // navigate('/login'); // if your login is a different route
   }
 
-  // Manage idle timers on MFA step entry/exit
+  // enter/exit MFA
   useEffect(() => {
     if (inMfaStep) startIdleTimer(); else clearIdleTimers();
     return () => clearIdleTimers();
   }, [inMfaStep]);
 
-  // Nudge the idle timer on user activity within MFA
+  // keep idle fresh on activity
   useEffect(() => {
     if (inMfaStep) startIdleTimer();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [smsCode, codeSent]);
 
-  // Clean up recaptcha and RL interval on unmount
-  useEffect(() => () => { destroyRecaptcha(); clearRlInterval(); }, []);
+  // unmount cleanup
+  useEffect(() => () => { destroyRecaptcha(); clearRlInterval(); clearAutoResendTimer(); }, []);
 
-  // ===== MFA bootstrap (after password step) =====
+  // ===== bootstrap MFA from error =====
   async function beginMfaFromError(err: any) {
     if (isRateLimited()) {
-      if (inMfaRef.current) {
-        setBanner({ text: `Please wait ${rlSecondsLeft}s before requesting a new code.`, type: 'error' });
-      }
+      if (inMfaRef.current) setBanner({ text: `Please wait ${rlSecondsLeft}s before requesting a new code.`, type: 'error' });
       return;
     }
     const mResolver = getMultiFactorResolver(auth, err);
@@ -247,16 +261,13 @@ export default function LoginForm(): JSX.Element {
       startIdleTimer();
       resetRateLimit();
     } catch (sendErr: any) {
-      if (sendErr?.code === 'auth/too-many-requests') {
-        bumpRateLimit();
-      } else {
-        setBanner({ text: sendErr?.message || 'Could not send the verification code.', type: 'error' });
-      }
+      if (sendErr?.code === 'auth/too-many-requests') bumpRateLimit();
+      else setBanner({ text: sendErr?.message || 'Could not send the verification code.', type: 'error' });
       throw sendErr;
     }
   }
 
-  // ===== Email/password submit =====
+  // ===== login submit =====
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (busy) return;
@@ -264,15 +275,26 @@ export default function LoginForm(): JSX.Element {
 
     setBusy(true);
     setBanner({ text: '', type: 'info' });
-    clearMfaState(); // leave RL intact across attempts by default
+    clearMfaState();
 
     try {
-      const cred: UserCredential = await signInWithEmailAndPassword(auth, email, password);
+      const cred: UserCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
+      const user = cred.user;
+
+      // first-login: enroll phone
+      const factors = multiFactor(user).enrolledFactors || [];
+      if (factors.length === 0) {
+        setLoggedInUser(user);
+        setShowEnroll(true);
+        setBanner({ text: 'Please add your phone for 2-step verification.', type: 'info' });
+        return;
+      }
+
       setBanner({ text: 'Login successful! Redirecting…', type: 'success' });
       setTimeout(() => navigate('/stablehand-welcome'), 800);
     } catch (err: any) {
       if (err?.code === 'auth/multi-factor-auth-required') {
-        try { await beginMfaFromError(err); } catch { /* handled */ }
+        try { await beginMfaFromError(err); } catch { /* handled above */ }
       } else if (err?.code === 'auth/too-many-requests') {
         bumpRateLimit();
       } else {
@@ -283,15 +305,17 @@ export default function LoginForm(): JSX.Element {
     }
   }
 
-  // ===== (Re)send SMS code =====
+  // ===== resend code =====
   async function resendCodeInternal(auto: boolean) {
+    // block manual clicks during countdown
+    if (autoResend > 0 && !auto) return;
+
     if (isRateLimited()) {
-      if (inMfaRef.current) {
-        setBanner({ text: `Please wait ${rlSecondsLeft}s before requesting a new code.`, type: 'error' });
-      }
+      if (inMfaRef.current) setBanner({ text: `Please wait ${rlSecondsLeft}s before requesting a new code.`, type: 'error' });
       return;
     }
-    // Try with current resolver/session first
+
+    // first try with existing session
     try {
       await buildFreshRecaptcha();
       const hint = resolver?.hints[0] as PhoneMultiFactorInfo | undefined;
@@ -307,18 +331,17 @@ export default function LoginForm(): JSX.Element {
       setBanner({ text: auto ? 'A new code was sent automatically.' : 'A new code was sent.', type: 'success' });
       startIdleTimer();
       resetRateLimit();
+      clearAutoResendTimer();
       return;
     } catch (err: any) {
-      if (err?.code === 'auth/too-many-requests') {
-        bumpRateLimit();
-        return;
-      }
+      if (err?.code === 'auth/too-many-requests') { bumpRateLimit(); return; }
       if (!SESSION_ERROR_CODES.has(err?.code)) throw err;
     }
 
-    // Fallback: re-bootstrap resolver/session by replaying the password step
+    // fallback: rebuild resolver/session
     const fresh = await retryBootstrapResolver();
     if (isRateLimited()) return;
+
     try {
       await buildFreshRecaptcha();
       const hint = fresh.hints[0] as PhoneMultiFactorInfo | undefined;
@@ -335,18 +358,16 @@ export default function LoginForm(): JSX.Element {
       setBanner({ text: auto ? 'A new code was sent automatically.' : 'A new code was sent.', type: 'success' });
       startIdleTimer();
       resetRateLimit();
+      clearAutoResendTimer();
     } catch (err: any) {
-      if (err?.code === 'auth/too-many-requests') {
-        bumpRateLimit();
-      } else {
-        setBanner({ text: err?.message || 'Failed to resend code.', type: 'error' });
-      }
+      if (err?.code === 'auth/too-many-requests') bumpRateLimit();
+      else setBanner({ text: err?.message || 'Failed to resend code.', type: 'error' });
     }
   }
 
   async function retryBootstrapResolver(): Promise<MultiFactorResolver> {
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      await signInWithEmailAndPassword(auth, email.trim(), password);
       setBanner({ text: 'Login successful! Redirecting…', type: 'success' });
       setTimeout(() => navigate('/stablehand-welcome'), 800);
       throw new Error('Unexpected success: MFA not required.');
@@ -359,16 +380,12 @@ export default function LoginForm(): JSX.Element {
     }
   }
 
-  // ===== Verify MFA code (SMS) =====
+  // ===== verify code =====
   async function handleVerify() {
     if (!resolver || !verificationId) return;
     if (busy) return;
-    if (isRateLimited()) {
-      if (inMfaRef.current) {
-        setBanner({ text: `Please wait ${rlSecondsLeft}s before trying again.`, type: 'error' });
-      }
-      return;
-    }
+    if (isRateLimited()) { if (inMfaRef.current) setBanner({ text: `Please wait ${rlSecondsLeft}s before trying again.`, type: 'error' }); return; }
+    if (autoResend > 0) return; // locked while waiting for auto resend
 
     setBusy(true);
     setBanner({ text: '', type: 'info' });
@@ -380,28 +397,20 @@ export default function LoginForm(): JSX.Element {
 
       setBanner({ text: 'MFA successful! Redirecting…', type: 'success' });
       clearIdleTimers();
+      clearAutoResendTimer();
       setTimeout(() => navigate('/stablehand-welcome'), 800);
     } catch (err: any) {
-      if (err?.code === 'auth/too-many-requests') {
-        bumpRateLimit();
-        return;
-      }
+      if (err?.code === 'auth/too-many-requests') { bumpRateLimit(); return; }
 
       const next = codeAttempts + 1;
       setCodeAttempts(next);
       setSmsCode('');
 
       if (next >= MAX_CODE_ATTEMPTS) {
-        if (ON_MAX_ATTEMPTS_ACTION === 'auto-resend') {
-          await resendCodeInternal(true); // may start cooldown if rate-limited
-        } else {
-          resetToLogin('Too many incorrect codes. Please log in again.');
-        }
+        // countdown will be ensured by the effect watching codeAttempts
+        setBanner({ text: `Too many attempts. Auto-resending in ${AUTO_RESEND_COOLDOWN_SECONDS}s…`, type: 'error' });
       } else {
-        setBanner({
-          text: `The code is incorrect or expired. (${next}/${MAX_CODE_ATTEMPTS})`,
-          type: 'error',
-        });
+        setBanner({ text: `The code is incorrect or expired. (${next}/${MAX_CODE_ATTEMPTS})`, type: 'error' });
         startIdleTimer();
       }
     } finally {
@@ -409,68 +418,47 @@ export default function LoginForm(): JSX.Element {
     }
   }
 
-  // ===== Manual resend button =====
+  // ===== manual resend =====
   async function handleResend() {
     if (!resolver) return;
     if (busy) return;
+    if (autoResend > 0) return; // wait for auto-resend
     await resendCodeInternal(false);
   }
 
-  // ===== Send to Email (passwordless email-link fallback) =====
+  // ===== email link fallback =====
   async function handleSendEmailLink() {
     if (busy) return;
-    if (!email) {
-      setBanner({ text: 'Enter your email above first, then tap “Send to Email”.', type: 'error' });
-      return;
-    }
+    if (!email) { setBanner({ text: 'Enter your email above first, then tap “Send to Email”.', type: 'error' }); return; }
     setBusy(true);
     try {
       clearMfaState();
-      const actionCodeSettings = {
-        url: `${window.location.origin}${EMAIL_LINK_FINISH_PATH}`,
-        handleCodeInApp: true,
-      };
-      await sendSignInLinkToEmail(auth, email, actionCodeSettings);
-      window.localStorage.setItem('emailForSignIn', email);
-      setBanner({
-        text: `We sent a secure sign-in link to ${email}. Open it on this device to finish.`,
-        type: 'success',
-      });
+      const actionCodeSettings = { url: `${window.location.origin}${EMAIL_LINK_FINISH_PATH}`, handleCodeInApp: true };
+      await sendSignInLinkToEmail(auth, email.trim(), actionCodeSettings);
+      window.localStorage.setItem('emailForSignIn', email.trim());
+      setBanner({ text: `We sent a secure sign-in link to ${email}. Open it on this device to finish.`, type: 'success' });
       resetRateLimit();
     } catch (err: any) {
-      if (err?.code === 'auth/too-many-requests') {
-        bumpRateLimit();
-      } else {
-        setBanner({ text: err?.message || 'Failed to send email link.', type: 'error' });
-      }
+      if (err?.code === 'auth/too-many-requests') bumpRateLimit();
+      else setBanner({ text: err?.message || 'Failed to send email link.', type: 'error' });
     } finally {
       setBusy(false);
     }
   }
 
-  // ===== Back to login =====
+  // ===== back to login =====
   function handleBackToLogin() {
     resetToLogin('Cancelled. You can try logging in again.');
   }
 
-  const actionsDisabled = busy || (inMfaStep && isRateLimited());
+  const actionsDisabled = busy || (inMfaStep && isRateLimited()) || autoResend > 0;
 
   return (
     <div className="space-y-4">
-      {!inMfaStep && (
+      {!inMfaStep && !showEnroll && (
         <form onSubmit={handleSubmit} className="space-y-4">
-          <EmailField
-            email={email}
-            setEmail={setEmail}
-            setEmailErrors={setEmailErrors}
-            errors={emailErrors}
-          />
-          <PasswordField
-            password={password}
-            setPassword={setPassword}
-            setPasswordErrors={setPasswordErrors}
-            errors={passwordErrors}
-          />
+          <EmailField email={email} setEmail={setEmail} setEmailErrors={setEmailErrors} errors={emailErrors} />
+          <PasswordField password={password} setPassword={setPassword} setPasswordErrors={setPasswordErrors} errors={passwordErrors} />
 
           {banner.text && <Alert message={banner.text} type={banner.type} />}
 
@@ -480,7 +468,7 @@ export default function LoginForm(): JSX.Element {
         </form>
       )}
 
-      {inMfaStep && (
+      {inMfaStep && !showEnroll && (
         <div className="space-y-4">
           <InputField
             name="smsCode"
@@ -499,50 +487,1171 @@ export default function LoginForm(): JSX.Element {
             </div>
           )}
 
+          {autoResend > 0 && (
+            <div className="text-sm text-amber-600">
+              Too many attempts. Auto-resending in {autoResend}s…
+            </div>
+          )}
+
           <div className="flex flex-wrap text-xs gap-2">
-            <Button
-              onClick={handleVerify}
-              disabled={actionsDisabled || !smsCode.trim()}
-              className="flex-1 bg-green-600 text-white"
-            >
+            <Button onClick={handleVerify} disabled={actionsDisabled || !smsCode.trim()} className="flex-1 bg-green-600 text-white">
               Verify
             </Button>
-
-            <Button
-              type="button"
-              onClick={handleResend}
-              disabled={actionsDisabled}
-              className="flex-1"
-            >
+            <Button type="button" onClick={handleResend} disabled={actionsDisabled} className="flex-1">
               {codeSent ? 'Resend code (SMS)' : 'Send code (SMS)'}
             </Button>
-
-            <Button
-              type="button"
-              onClick={handleSendEmailLink}
-              disabled={actionsDisabled || !email}
-              className="flex-1"
-            >
+            <Button type="button" onClick={handleSendEmailLink} disabled={actionsDisabled || !email} className="flex-1">
               Send to Email
             </Button>
-
             <Button type="button" onClick={handleBackToLogin} className="flex-1">
               Back to login
             </Button>
           </div>
 
           <div className="text-xs text-gray-500">
-            Attempts: {codeAttempts}/{MAX_CODE_ATTEMPTS}
-            {' • '}
-            Idle timeout: {Math.max(0, idleSecondsLeft)}s
+            Attempts: {Math.min(codeAttempts, MAX_CODE_ATTEMPTS)}/{MAX_CODE_ATTEMPTS} • Idle timeout: {Math.max(0, idleSecondsLeft)}s
           </div>
         </div>
+      )}
+
+      {showEnroll && loggedInUser && (
+        <EnrollPhoneModal
+          user={loggedInUser}
+          initialPhoneE164={localStorage.getItem('pending_phone_e164') || ''}
+          onDone={() => {
+            localStorage.removeItem('pending_phone_e164');
+            setShowEnroll(false);
+            setBanner({ text: 'Phone linked. MFA enabled. Redirecting…', type: 'success' });
+            setTimeout(() => navigate('/stablehand-welcome'), 700);
+          }}
+          onSkip={() => {
+            setShowEnroll(false);
+            setBanner({ text: 'You can add MFA later in settings.', type: 'info' });
+            setTimeout(() => navigate('/stablehand-welcome'), 500);
+          }}
+        />
       )}
     </div>
   );
 }
 
+//############################################
+// // src/components/organisms/LoginForm.tsx
+// // 08.17.25 – login with MFA + first-login phone enrollment working seemless.
 
+// import React, { useEffect, useMemo, useRef, useState, FormEvent } from 'react';
+// import { useNavigate } from 'react-router-dom';
+// import {
+//   signInWithEmailAndPassword,
+//   PhoneAuthProvider,
+//   PhoneMultiFactorGenerator,
+//   getMultiFactorResolver,
+//   type MultiFactorResolver,
+//   RecaptchaVerifier,
+//   type UserCredential,
+//   type PhoneMultiFactorInfo,
+//   sendSignInLinkToEmail,
+//   multiFactor,
+//   type User,
+// } from 'firebase/auth';
+// import { auth } from '../../firebase/firebase';
+
+// import EmailField from '../common/EmailField';
+// import PasswordField from '../common/PasswordField';
+// import InputField from '../common/InputField';
+// import Button from '../common/Button';
+// import Alert from '../common/Alert';
+// import EnrollPhoneModal from '../common/EnrollPhoneModal';
+
+// declare global {
+//   interface Window {
+//     recaptchaVerifier?: RecaptchaVerifier;
+//     recaptchaContainerEl?: HTMLDivElement | null;
+//     grecaptcha?: any;
+//   }
+// }
+
+// type Banner = { text: string; type: 'info' | 'success' | 'error' };
+
+// // ---------- Behaviour knobs ----------
+// const MAX_CODE_ATTEMPTS = 3;                 // tries allowed before policy kicks in
+// const MFA_IDLE_TIMEOUT_MS = 2 * 60 * 1000;   // 2 minutes idle → back to login
+// const EMAIL_LINK_FINISH_PATH = '/finish-email-signin';
+// const ON_MAX_ATTEMPTS_ACTION: 'auto-resend' | 'reset-to-login' = 'auto-resend';
+
+// // Rate-limit backoff (for auth/too-many-requests)
+// const RL_BASE_SECONDS = 60;                  // start with 60s
+// const RL_MAX_SECONDS  = 15 * 60;             // cap at 15 minutes
+// // ------------------------------------
+
+// // Error codes that often indicate stale session/recaptcha
+// const SESSION_ERROR_CODES = new Set([
+//   'auth/multi-factor-session-expired',
+//   'auth/invalid-app-credential',
+//   'auth/missing-app-credential',
+//   'auth/captcha-check-failed',
+//   'auth/expired-action-code',
+// ]);
+
+// export default function LoginForm(): JSX.Element {
+//   const navigate = useNavigate();
+
+//   // Email/password
+//   const [email, setEmail] = useState('');
+//   const [emailErrors, setEmailErrors] = useState<string[]>([]);
+//   const [password, setPassword] = useState('');
+//   const [passwordErrors, setPasswordErrors] = useState<string[]>([]);
+
+//   // MFA state
+//   const [resolver, setResolver] = useState<MultiFactorResolver | null>(null);
+//   const [verificationId, setVerificationId] = useState('');
+//   const [smsCode, setSmsCode] = useState('');
+//   const [codeSent, setCodeSent] = useState(false);
+//   const [codeAttempts, setCodeAttempts] = useState(0);
+
+//   // First-login enrollment
+//   const [loggedInUser, setLoggedInUser] = useState<User | null>(null);
+//   const [showEnroll, setShowEnroll] = useState(false);
+
+//   // Idle timers
+//   const idleTimeoutRef = useRef<number | null>(null);
+//   const idleIntervalRef = useRef<number | null>(null);
+//   const [idleSecondsLeft, setIdleSecondsLeft] = useState(Math.floor(MFA_IDLE_TIMEOUT_MS / 1000));
+
+//   // Rate-limit state
+//   const [rlLevel, setRlLevel] = useState(0);
+//   const [rlUntil, setRlUntil] = useState<number>(0); // epoch ms
+//   const [rlSecondsLeft, setRlSecondsLeft] = useState<number>(0);
+//   const rlIntervalRef = useRef<number | null>(null);
+
+//   // Track whether we’re in MFA step (for banner scoping)
+//   const inMfaStep = useMemo(() => Boolean(resolver || verificationId), [resolver, verificationId]);
+//   const inMfaRef = useRef(inMfaStep);
+//   useEffect(() => { inMfaRef.current = inMfaStep; }, [inMfaStep]);
+
+//   // UI
+//   const [banner, setBanner] = useState<Banner>({ text: '', type: 'info' });
+//   const [busy, setBusy] = useState(false);
+
+//   // Helpers
+//   const now = () => Date.now();
+//   const isRateLimited = () => rlUntil > now();
+
+//   // ===== reCAPTCHA lifecycle (fresh container every time) =====
+//   function destroyRecaptcha() {
+//     try {
+//       if ((window as any).recaptchaVerifier?.clear) {
+//         (window as any).recaptchaVerifier.clear();
+//       }
+//     } catch { /* noop */ }
+//     try {
+//       if (window.recaptchaContainerEl && window.recaptchaContainerEl.parentNode) {
+//         window.recaptchaContainerEl.parentNode.removeChild(window.recaptchaContainerEl);
+//       }
+//     } catch { /* noop */ }
+//     window.recaptchaVerifier = undefined;
+//     window.recaptchaContainerEl = null;
+//   }
+
+//   async function buildFreshRecaptcha(): Promise<void> {
+//     destroyRecaptcha();
+//     const el = document.createElement('div');
+//     el.style.display = 'none';
+//     el.id = `recaptcha-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+//     document.body.appendChild(el);
+//     window.recaptchaContainerEl = el;
+//     // v10: new RecaptchaVerifier(auth, container, options)
+//     window.recaptchaVerifier = new RecaptchaVerifier(auth as any, el, { size: 'invisible' });
+//     await window.recaptchaVerifier.render();
+//   }
+
+//   // ===== Idle timers =====
+//   function clearIdleTimers() {
+//     if (idleTimeoutRef.current) {
+//       window.clearTimeout(idleTimeoutRef.current);
+//       idleTimeoutRef.current = null;
+//     }
+//     if (idleIntervalRef.current) {
+//       window.clearInterval(idleIntervalRef.current);
+//       idleIntervalRef.current = null;
+//     }
+//   }
+
+//   function startIdleTimer() {
+//     clearIdleTimers();
+//     setIdleSecondsLeft(Math.floor(MFA_IDLE_TIMEOUT_MS / 1000));
+//     idleTimeoutRef.current = window.setTimeout(() => {
+//       resetToLogin('Session timed out. Please log in again.');
+//     }, MFA_IDLE_TIMEOUT_MS) as unknown as number;
+//     idleIntervalRef.current = window.setInterval(() => {
+//       setIdleSecondsLeft((prev) => (prev > 0 ? prev - 1 : 0));
+//     }, 1000) as unknown as number;
+//   }
+
+//   // ===== Rate-limit cooldown =====
+//   function clearRlInterval() {
+//     if (rlIntervalRef.current) {
+//       window.clearInterval(rlIntervalRef.current);
+//       rlIntervalRef.current = null;
+//     }
+//   }
+//   function startRateLimit(seconds: number) {
+//     const until = now() + seconds * 1000;
+//     setRlUntil(until);
+//     setRlSecondsLeft(seconds);
+//     clearRlInterval();
+//     rlIntervalRef.current = window.setInterval(() => {
+//       const left = Math.max(0, Math.ceil((until - now()) / 1000));
+//       setRlSecondsLeft(left);
+//       if (left <= 0) {
+//         resetRateLimit();
+//       }
+//     }, 1000) as unknown as number;
+//   }
+//   function bumpRateLimit() {
+//     const nextSeconds = Math.min(RL_BASE_SECONDS * Math.pow(2, rlLevel), RL_MAX_SECONDS);
+//     setRlLevel((l) => Math.min(l + 1, 30));
+//     startRateLimit(nextSeconds);
+//     if (inMfaRef.current) {
+//       setBanner({
+//         text: `Too many attempts. Please wait ${nextSeconds}s before trying again.`,
+//         type: 'error',
+//       });
+//     }
+//   }
+//   function resetRateLimit() {
+//     setRlLevel(0);
+//     setRlUntil(0);
+//     setRlSecondsLeft(0);
+//     clearRlInterval();
+//   }
+
+//   // MFA + RL state resets
+//   function clearMfaState() {
+//     setResolver(null);
+//     setVerificationId('');
+//     setSmsCode('');
+//     setCodeSent(false);
+//     setCodeAttempts(0);
+//     clearIdleTimers();
+//     destroyRecaptcha();
+//   }
+
+//   function resetToLogin(message?: string) {
+//     clearMfaState();
+//     resetRateLimit();
+//     setPassword('');
+//     setBanner({ text: message ?? 'Returning to login…', type: 'info' });
+//   }
+
+//   // Manage idle timers on MFA step entry/exit
+//   useEffect(() => {
+//     if (inMfaStep) startIdleTimer(); else clearIdleTimers();
+//     return () => clearIdleTimers();
+//   }, [inMfaStep]);
+
+//   // Nudge the idle timer on user activity within MFA
+//   useEffect(() => {
+//     if (inMfaStep) startIdleTimer();
+//     // eslint-disable-next-line react-hooks/exhaustive-deps
+//   }, [smsCode, codeSent]);
+
+//   // Clean up recaptcha and RL interval on unmount
+//   useEffect(() => () => { destroyRecaptcha(); clearRlInterval(); }, []);
+
+//   // ===== MFA bootstrap (after password step) =====
+//   async function beginMfaFromError(err: any) {
+//     if (isRateLimited()) {
+//       if (inMfaRef.current) {
+//         setBanner({ text: `Please wait ${rlSecondsLeft}s before requesting a new code.`, type: 'error' });
+//       }
+//       return;
+//     }
+//     const mResolver = getMultiFactorResolver(auth, err);
+//     setResolver(mResolver);
+
+//     try {
+//       await buildFreshRecaptcha();
+//       const hint = mResolver.hints[0] as PhoneMultiFactorInfo | undefined;
+//       const provider = new PhoneAuthProvider(auth);
+//       const id = await provider.verifyPhoneNumber(
+//         { multiFactorHint: hint, session: mResolver.session },
+//         window.recaptchaVerifier!
+//       );
+//       setVerificationId(id);
+//       setCodeSent(true);
+//       const masked = hint?.phoneNumber ? `…${hint.phoneNumber.slice(-4)}` : 'your phone';
+//       setBanner({ text: `We sent a code to ${masked}.`, type: 'info' });
+//       startIdleTimer();
+//       resetRateLimit();
+//     } catch (sendErr: any) {
+//       if (sendErr?.code === 'auth/too-many-requests') {
+//         bumpRateLimit();
+//       } else {
+//         setBanner({ text: sendErr?.message || 'Could not send the verification code.', type: 'error' });
+//       }
+//       throw sendErr;
+//     }
+//   }
+
+//   // ===== Email/password submit =====
+//   async function handleSubmit(e: FormEvent) {
+//     e.preventDefault();
+//     if (busy) return;
+//     if (emailErrors.length || passwordErrors.length) return;
+
+//     setBusy(true);
+//     setBanner({ text: '', type: 'info' });
+//     clearMfaState();
+
+//     try {
+//       const cred: UserCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
+//       const user = cred.user;
+
+//       // FIRST-LOGIN ENROLLMENT: no factors → open modal, prefill from registration
+//       const factors = multiFactor(user).enrolledFactors || [];
+//       if (factors.length === 0) {
+//         setLoggedInUser(user);
+//         setShowEnroll(true);
+//         setBanner({ text: 'Please add your phone for 2-step verification.', type: 'info' });
+//         return; // don't navigate yet
+//       }
+
+//       // Normal login (already has MFA enrolled)
+//       setBanner({ text: 'Login successful! Redirecting…', type: 'success' });
+//       setTimeout(() => navigate('/stablehand-welcome'), 800);
+//     } catch (err: any) {
+//       if (err?.code === 'auth/multi-factor-auth-required') {
+//         try { await beginMfaFromError(err); } catch { /* handled */ }
+//       } else if (err?.code === 'auth/too-many-requests') {
+//         bumpRateLimit();
+//       } else {
+//         setBanner({ text: 'Login failed. Check your email and password.', type: 'error' });
+//       }
+//     } finally {
+//       setBusy(false);
+//     }
+//   }
+
+//   // ===== (Re)send SMS code =====
+//   async function resendCodeInternal(auto: boolean) {
+//     if (isRateLimited()) {
+//       if (inMfaRef.current) {
+//         setBanner({ text: `Please wait ${rlSecondsLeft}s before requesting a new code.`, type: 'error' });
+//       }
+//       return;
+//     }
+//     // Try with current resolver/session first
+//     try {
+//       await buildFreshRecaptcha();
+//       const hint = resolver?.hints[0] as PhoneMultiFactorInfo | undefined;
+//       const provider = new PhoneAuthProvider(auth);
+//       const newId = await provider.verifyPhoneNumber(
+//         { multiFactorHint: hint, session: resolver!.session },
+//         window.recaptchaVerifier!
+//       );
+//       setVerificationId(newId);
+//       setCodeSent(true);
+//       setSmsCode('');
+//       setCodeAttempts(0);
+//       setBanner({ text: auto ? 'A new code was sent automatically.' : 'A new code was sent.', type: 'success' });
+//       startIdleTimer();
+//       resetRateLimit();
+//       return;
+//     } catch (err: any) {
+//       if (err?.code === 'auth/too-many-requests') {
+//         bumpRateLimit();
+//         return;
+//       }
+//       if (!SESSION_ERROR_CODES.has(err?.code)) throw err;
+//     }
+
+//     // Fallback: re-bootstrap resolver/session by replaying the password step
+//     const fresh = await retryBootstrapResolver();
+//     if (isRateLimited()) return;
+//     try {
+//       await buildFreshRecaptcha();
+//       const hint = fresh.hints[0] as PhoneMultiFactorInfo | undefined;
+//       const provider = new PhoneAuthProvider(auth);
+//       const newId = await provider.verifyPhoneNumber(
+//         { multiFactorHint: hint, session: fresh.session },
+//         window.recaptchaVerifier!
+//       );
+//       setResolver(fresh);
+//       setVerificationId(newId);
+//       setCodeSent(true);
+//       setSmsCode('');
+//       setCodeAttempts(0);
+//       setBanner({ text: auto ? 'A new code was sent automatically.' : 'A new code was sent.', type: 'success' });
+//       startIdleTimer();
+//       resetRateLimit();
+//     } catch (err: any) {
+//       if (err?.code === 'auth/too-many-requests') {
+//         bumpRateLimit();
+//       } else {
+//         setBanner({ text: err?.message || 'Failed to resend code.', type: 'error' });
+//       }
+//     }
+//   }
+
+//   async function retryBootstrapResolver(): Promise<MultiFactorResolver> {
+//     try {
+//       await signInWithEmailAndPassword(auth, email.trim(), password);
+//       setBanner({ text: 'Login successful! Redirecting…', type: 'success' });
+//       setTimeout(() => navigate('/stablehand-welcome'), 800);
+//       throw new Error('Unexpected success: MFA not required.');
+//     } catch (err: any) {
+//       if (err?.code === 'auth/multi-factor-auth-required') {
+//         return getMultiFactorResolver(auth, err);
+//       }
+//       resetToLogin('We need you to log in again.');
+//       throw err;
+//     }
+//   }
+
+//   // ===== Verify MFA code (SMS) =====
+//   async function handleVerify() {
+//     if (!resolver || !verificationId) return;
+//     if (busy) return;
+//     if (isRateLimited()) {
+//       if (inMfaRef.current) {
+//         setBanner({ text: `Please wait ${rlSecondsLeft}s before trying again.`, type: 'error' });
+//       }
+//       return;
+//     }
+
+//     setBusy(true);
+//     setBanner({ text: '', type: 'info' });
+
+//     try {
+//       const phoneCred = PhoneAuthProvider.credential(verificationId, smsCode.trim());
+//       const assertion = PhoneMultiFactorGenerator.assertion(phoneCred);
+//       await resolver.resolveSignIn(assertion);
+
+//       setBanner({ text: 'MFA successful! Redirecting…', type: 'success' });
+//       clearIdleTimers();
+//       setTimeout(() => navigate('/stablehand-welcome'), 800);
+//     } catch (err: any) {
+//       if (err?.code === 'auth/too-many-requests') {
+//         bumpRateLimit();
+//         return;
+//       }
+
+//       const next = codeAttempts + 1;
+//       setCodeAttempts(next);
+//       setSmsCode('');
+
+//       if (next >= MAX_CODE_ATTEMPTS) {
+//         if (ON_MAX_ATTEMPTS_ACTION === 'auto-resend') {
+//           await resendCodeInternal(true); // may start cooldown if rate-limited
+//         } else {
+//           resetToLogin('Too many incorrect codes. Please log in again.');
+//         }
+//       } else {
+//         setBanner({
+//           text: `The code is incorrect or expired. (${next}/${MAX_CODE_ATTEMPTS})`,
+//           type: 'error',
+//         });
+//         startIdleTimer();
+//       }
+//     } finally {
+//       setBusy(false);
+//     }
+//   }
+
+//   // ===== Manual resend button =====
+//   async function handleResend() {
+//     if (!resolver) return;
+//     if (busy) return;
+//     await resendCodeInternal(false);
+//   }
+
+//   // ===== Send to Email (passwordless email-link fallback) =====
+//   async function handleSendEmailLink() {
+//     if (busy) return;
+//     if (!email) {
+//       setBanner({ text: 'Enter your email above first, then tap “Send to Email”.', type: 'error' });
+//       return;
+//     }
+//     setBusy(true);
+//     try {
+//       clearMfaState();
+//       const actionCodeSettings = {
+//         url: `${window.location.origin}${EMAIL_LINK_FINISH_PATH}`,
+//         handleCodeInApp: true,
+//       };
+//       await sendSignInLinkToEmail(auth, email.trim(), actionCodeSettings);
+//       window.localStorage.setItem('emailForSignIn', email.trim());
+//       setBanner({
+//         text: `We sent a secure sign-in link to ${email}. Open it on this device to finish.`,
+//         type: 'success',
+//       });
+//       resetRateLimit();
+//     } catch (err: any) {
+//       if (err?.code === 'auth/too-many-requests') {
+//         bumpRateLimit();
+//       } else {
+//         setBanner({ text: err?.message || 'Failed to send email link.', type: 'error' });
+//       }
+//     } finally {
+//       setBusy(false);
+//     }
+//   }
+
+//   // ===== Back to login =====
+//   function handleBackToLogin() {
+//     resetToLogin('Cancelled. You can try logging in again.');
+//   }
+
+//   const actionsDisabled = busy || (inMfaStep && isRateLimited());
+
+//   return (
+//     <div className="space-y-4">
+//       {!inMfaStep && !showEnroll && (
+//         <form onSubmit={handleSubmit} className="space-y-4">
+//           <EmailField
+//             email={email}
+//             setEmail={setEmail}
+//             setEmailErrors={setEmailErrors}
+//             errors={emailErrors}
+//           />
+//           <PasswordField
+//             password={password}
+//             setPassword={setPassword}
+//             setPasswordErrors={setPasswordErrors}
+//             errors={passwordErrors}
+//           />
+
+//           {banner.text && <Alert message={banner.text} type={banner.type} />}
+
+//           <Button type="submit" disabled={busy} className="w-full bg-blue-600 text-white">
+//             Log In
+//           </Button>
+//         </form>
+//       )}
+
+//       {inMfaStep && !showEnroll && (
+//         <div className="space-y-4">
+//           <InputField
+//             name="smsCode"
+//             label="SMS Code"
+//             type="text"
+//             value={smsCode}
+//             onChange={(e) => setSmsCode(e.target.value)}
+//             placeholder="123456"
+//           />
+
+//           {banner.text && <Alert message={banner.text} type={banner.type} />}
+
+//           {isRateLimited() && (
+//             <div className="text-sm text-amber-600">
+//               Too many attempts. Please wait {rlSecondsLeft}s before trying again.
+//             </div>
+//           )}
+
+//           <div className="flex flex-wrap text-xs gap-2">
+//             <Button
+//               onClick={handleVerify}
+//               disabled={actionsDisabled || !smsCode.trim()}
+//               className="flex-1 bg-green-600 text-white"
+//             >
+//               Verify
+//             </Button>
+
+//             <Button
+//               type="button"
+//               onClick={handleResend}
+//               disabled={actionsDisabled}
+//               className="flex-1"
+//             >
+//               {codeSent ? 'Resend code (SMS)' : 'Send code (SMS)'}
+//             </Button>
+
+//             <Button
+//               type="button"
+//               onClick={handleSendEmailLink}
+//               disabled={actionsDisabled || !email}
+//               className="flex-1"
+//             >
+//               Send to Email
+//             </Button>
+
+//             <Button type="button" onClick={handleBackToLogin} className="flex-1">
+//               Back to login
+//             </Button>
+//           </div>
+
+//           <div className="text-xs text-gray-500">
+//             Attempts: {codeAttempts}/{MAX_CODE_ATTEMPTS}
+//             {' • '}
+//             Idle timeout: {Math.max(0, idleSecondsLeft)}s
+//           </div>
+//         </div>
+//       )}
+
+//       {/* First-login phone enrollment modal */}
+//       {showEnroll && loggedInUser && (
+//         <EnrollPhoneModal
+//           user={loggedInUser}
+//           initialPhoneE164={localStorage.getItem('pending_phone_e164') || ''}
+//           onDone={() => {
+//             localStorage.removeItem('pending_phone_e164');
+//             setShowEnroll(false);
+//             setBanner({ text: 'Phone linked. MFA enabled. Redirecting…', type: 'success' });
+//             setTimeout(() => navigate('/stablehand-welcome'), 700);
+//           }}
+//           onSkip={() => {
+//             setShowEnroll(false);
+//             setBanner({ text: 'You can add MFA later in settings.', type: 'info' });
+//             setTimeout(() => navigate('/stablehand-welcome'), 500);
+//           }}
+//         />
+//       )}
+//     </div>
+//   );
+// }
+
+//###############################################################
+// // src/components/organisms/LoginForm.tsx
+// // 5. 2025-08-11 — Fix RL loop: reset RL on back-to-login & hide RL banner outside MFA.
+// // Robust reCAPTCHA lifecycle, auto-resend after 3 attempts, idle timeout, email-link fallback.
+
+// import React, { useEffect, useMemo, useRef, useState, FormEvent } from 'react';
+// import { useNavigate } from 'react-router-dom';
+// import {
+//   signInWithEmailAndPassword,
+//   PhoneAuthProvider,
+//   PhoneMultiFactorGenerator,
+//   getMultiFactorResolver,
+//   type MultiFactorResolver,
+//   RecaptchaVerifier,
+//   type UserCredential,
+//   type PhoneMultiFactorInfo,
+//   sendSignInLinkToEmail,
+// } from 'firebase/auth';
+// import { auth } from '../../firebase/firebase';
+// import EmailField from '../common/EmailField';
+// import PasswordField from '../common/PasswordField';
+// import InputField from '../common/InputField';
+// import Button from '../common/Button';
+// import Alert from '../common/Alert';
+
+// declare global {
+//   interface Window {
+//     recaptchaVerifier?: RecaptchaVerifier;
+//     recaptchaContainerEl?: HTMLDivElement | null;
+//     grecaptcha?: any;
+//   }
+// }
+
+// type Banner = { text: string; type: 'info' | 'success' | 'error' };
+
+// // ---------- Behaviour knobs ----------
+// const MAX_CODE_ATTEMPTS = 3;                 // tries allowed before policy kicks in
+// const MFA_IDLE_TIMEOUT_MS = 2 * 60 * 1000;   // 2 minutes idle → back to login
+// const EMAIL_LINK_FINISH_PATH = '/finish-email-signin';
+// const ON_MAX_ATTEMPTS_ACTION: 'auto-resend' | 'reset-to-login' = 'auto-resend';
+
+// // Rate-limit backoff (for auth/too-many-requests)
+// const RL_BASE_SECONDS = 60;                  // start with 60s
+// const RL_MAX_SECONDS  = 15 * 60;             // cap at 15 minutes
+// // ------------------------------------
+
+// // Error codes that often indicate stale session/recaptcha
+// const SESSION_ERROR_CODES = new Set([
+//   'auth/multi-factor-session-expired',
+//   'auth/invalid-app-credential',
+//   'auth/missing-app-credential',
+//   'auth/captcha-check-failed',
+//   'auth/expired-action-code',
+// ]);
+
+// export default function LoginForm(): JSX.Element {
+//   const navigate = useNavigate();
+
+//   // Email/password
+//   const [email, setEmail] = useState('');
+//   const [emailErrors, setEmailErrors] = useState<string[]>([]);
+//   const [password, setPassword] = useState('');
+//   const [passwordErrors, setPasswordErrors] = useState<string[]>([]);
+
+//   // MFA state
+//   const [resolver, setResolver] = useState<MultiFactorResolver | null>(null);
+//   const [verificationId, setVerificationId] = useState('');
+//   const [smsCode, setSmsCode] = useState('');
+//   const [codeSent, setCodeSent] = useState(false);
+//   const [codeAttempts, setCodeAttempts] = useState(0);
+
+//   // Idle timers
+//   const idleTimeoutRef = useRef<number | null>(null);
+//   const idleIntervalRef = useRef<number | null>(null);
+//   const [idleSecondsLeft, setIdleSecondsLeft] = useState(Math.floor(MFA_IDLE_TIMEOUT_MS / 1000));
+
+//   // Rate-limit state
+//   const [rlLevel, setRlLevel] = useState(0);
+//   const [rlUntil, setRlUntil] = useState<number>(0); // epoch ms
+//   const [rlSecondsLeft, setRlSecondsLeft] = useState<number>(0);
+//   const rlIntervalRef = useRef<number | null>(null);
+
+//   // Track whether we’re in MFA step (for banner scoping)
+//   const inMfaStep = useMemo(() => Boolean(resolver || verificationId), [resolver, verificationId]);
+//   const inMfaRef = useRef(inMfaStep);
+//   useEffect(() => { inMfaRef.current = inMfaStep; }, [inMfaStep]);
+
+//   // UI
+//   const [banner, setBanner] = useState<Banner>({ text: '', type: 'info' });
+//   const [busy, setBusy] = useState(false);
+
+//   // Helpers
+//   const now = () => Date.now();
+//   const isRateLimited = () => rlUntil > now();
+
+//   // ===== reCAPTCHA lifecycle (fresh container every time) =====
+//   function destroyRecaptcha() {
+//     try {
+//       if ((window as any).recaptchaVerifier?.clear) {
+//         (window as any).recaptchaVerifier.clear();
+//       }
+//     } catch { /* noop */ }
+//     try {
+//       if (window.recaptchaContainerEl && window.recaptchaContainerEl.parentNode) {
+//         window.recaptchaContainerEl.parentNode.removeChild(window.recaptchaContainerEl);
+//       }
+//     } catch { /* noop */ }
+//     window.recaptchaVerifier = undefined;
+//     window.recaptchaContainerEl = null;
+//   }
+
+//   async function buildFreshRecaptcha(): Promise<void> {
+//     destroyRecaptcha();
+//     const el = document.createElement('div');
+//     el.style.display = 'none';
+//     el.id = `recaptcha-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+//     document.body.appendChild(el);
+//     window.recaptchaContainerEl = el;
+//     window.recaptchaVerifier = new RecaptchaVerifier(auth, el, { size: 'invisible' });
+//     await window.recaptchaVerifier.render();
+//   }
+
+//   // ===== Idle timers =====
+//   function clearIdleTimers() {
+//     if (idleTimeoutRef.current) {
+//       window.clearTimeout(idleTimeoutRef.current);
+//       idleTimeoutRef.current = null;
+//     }
+//     if (idleIntervalRef.current) {
+//       window.clearInterval(idleIntervalRef.current);
+//       idleIntervalRef.current = null;
+//     }
+//   }
+
+//   function startIdleTimer() {
+//     clearIdleTimers();
+//     setIdleSecondsLeft(Math.floor(MFA_IDLE_TIMEOUT_MS / 1000));
+//     idleTimeoutRef.current = window.setTimeout(() => {
+//       resetToLogin('Session timed out. Please log in again.');
+//     }, MFA_IDLE_TIMEOUT_MS) as unknown as number;
+//     idleIntervalRef.current = window.setInterval(() => {
+//       setIdleSecondsLeft((prev) => (prev > 0 ? prev - 1 : 0));
+//     }, 1000) as unknown as number;
+//   }
+
+//   // ===== Rate-limit cooldown =====
+//   function clearRlInterval() {
+//     if (rlIntervalRef.current) {
+//       window.clearInterval(rlIntervalRef.current);
+//       rlIntervalRef.current = null;
+//     }
+//   }
+//   function startRateLimit(seconds: number) {
+//     const until = now() + seconds * 1000;
+//     setRlUntil(until);
+//     setRlSecondsLeft(seconds);
+//     clearRlInterval();
+//     rlIntervalRef.current = window.setInterval(() => {
+//       const left = Math.max(0, Math.ceil((until - now()) / 1000));
+//       setRlSecondsLeft(left);
+//       if (left <= 0) {
+//         // auto-clear when done
+//         resetRateLimit();
+//       }
+//     }, 1000) as unknown as number;
+//   }
+//   function bumpRateLimit() {
+//     const nextSeconds = Math.min(RL_BASE_SECONDS * Math.pow(2, rlLevel), RL_MAX_SECONDS);
+//     setRlLevel((l) => Math.min(l + 1, 30));
+//     startRateLimit(nextSeconds);
+//     // Only show the RL banner while in the MFA step (prevents loop on login screen)
+//     if (inMfaRef.current) {
+//       setBanner({
+//         text: `Too many attempts. Please wait ${nextSeconds}s before trying again.`,
+//         type: 'error',
+//       });
+//     }
+//   }
+//   function resetRateLimit() {
+//     setRlLevel(0);
+//     setRlUntil(0);
+//     setRlSecondsLeft(0);
+//     clearRlInterval();
+//   }
+
+//   // MFA + RL state resets
+//   function clearMfaState() {
+//     setResolver(null);
+//     setVerificationId('');
+//     setSmsCode('');
+//     setCodeSent(false);
+//     setCodeAttempts(0);
+//     clearIdleTimers();
+//     destroyRecaptcha();
+//   }
+
+//   function resetToLogin(message?: string) {
+//     clearMfaState();
+//     resetRateLimit();            // << fix: clear RL when returning to login
+//     setPassword('');
+//     setBanner({ text: message ?? 'Returning to login…', type: 'info' });
+//     // navigate('/login'); // if your login is a different route
+//   }
+
+//   // Manage idle timers on MFA step entry/exit
+//   useEffect(() => {
+//     if (inMfaStep) startIdleTimer(); else clearIdleTimers();
+//     return () => clearIdleTimers();
+//   }, [inMfaStep]);
+
+//   // Nudge the idle timer on user activity within MFA
+//   useEffect(() => {
+//     if (inMfaStep) startIdleTimer();
+//     // eslint-disable-next-line react-hooks/exhaustive-deps
+//   }, [smsCode, codeSent]);
+
+//   // Clean up recaptcha and RL interval on unmount
+//   useEffect(() => () => { destroyRecaptcha(); clearRlInterval(); }, []);
+
+//   // ===== MFA bootstrap (after password step) =====
+//   async function beginMfaFromError(err: any) {
+//     if (isRateLimited()) {
+//       if (inMfaRef.current) {
+//         setBanner({ text: `Please wait ${rlSecondsLeft}s before requesting a new code.`, type: 'error' });
+//       }
+//       return;
+//     }
+//     const mResolver = getMultiFactorResolver(auth, err);
+//     setResolver(mResolver);
+
+//     try {
+//       await buildFreshRecaptcha();
+//       const hint = mResolver.hints[0] as PhoneMultiFactorInfo | undefined;
+//       const provider = new PhoneAuthProvider(auth);
+//       const id = await provider.verifyPhoneNumber(
+//         { multiFactorHint: hint, session: mResolver.session },
+//         window.recaptchaVerifier!
+//       );
+//       setVerificationId(id);
+//       setCodeSent(true);
+//       const masked = hint?.phoneNumber ? `…${hint.phoneNumber.slice(-4)}` : 'your phone';
+//       setBanner({ text: `We sent a code to ${masked}.`, type: 'info' });
+//       startIdleTimer();
+//       resetRateLimit();
+//     } catch (sendErr: any) {
+//       if (sendErr?.code === 'auth/too-many-requests') {
+//         bumpRateLimit();
+//       } else {
+//         setBanner({ text: sendErr?.message || 'Could not send the verification code.', type: 'error' });
+//       }
+//       throw sendErr;
+//     }
+//   }
+
+//   // ===== Email/password submit =====
+//   async function handleSubmit(e: FormEvent) {
+//     e.preventDefault();
+//     if (busy) return;
+//     if (emailErrors.length || passwordErrors.length) return;
+
+//     setBusy(true);
+//     setBanner({ text: '', type: 'info' });
+//     clearMfaState(); // leave RL intact across attempts by default
+
+//     try {
+//       const cred: UserCredential = await signInWithEmailAndPassword(auth, email, password);
+//       setBanner({ text: 'Login successful! Redirecting…', type: 'success' });
+//       setTimeout(() => navigate('/stablehand-welcome'), 800);
+//     } catch (err: any) {
+//       if (err?.code === 'auth/multi-factor-auth-required') {
+//         try { await beginMfaFromError(err); } catch { /* handled */ }
+//       } else if (err?.code === 'auth/too-many-requests') {
+//         bumpRateLimit();
+//       } else {
+//         setBanner({ text: 'Login failed. Check your email and password.', type: 'error' });
+//       }
+//     } finally {
+//       setBusy(false);
+//     }
+//   }
+
+//   // ===== (Re)send SMS code =====
+//   async function resendCodeInternal(auto: boolean) {
+//     if (isRateLimited()) {
+//       if (inMfaRef.current) {
+//         setBanner({ text: `Please wait ${rlSecondsLeft}s before requesting a new code.`, type: 'error' });
+//       }
+//       return;
+//     }
+//     // Try with current resolver/session first
+//     try {
+//       await buildFreshRecaptcha();
+//       const hint = resolver?.hints[0] as PhoneMultiFactorInfo | undefined;
+//       const provider = new PhoneAuthProvider(auth);
+//       const newId = await provider.verifyPhoneNumber(
+//         { multiFactorHint: hint, session: resolver!.session },
+//         window.recaptchaVerifier!
+//       );
+//       setVerificationId(newId);
+//       setCodeSent(true);
+//       setSmsCode('');
+//       setCodeAttempts(0);
+//       setBanner({ text: auto ? 'A new code was sent automatically.' : 'A new code was sent.', type: 'success' });
+//       startIdleTimer();
+//       resetRateLimit();
+//       return;
+//     } catch (err: any) {
+//       if (err?.code === 'auth/too-many-requests') {
+//         bumpRateLimit();
+//         return;
+//       }
+//       if (!SESSION_ERROR_CODES.has(err?.code)) throw err;
+//     }
+
+//     // Fallback: re-bootstrap resolver/session by replaying the password step
+//     const fresh = await retryBootstrapResolver();
+//     if (isRateLimited()) return;
+//     try {
+//       await buildFreshRecaptcha();
+//       const hint = fresh.hints[0] as PhoneMultiFactorInfo | undefined;
+//       const provider = new PhoneAuthProvider(auth);
+//       const newId = await provider.verifyPhoneNumber(
+//         { multiFactorHint: hint, session: fresh.session },
+//         window.recaptchaVerifier!
+//       );
+//       setResolver(fresh);
+//       setVerificationId(newId);
+//       setCodeSent(true);
+//       setSmsCode('');
+//       setCodeAttempts(0);
+//       setBanner({ text: auto ? 'A new code was sent automatically.' : 'A new code was sent.', type: 'success' });
+//       startIdleTimer();
+//       resetRateLimit();
+//     } catch (err: any) {
+//       if (err?.code === 'auth/too-many-requests') {
+//         bumpRateLimit();
+//       } else {
+//         setBanner({ text: err?.message || 'Failed to resend code.', type: 'error' });
+//       }
+//     }
+//   }
+
+//   async function retryBootstrapResolver(): Promise<MultiFactorResolver> {
+//     try {
+//       await signInWithEmailAndPassword(auth, email, password);
+//       setBanner({ text: 'Login successful! Redirecting…', type: 'success' });
+//       setTimeout(() => navigate('/stablehand-welcome'), 800);
+//       throw new Error('Unexpected success: MFA not required.');
+//     } catch (err: any) {
+//       if (err?.code === 'auth/multi-factor-auth-required') {
+//         return getMultiFactorResolver(auth, err);
+//       }
+//       resetToLogin('We need you to log in again.');
+//       throw err;
+//     }
+//   }
+
+//   // ===== Verify MFA code (SMS) =====
+//   async function handleVerify() {
+//     if (!resolver || !verificationId) return;
+//     if (busy) return;
+//     if (isRateLimited()) {
+//       if (inMfaRef.current) {
+//         setBanner({ text: `Please wait ${rlSecondsLeft}s before trying again.`, type: 'error' });
+//       }
+//       return;
+//     }
+
+//     setBusy(true);
+//     setBanner({ text: '', type: 'info' });
+
+//     try {
+//       const phoneCred = PhoneAuthProvider.credential(verificationId, smsCode.trim());
+//       const assertion = PhoneMultiFactorGenerator.assertion(phoneCred);
+//       await resolver.resolveSignIn(assertion);
+
+//       setBanner({ text: 'MFA successful! Redirecting…', type: 'success' });
+//       clearIdleTimers();
+//       setTimeout(() => navigate('/stablehand-welcome'), 800);
+//     } catch (err: any) {
+//       if (err?.code === 'auth/too-many-requests') {
+//         bumpRateLimit();
+//         return;
+//       }
+
+//       const next = codeAttempts + 1;
+//       setCodeAttempts(next);
+//       setSmsCode('');
+
+//       if (next >= MAX_CODE_ATTEMPTS) {
+//         if (ON_MAX_ATTEMPTS_ACTION === 'auto-resend') {
+//           await resendCodeInternal(true); // may start cooldown if rate-limited
+//         } else {
+//           resetToLogin('Too many incorrect codes. Please log in again.');
+//         }
+//       } else {
+//         setBanner({
+//           text: `The code is incorrect or expired. (${next}/${MAX_CODE_ATTEMPTS})`,
+//           type: 'error',
+//         });
+//         startIdleTimer();
+//       }
+//     } finally {
+//       setBusy(false);
+//     }
+//   }
+
+//   // ===== Manual resend button =====
+//   async function handleResend() {
+//     if (!resolver) return;
+//     if (busy) return;
+//     await resendCodeInternal(false);
+//   }
+
+//   // ===== Send to Email (passwordless email-link fallback) =====
+//   async function handleSendEmailLink() {
+//     if (busy) return;
+//     if (!email) {
+//       setBanner({ text: 'Enter your email above first, then tap “Send to Email”.', type: 'error' });
+//       return;
+//     }
+//     setBusy(true);
+//     try {
+//       clearMfaState();
+//       const actionCodeSettings = {
+//         url: `${window.location.origin}${EMAIL_LINK_FINISH_PATH}`,
+//         handleCodeInApp: true,
+//       };
+//       await sendSignInLinkToEmail(auth, email, actionCodeSettings);
+//       window.localStorage.setItem('emailForSignIn', email);
+//       setBanner({
+//         text: `We sent a secure sign-in link to ${email}. Open it on this device to finish.`,
+//         type: 'success',
+//       });
+//       resetRateLimit();
+//     } catch (err: any) {
+//       if (err?.code === 'auth/too-many-requests') {
+//         bumpRateLimit();
+//       } else {
+//         setBanner({ text: err?.message || 'Failed to send email link.', type: 'error' });
+//       }
+//     } finally {
+//       setBusy(false);
+//     }
+//   }
+
+//   // ===== Back to login =====
+//   function handleBackToLogin() {
+//     resetToLogin('Cancelled. You can try logging in again.');
+//   }
+
+//   const actionsDisabled = busy || (inMfaStep && isRateLimited());
+
+//   return (
+//     <div className="space-y-4">
+//       {!inMfaStep && (
+//         <form onSubmit={handleSubmit} className="space-y-4">
+//           <EmailField
+//             email={email}
+//             setEmail={setEmail}
+//             setEmailErrors={setEmailErrors}
+//             errors={emailErrors}
+//           />
+//           <PasswordField
+//             password={password}
+//             setPassword={setPassword}
+//             setPasswordErrors={setPasswordErrors}
+//             errors={passwordErrors}
+//           />
+
+//           {banner.text && <Alert message={banner.text} type={banner.type} />}
+
+//           <Button type="submit" disabled={busy} className="w-full bg-blue-600 text-white">
+//             Log In
+//           </Button>
+//         </form>
+//       )}
+
+//       {inMfaStep && (
+//         <div className="space-y-4">
+//           <InputField
+//             name="smsCode"
+//             label="SMS Code"
+//             type="text"
+//             value={smsCode}
+//             onChange={(e) => setSmsCode(e.target.value)}
+//             placeholder="123456"
+//           />
+
+//           {banner.text && <Alert message={banner.text} type={banner.type} />}
+
+//           {isRateLimited() && (
+//             <div className="text-sm text-amber-600">
+//               Too many attempts. Please wait {rlSecondsLeft}s before trying again.
+//             </div>
+//           )}
+
+//           <div className="flex flex-wrap text-xs gap-2">
+//             <Button
+//               onClick={handleVerify}
+//               disabled={actionsDisabled || !smsCode.trim()}
+//               className="flex-1 bg-green-600 text-white"
+//             >
+//               Verify
+//             </Button>
+
+//             <Button
+//               type="button"
+//               onClick={handleResend}
+//               disabled={actionsDisabled}
+//               className="flex-1"
+//             >
+//               {codeSent ? 'Resend code (SMS)' : 'Send code (SMS)'}
+//             </Button>
+
+//             <Button
+//               type="button"
+//               onClick={handleSendEmailLink}
+//               disabled={actionsDisabled || !email}
+//               className="flex-1"
+//             >
+//               Send to Email
+//             </Button>
+
+//             <Button type="button" onClick={handleBackToLogin} className="flex-1">
+//               Back to login
+//             </Button>
+//           </div>
+
+//           <div className="text-xs text-gray-500">
+//             Attempts: {codeAttempts}/{MAX_CODE_ATTEMPTS}
+//             {' • '}
+//             Idle timeout: {Math.max(0, idleSecondsLeft)}s
+//           </div>
+//         </div>
+//       )}
+//     </div>
+//   );
+// }
+
+//###############################################################
 
 // //4. 2025-08-11 — Robust reCAPTCHA lifecycle + auto-resend after 3 attempts
 // // + cooldown handling for auth/too-many-requests + idle timeout + email-link fallback
@@ -1075,7 +2184,7 @@ export default function LoginForm(): JSX.Element {
 //   );
 // }
 
-
+//###############################################################
 // // 3.2025-08-11 — Robust reCAPTCHA lifecycle (fresh container each send), auto-resend after 3 attempts,
 // // idle timeout to login, and email-link fallback.
 
@@ -1535,7 +2644,7 @@ export default function LoginForm(): JSX.Element {
 //   );
 // }
 
-
+//###############################################################
 // // 2.2025-08-11 — login with SMS MFA + email-link fallback (“Send to Email”)
 
 // import React, { useEffect, useMemo, useRef, useState, FormEvent } from 'react';
@@ -1902,7 +3011,7 @@ export default function LoginForm(): JSX.Element {
 // }
 
 
-
+//###############################################################
 // // 1.2025-08-11 — clean MFA flow with 3-attempt limit + idle timeout
 
 // import React, { useEffect, useMemo, useRef, useState, FormEvent } from 'react';
@@ -2229,9 +3338,9 @@ export default function LoginForm(): JSX.Element {
 //     </div>
 //   );
 // }
-
-
-//4.20.25 
+//*
+//###############################################################
+// //4.20.25  this one is checking MFA enrollement . first time login will link the phone . not perfect .
 
 // // src/components/organisms/LoginForm.tsx
 // import React, { useState, useEffect, FormEvent } from 'react';
@@ -2429,7 +3538,7 @@ export default function LoginForm(): JSX.Element {
 //   );
 // }
 
-
+//################################################################
 /* import React, { useState } from "react";
 import {
   signInWithEmailAndPassword,
@@ -2616,7 +3725,7 @@ const LoginForm: React.FC = () => {
 };
 
 export default LoginForm; */
-
+//###############################################################
 
 //+++++++++++JS VERSIOn++++++++++++++++++
 // src/components/organisms/LoginForm.jsx
@@ -2813,7 +3922,7 @@ const LoginForm = () => {
 
 export default LoginForm;
  */
-
+//###############################################################
 // src/components/LoginForm.jsx
 
 // import React, { useState } from 'react';
@@ -2925,6 +4034,8 @@ export default LoginForm;
 // };
 
 // export default LoginForm;
+
+//###############################################################
 // src/components/LoginForm.jsx
 //New style with MFA  notworking .....
  /*  import React, { useState, useEffect, useRef } from 'react';
@@ -3081,7 +4192,7 @@ export default LoginForm;
  
  */
 
-
+//###############################################################
 /* 
  import React, { useState } from 'react';
 import EmailField from '../common/EmailField';
@@ -3177,7 +4288,7 @@ const LoginForm = ({ onLogin, onMaxLoginAttemptsReached, onRegisterClick }) => {
 
 export default LoginForm; 
  */
-
+//###############################################################
 //old style 
 /* import React, { useState } from 'react';
 import EmailField from '../common/EmailField';

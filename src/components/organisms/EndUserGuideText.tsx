@@ -140,7 +140,7 @@ const EndUserGuideText: React.FC = () => (
       <li><strong>SMS code delayed?</strong> Wait a minute, then click Resend SMS.</li>
       <li><strong>Form won’t submit?</strong> Look for red inline error messages identifying the problem.</li>
       <li><strong>Need help?</strong> Use the “Help” link in the footer or open a GitHub Issue in the <a href="https://github.com/drorafreedom/StableHand-Typing" target="_blank" rel="noopener noreferrer">repo</a>.</li>
-   <li><strong>Need help?</strong> Use the “Help” link in the footer or open a GitHub Issue in the <a href="https://github.com/drorafreedom/StableHand-Typing" target="_blank" rel="noopener noreferrer">repo</a>.</li>
+   {/* <li><strong>Need help?</strong> Use the “Help” link in the footer or open a GitHub Issue in the <a href="https://github.com/drorafreedom/StableHand-Typing" target="_blank" rel="noopener noreferrer">repo</a>.</li> */}
     </ul>
   </div>
 );
