@@ -57,7 +57,9 @@ const StablehandWelcomePage: React.FC = () => {
           <Link to="/medical-interview" className="w-full bg-orange-500 hover:bg-orange-700 text-white p-2 rounded">Medical Interview</Link>
           <Link to="/parkinson-interview" className="w-full bg-red-500 hover:bg-red-700 text-white p-2 rounded">Parkinson Interview (PDQ-39)</Link>
           <Link to="/therapy" className="w-full bg-purple-500 hover:bg-purple-700 text-white p-2 rounded">Therapy</Link>
-          <Link to="/progress-notes" className="w-full bg-gray-500 hover:bg-gray-700 text-white p-2 rounded">Progress Notes</Link>
+          {/* <Link to="/progress-notes" className="w-full bg-gray-500 hover:bg-gray-700 text-white p-2 rounded">Progress Notes</Link> */}
+           <Link to="/feedbackandprogress-notes" className="w-full bg-gray-500 hover:bg-gray-700 text-white p-2 rounded">FeedBack & Progress Notess</Link>
+               
         </div>
         )}
       </Frame>
