@@ -58,23 +58,24 @@ const Sidebar: React.FC<SidebarProps> = ({ isVisible, toggleSidebar }) => {
         { id: 12, path: '/therapy', label: 'Therapy' },
         // { id: 13, path: '/progress-notes', label: 'Progress Notes' },
         { id: 13, path: '/feedbackandprogress-notes', label: 'FeedBack & Progress Notes' },
+        { id: 14, path: '/therapyfeedback-notes', label: 'Therapy FeedBack Notes' },
       ],
     },
     {
-      id: 14,
+      id: 15,
       submenu: [
-        { id: 15, path: '/privacy-policy', label: 'Privacy Policy' },
-        { id: 16, path: '/data-deletion-instructions', label: 'Data Deletion' },
-        { id: 17, path: '/terms-of-service', label: 'Terms Of Service' },
+        { id: 16, path: '/privacy-policy', label: 'Privacy Policy' },
+        { id: 17, path: '/data-deletion-instructions', label: 'Data Deletion' },
+        { id: 18, path: '/terms-of-service', label: 'Terms Of Service' },
       ],
     },
     {
-      id: 18,
+      id: 19,
       submenu: [
-        { id: 19, path: '/setting', label: 'Setting' },
-        { id: 20, path: '/account', label: 'Account' },
-        { id: 21, path: '/contact', label: 'Contact Us' },
-        { id: 22, path: '/logout', label: 'Logout' },
+        { id: 20, path: '/setting', label: 'Setting' },
+        { id: 21, path: '/account', label: 'Account' },
+        { id: 22, path: '/contact', label: 'Contact Us' },
+        { id: 23, path: '/logout', label: 'Logout' },
       ],
     },
   ];

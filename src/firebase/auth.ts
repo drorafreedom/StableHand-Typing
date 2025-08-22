@@ -1,242 +1,242 @@
-// src/utils/validation.ts
+// // src/utils/validation.ts
 
-import { getAuth, sendEmailVerification } from 'firebase/auth';
+// import { getAuth, sendEmailVerification } from 'firebase/auth';
 
-//-----------------------validateEmail-----------
-/* export const validateEmail = (email) => {
-  const errors = [];
-  if (!email.includes('@')) {
-    errors.push('Email must contain @');
-  }
-  if (!email.includes('.')) {
-    errors.push('Email must contain a domain, e.g., ".com"');
-  }
-  if (!/^\S+@\S+\.\S+$/.test(email)) {
-    errors.push('Invalid email format');//  under defined 
-  }
-  return errors;
-}; */
-//-------------------validateEmail--------------
+// //-----------------------validateEmail-----------
+// /* export const validateEmail = (email) => {
+//   const errors = [];
+//   if (!email.includes('@')) {
+//     errors.push('Email must contain @');
+//   }
+//   if (!email.includes('.')) {
+//     errors.push('Email must contain a domain, e.g., ".com"');
+//   }
+//   if (!/^\S+@\S+\.\S+$/.test(email)) {
+//     errors.push('Invalid email format');//  under defined 
+//   }
+//   return errors;
+// }; */
+// //-------------------validateEmail--------------
 
-export const validateEmail = (email: string): string[] => {
-  const errors: string[] = [];
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (email === undefined || email === null || email.trim() === '') {
-    errors.push('Email is required.');
-  } else {
-    if (!email.includes('@')) {
-      errors.push('Email must contain @');
-    }
-    if (!email.includes('.')) {
-      errors.push('Email must contain a domain, e.g., ".com"');
-    }
-    if (!/^\S+@\S+\.\S+$/.test(email)) {
-      errors.push('Invalid email format');
-    } else if (!emailRegex.test(email)) {
-      errors.push('Invalid email format.');
-    }
-  }
-  return errors;
-};
+// export const validateEmail = (email: string): string[] => {
+//   const errors: string[] = [];
+//   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+//   if (email === undefined || email === null || email.trim() === '') {
+//     errors.push('Email is required.');
+//   } else {
+//     if (!email.includes('@')) {
+//       errors.push('Email must contain @');
+//     }
+//     if (!email.includes('.')) {
+//       errors.push('Email must contain a domain, e.g., ".com"');
+//     }
+//     if (!/^\S+@\S+\.\S+$/.test(email)) {
+//       errors.push('Invalid email format');
+//     } else if (!emailRegex.test(email)) {
+//       errors.push('Invalid email format.');
+//     }
+//   }
+//   return errors;
+// };
 
-//---------------------------------------validatePhoneNumber
+// //---------------------------------------validatePhoneNumber
 
-/* export const validatePhoneNumber = (phoneNumber) => {
-  const errors = [];
-  const phoneRegex = /^\d{10}$/; // Exact 10 digits for US format
-  if (!phoneRegex.test(phoneNumber)) {
-    errors.push('Phone number must be exactly 10 digits long.');
-  }
-  return errors;
-}; */
-//---------------------------------------validatePhoneNumber
-/* export const validatePhoneNumber = (phoneNumber) => {
-  const errors = [];
-  if (!phoneNumber || typeof phoneNumber !== 'string') return errors;
-  const phoneRegex = /^\d{10}$/; // Exact 10 digits for US format
-  if (!phoneRegex.test(phoneNumber)) {
-    errors.push('Phone number must be exactly 10 digits long.');
-  }
-  return errors;
-}; */
-//---------------------------------------validatePhoneNumber
-/* export const validatePhoneNumber = (phoneNumber) => {
-  const errors = [];
-  if (phoneNumber === undefined || phoneNumber === null || phoneNumber.trim() === '') {
-    errors.push('Phone number is required.');
-  } else {
-    const phoneRegex = /^\d{10}$/;
-    if (!phoneRegex.test(phoneNumber)) {
-      errors.push('Phone number must be exactly 10 digits long.');
-    }
-  }
-  return errors;
-}; */
-//---------------------------------------validatePhoneNumber new with E.164 format
-export const validatePhoneNumber = (phoneNumber: string): string[] => {
-  const errors: string[] = [];
-  // E.164 format validation
-  const phoneRegex = /^\+?[1-9]\d{1,14}$/;
-  if (!phoneNumber) {
-    errors.push('Phone number is required.');
-  } else if (!phoneRegex.test(phoneNumber)) {
-    errors.push('Invalid phone number format. Please enter a valid phone number.');
-  }
-  return errors;
-};
+// /* export const validatePhoneNumber = (phoneNumber) => {
+//   const errors = [];
+//   const phoneRegex = /^\d{10}$/; // Exact 10 digits for US format
+//   if (!phoneRegex.test(phoneNumber)) {
+//     errors.push('Phone number must be exactly 10 digits long.');
+//   }
+//   return errors;
+// }; */
+// //---------------------------------------validatePhoneNumber
+// /* export const validatePhoneNumber = (phoneNumber) => {
+//   const errors = [];
+//   if (!phoneNumber || typeof phoneNumber !== 'string') return errors;
+//   const phoneRegex = /^\d{10}$/; // Exact 10 digits for US format
+//   if (!phoneRegex.test(phoneNumber)) {
+//     errors.push('Phone number must be exactly 10 digits long.');
+//   }
+//   return errors;
+// }; */
+// //---------------------------------------validatePhoneNumber
+// /* export const validatePhoneNumber = (phoneNumber) => {
+//   const errors = [];
+//   if (phoneNumber === undefined || phoneNumber === null || phoneNumber.trim() === '') {
+//     errors.push('Phone number is required.');
+//   } else {
+//     const phoneRegex = /^\d{10}$/;
+//     if (!phoneRegex.test(phoneNumber)) {
+//       errors.push('Phone number must be exactly 10 digits long.');
+//     }
+//   }
+//   return errors;
+// }; */
+// //---------------------------------------validatePhoneNumber new with E.164 format
+// export const validatePhoneNumber = (phoneNumber: string): string[] => {
+//   const errors: string[] = [];
+//   // E.164 format validation
+//   const phoneRegex = /^\+?[1-9]\d{1,14}$/;
+//   if (!phoneNumber) {
+//     errors.push('Phone number is required.');
+//   } else if (!phoneRegex.test(phoneNumber)) {
+//     errors.push('Invalid phone number format. Please enter a valid phone number.');
+//   }
+//   return errors;
+// };
 
-//---------------------------------------validateZipCode
-/* export const validateZipCode = (zip) => {
-  const errors = [];
-  const zipRegex = /^\d{5}(-\d{4})?$/; // Matches US ZIP code format
-  if (!zipRegex.test(zip)) {
-    errors.push('Invalid ZIP code format.');
-  }
-  return errors;
-}; */
-//---------------------------------------validateZipCode
-export const validateZipCode = (zip: string): string[] => {
-  const errors: string[] = [];
-  if (!zip || typeof zip !== 'string' || zip.trim() === '') {
-    return ['This field is required.'];
-  } else {
-    const zipRegex = /^\d{5}(-\d{4})?$/; // Matches US ZIP code format
-    if (!zipRegex.test(zip)) {
-      errors.push('Invalid ZIP code format.');
-    }
-  }
-  return errors;
-};
+// //---------------------------------------validateZipCode
+// /* export const validateZipCode = (zip) => {
+//   const errors = [];
+//   const zipRegex = /^\d{5}(-\d{4})?$/; // Matches US ZIP code format
+//   if (!zipRegex.test(zip)) {
+//     errors.push('Invalid ZIP code format.');
+//   }
+//   return errors;
+// }; */
+// //---------------------------------------validateZipCode
+// export const validateZipCode = (zip: string): string[] => {
+//   const errors: string[] = [];
+//   if (!zip || typeof zip !== 'string' || zip.trim() === '') {
+//     return ['This field is required.'];
+//   } else {
+//     const zipRegex = /^\d{5}(-\d{4})?$/; // Matches US ZIP code format
+//     if (!zipRegex.test(zip)) {
+//       errors.push('Invalid ZIP code format.');
+//     }
+//   }
+//   return errors;
+// };
 
-//---------------------------------------validateRequired
-/* export const validateRequired = (value) => {
-  const errors = [];
-  if (value === null || value.trim() === '') {
-    errors.push('This field is required.');
-  }
-  return errors;
-}; */
-//---------------------------------------validateRequired to handle single and multiple select
-export const validateRequired = (value: any): string[] => {
-  if (Array.isArray(value)) {
-    if (value.length === 0) {
-      return ['This field is required.'];
-    }
-  } else {
-    if (!value || typeof value !== 'string' || value.trim() === '') {
-      return ['This field is required.'];
-    }
-  }
-  return [];
-};
+// //---------------------------------------validateRequired
+// /* export const validateRequired = (value) => {
+//   const errors = [];
+//   if (value === null || value.trim() === '') {
+//     errors.push('This field is required.');
+//   }
+//   return errors;
+// }; */
+// //---------------------------------------validateRequired to handle single and multiple select
+// export const validateRequired = (value: any): string[] => {
+//   if (Array.isArray(value)) {
+//     if (value.length === 0) {
+//       return ['This field is required.'];
+//     }
+//   } else {
+//     if (!value || typeof value !== 'string' || value.trim() === '') {
+//       return ['This field is required.'];
+//     }
+//   }
+//   return [];
+// };
 
-//---------------------------------------validateMiddleName
-export const validateMiddleName = (value: string): string[] => {
-  if (!value || typeof value !== 'string' || value.trim() === '') {
-    return ['This field is required, default NA'];
-  }
-  return [];
-};
+// //---------------------------------------validateMiddleName
+// export const validateMiddleName = (value: string): string[] => {
+//   if (!value || typeof value !== 'string' || value.trim() === '') {
+//     return ['This field is required, default NA'];
+//   }
+//   return [];
+// };
 
-//---------------------------------------validateCityCountryProfession
-export const validateCityCountryProfession = (value: string): string[] => {
-  const errors: string[] = [];
-  if (!value || typeof value !== 'string' || value.trim() === '') {
-    return ['This field is required.'];
-  } else {
-    if (!/^[a-zA-Z\s]+$/.test(value)) {
-      errors.push('Only alphabetic characters and spaces are allowed.');
-    }
-  }
-  return errors;
-};
+// //---------------------------------------validateCityCountryProfession
+// export const validateCityCountryProfession = (value: string): string[] => {
+//   const errors: string[] = [];
+//   if (!value || typeof value !== 'string' || value.trim() === '') {
+//     return ['This field is required.'];
+//   } else {
+//     if (!/^[a-zA-Z\s]+$/.test(value)) {
+//       errors.push('Only alphabetic characters and spaces are allowed.');
+//     }
+//   }
+//   return errors;
+// };
 
-//---------------------------------------validateText
-export const validateText = (value: string): string[] => {
-  const errors: string[] = [];
-  if (!value || typeof value !== 'string' || value.trim() === '') {
-    return ['This field is required.'];
-  } else {
-    if (!/^[a-zA-Z\s]+$/.test(value)) {
-      errors.push('Only alphabetic characters and spaces are allowed.');
-    }
-  }
-  return errors;
-};
+// //---------------------------------------validateText
+// export const validateText = (value: string): string[] => {
+//   const errors: string[] = [];
+//   if (!value || typeof value !== 'string' || value.trim() === '') {
+//     return ['This field is required.'];
+//   } else {
+//     if (!/^[a-zA-Z\s]+$/.test(value)) {
+//       errors.push('Only alphabetic characters and spaces are allowed.');
+//     }
+//   }
+//   return errors;
+// };
 
-//---------------------------------------validatePassword
-export const validatePassword = (password: string): string[] => {
-  const errors: string[] = [];
-  if (!password) {
-    errors.push('Password is required.');
-  } else {
-    if (password.length < 8) {
-      errors.push('Password must be at least 8 characters long.');
-    }
-    if (!/[A-Z]/.test(password)) {
-      errors.push('Password must contain at least one uppercase letter.');
-    }
-    if (!/[a-z]/.test(password)) {
-      errors.push('Password must contain at least one lowercase letter.');
-    }
-    if (!/[0-9]/.test(password)) {
-      errors.push('Password must contain at least one digit.');
-    }
-    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
-      errors.push('Password must contain at least one special character.');
-    }
-  }
-  return errors;
-};
+// //---------------------------------------validatePassword
+// export const validatePassword = (password: string): string[] => {
+//   const errors: string[] = [];
+//   if (!password) {
+//     errors.push('Password is required.');
+//   } else {
+//     if (password.length < 8) {
+//       errors.push('Password must be at least 8 characters long.');
+//     }
+//     if (!/[A-Z]/.test(password)) {
+//       errors.push('Password must contain at least one uppercase letter.');
+//     }
+//     if (!/[a-z]/.test(password)) {
+//       errors.push('Password must contain at least one lowercase letter.');
+//     }
+//     if (!/[0-9]/.test(password)) {
+//       errors.push('Password must contain at least one digit.');
+//     }
+//     if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+//       errors.push('Password must contain at least one special character.');
+//     }
+//   }
+//   return errors;
+// };
 
-//---------------------------------------isCapsLockOn
-export const isCapsLockOn = (event: KeyboardEvent): boolean => {
-  return event.getModifierState && event.getModifierState('CapsLock');
-};
+// //---------------------------------------isCapsLockOn
+// export const isCapsLockOn = (event: KeyboardEvent): boolean => {
+//   return event.getModifierState && event.getModifierState('CapsLock');
+// };
 
-//---------------------------------------validatePositiveNumber
-export const validatePositiveNumber = (value: any): string[] => {
-  const errors: string[] = [];
-  if (value === undefined || value === null || value < 0) {
-    errors.push('Cannot be negative.');
-  }
-  return errors;
-};
+// //---------------------------------------validatePositiveNumber
+// export const validatePositiveNumber = (value: any): string[] => {
+//   const errors: string[] = [];
+//   if (value === undefined || value === null || value < 0) {
+//     errors.push('Cannot be negative.');
+//   }
+//   return errors;
+// };
 
-//---------------------------------------sendVerificationEmail
-export const sendVerificationEmail = async (user: any): Promise<void> => {
-  try {
-    await sendEmailVerification(user);
-    console.log('Verification email sent.');
-  } catch (error) {
-    console.error('Error sending verification email:', error);
-  }
-};
+// //---------------------------------------sendVerificationEmail
+// export const sendVerificationEmail = async (user: any): Promise<void> => {
+//   try {
+//     await sendEmailVerification(user);
+//     console.log('Verification email sent.');
+//   } catch (error) {
+//     console.error('Error sending verification email:', error);
+//   }
+// };
 
-//---------------------------------------validateDOB
-export const validateDOB = (dob: string): string[] => {
-  const errors: string[] = [];
-  const birthDate = new Date(dob);
+// //---------------------------------------validateDOB
+// export const validateDOB = (dob: string): string[] => {
+//   const errors: string[] = [];
+//   const birthDate = new Date(dob);
 
-  if (isNaN(birthDate.getTime())) {
-    errors.push('Invalid Date of Birth.');
-    return errors;
-  }
+//   if (isNaN(birthDate.getTime())) {
+//     errors.push('Invalid Date of Birth.');
+//     return errors;
+//   }
 
-  const today = new Date();
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const monthDifference = today.getMonth() - birthDate.getMonth();
+//   const today = new Date();
+//   let age = today.getFullYear() - birthDate.getFullYear();
+//   const monthDifference = today.getMonth() - birthDate.getMonth();
 
-  if (monthDifference < 0 || (monthDifference === 0 && today.getDate() < birthDate.getDate())) {
-    age--;
-  }
+//   if (monthDifference < 0 || (monthDifference === 0 && today.getDate() < birthDate.getDate())) {
+//     age--;
+//   }
 
-  if (age < 8 || age > 120) {
-    errors.push('Date of Birth must result in an age between 8 and 120 years.');
-  }
+//   if (age < 8 || age > 120) {
+//     errors.push('Date of Birth must result in an age between 8 and 120 years.');
+//   }
 
-  return errors;
-};
+//   return errors;
+// };
 
 
 //+++++++++++JS version+++++++++++++++++

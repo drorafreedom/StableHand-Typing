@@ -1,6 +1,28 @@
 
 // vite.config.ts
-import { defineConfig } from 'vite';
+
+// vite.config.js, minimallistic by Eric Michel
+ import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig({
+ //base: process.env.NODE_ENV === 'production' ? '/my-project-ts/' : './',
+ server: {
+  host: '127.0.0.1',
+  port: 1583,
+},
+  plugins: [react()],
+  base: './', // Keep relative paths
+  build: {
+    outDir: 'dist',
+    rollupOptions: {
+      input: './index.html', // Ensure this points to your index.html file
+    },
+  },
+});
+
+
+/* import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
 export default defineConfig({
@@ -12,7 +34,7 @@ export default defineConfig({
   },
   build: { outDir: 'dist' },
 });
-
+ */
 
 
 

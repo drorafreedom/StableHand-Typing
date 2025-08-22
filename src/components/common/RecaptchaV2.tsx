@@ -64,7 +64,7 @@ export default RecaptchaV2;
 // src/components/common/RecaptchaV2.jsx
 
 //JS version
-import React, { useEffect } from 'react';
+/* import React, { useEffect } from 'react';
 import { RecaptchaVerifier } from 'firebase/auth';
 import { auth } from '../../firebase/firebase';
 import PropTypes from 'prop-types';
@@ -113,3 +113,4 @@ RecaptchaV2.propTypes = {
 };
 
 export default RecaptchaV2;
+ */

@@ -39,6 +39,8 @@ import ErrorBoundary from './components/common/ErrorBoundary';
 import ThirdPartyAuthPanel from './components/common/ThirdPartyAuthPanel';
 import EndUserPage from './components/pages/EndUserPage';
 import SidebarToggleButton from './components/common/SidebarToggleButton';
+import TherapyFeedbackPage from  './components/pages/TherapyFeedbackPage'
+
 // Ensure all the routes are defined in the App component
 const App: React.FC = () => {
   const location = useLocation();
@@ -97,6 +99,7 @@ const App: React.FC = () => {
           <Route path="/enduserguide" element={<EndUserPage />} />
           <Route path="/verify-email-finish" element={<VerifyEmailFinish />} />
            <Route path="/feedbackandprogress-notes" element={<FeedbackAndProgressPage />} />
+            <Route path="/therapyfeedback-notes" element={<TherapyFeedbackPage />} />
 
         </Routes>
       </div>

@@ -75,7 +75,7 @@ export default CompleteRegistration;
 //src\components\organisms\CompleteRegistration.jsx
 
 //JS version
-import React, { useState } from 'react';
+/* import React, { useState } from 'react';
 import { getAuth, createUserWithEmailAndPassword, isSignInWithEmailLink, signInWithEmailLink } from "firebase/auth";
 
 const CompleteRegistration = () => {
@@ -123,4 +123,4 @@ const CompleteRegistration = () => {
   );
 };
 
-export default CompleteRegistration;
+export default CompleteRegistration; */

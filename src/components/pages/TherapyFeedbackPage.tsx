@@ -14,11 +14,14 @@ import Button from '../common/Button';
 import Alert from '../common/Alert';
 import DateTimeDisplay from '../common/DateTimeDisplay';
 import { Frame3 } from '../common/Frame';
+import { computeAgeAndRange } from "../../utils/age";
+// or, if you want the separate functions:
+// import { computeAgeFromDOB, toAgeRange } from "../../utils/age";
 
 type FormData = Record<string, string | string[] | number>;
 type ErrorData = Record<string, string[]>;
 
-function computeAgeFromDOB(dobISO: string, at: Date = new Date()): number | null {
+/* function computeAgeFromDOB(dobISO: string, at: Date = new Date()): number | null {
   if (!dobISO) return null;
   const dob = new Date(dobISO);
   if (isNaN(dob.getTime())) return null;
@@ -37,7 +40,7 @@ function toAgeRange(age: number | null): string | null {
   if (age <= 54) return '45–54';
   if (age <= 64) return '55–64';
   return '65+';
-}
+} */
 
 function sanitizeForCSV(value: unknown): string {
   const s = String(value ?? '');
@@ -105,6 +108,7 @@ const TherapyFeedbackPage: React.FC = () => {
       const ageAtSession = computeAgeFromDOB(String(formData['dob'] || ''));
       const ageRange = toAgeRange(ageAtSession);
 
+      
       const payload: Record<string, any> = {
         ...formData,
         userId,
@@ -218,9 +222,9 @@ const TherapyFeedbackPage: React.FC = () => {
             </section>
           ))}
 
-          <footer className="flex items-center gap-3">
+        
             <Button type="submit">Submit</Button>
-          </footer>
+         
         </form>
       </div>
     </Frame3>
@@ -228,3 +232,4 @@ const TherapyFeedbackPage: React.FC = () => {
 };
 
 export default TherapyFeedbackPage;
+
