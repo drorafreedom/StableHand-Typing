@@ -1,7 +1,3 @@
-
-
-// src/components/Therapy/ControlPanelColor.tsx
-
 import React, { useState } from 'react';
 import { Collapse } from 'react-collapse';
 import { db, storage } from '../../firebase/firebase';
@@ -14,7 +10,7 @@ interface Settings {
   colors: string[];
   duration: number;
   animationStyle: string;
-  [key: string]: any; // Extendable for additional properties
+  [key: string]: any;
 }
 
 interface Message {
@@ -45,18 +41,15 @@ const ControlPanelColor: React.FC<ControlPanelColorProps> = ({
   const handleColorChange = (index: number, value: string) => {
     const newColors = [...settings.colors];
     newColors[index] = value;
-    setSettings((prevSettings) => ({
-      ...prevSettings,
-      colors: newColors,
-    }));
+    setSettings((prev) => ({ ...prev, colors: newColors }));
   };
 
   const handleDurationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSettings((prevSettings) => ({ ...prevSettings, duration: parseFloat(e.target.value) }));
+    setSettings((prev) => ({ ...prev, duration: parseFloat(e.target.value) }));
   };
 
   const handleAnimationStyleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setSettings((prevSettings) => ({ ...prevSettings, animationStyle: e.target.value }));
+    setSettings((prev) => ({ ...prev, animationStyle: e.target.value }));
   };
 
   const saveSettings = async () => {
@@ -81,7 +74,7 @@ const ControlPanelColor: React.FC<ControlPanelColorProps> = ({
 
       const csvData = Object.keys(settings).map((key) => ({
         setting: key,
-        value: settings[key],
+        value: (settings as any)[key],
       }));
       const csv = Papa.unparse(csvData);
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -122,18 +115,20 @@ const ControlPanelColor: React.FC<ControlPanelColorProps> = ({
   };
 
   return (
-    <div className={`fixed right-4 top-2 p-4 rounded ${isOpen ? 'shadow-lg bg-transparent' : ''} w-60 z-50 h-full overflow-y-auto`}>
-      <button onClick={() => setIsOpen(!isOpen)} className="mb-2 bg-gray-200 p-2 border rounded w-full">
+    <div className={`fixed right-4 top-2 p-4 rounded ${isOpen ? 'shadow-lg bg-transparent' : ''} w-60 z-50`}>
+         <button onClick={() => setIsOpen(!isOpen)} className="mb-2 bg-gray-200 text-xs p-2 border p-2 rounded w-full ">
         {isOpen ? 'Collapse Controls' : 'Expand Controls'}
       </button>
+
       <Collapse isOpened={isOpen}>
         <div className="space-y-4">
-          <div className="flex space-x-2">
+          <div className="text-xs flex space-x-2">
             <button onClick={startAnimation} className="bg-green-500 text-white p-2 rounded w-1/3">Start</button>
             <button onClick={stopAnimation} className="bg-red-500 text-white p-2 rounded w-1/3">Stop</button>
             <button onClick={resetAnimation} className="bg-gray-500 text-white p-2 rounded w-1/3">Reset</button>
           </div>
-          <div className="flex space-x-2 mt-2">
+
+         <div className="text-xs flex space-x-2">
             <input
               type="text"
               placeholder="Preset Name"
@@ -142,18 +137,21 @@ const ControlPanelColor: React.FC<ControlPanelColorProps> = ({
               className="border p-2 rounded w-full"
             />
           </div>
+
           <div className="flex space-x-2 mt-2">
-            <button onClick={saveSettings} className="bg-blue-500 text-white p-2 rounded w-1/2">Save</button>
-            <button onClick={loadSettings} className="bg-yellow-500 text-white p-2 rounded w-1/2">Load</button>
+            <button onClick={saveSettings} className="bg-blue-500 text-xs -white p-2 rounded w-1/2">Save</button>
+            <button onClick={loadSettings} className="bg-yellow-500 text-xs -white p-2 rounded w-1/2">Load</button>
           </div>
+ 
           {message.message && (
-            <div className={`alert ${message.type === 'error' ? 'bg-red-500' : 'bg-green-500'} text-white p-2 rounded`}>
+            <div className={`alert ${message.type === 'error' ? 'bg-red-500' : 'bg-green-500'} text-xs -white p-2 rounded`}>
               {message.message}
             </div>
           )}
+
           {[0, 1, 2, 3].map((index) => (
             <div key={index} className="control-group">
-              <label className="block mb-2">{`Color ${index + 1}:`}</label>
+              <label className="block mb-2 text-xs ">{`Color ${index + 1}:`}</label>
               <input
                 type="color"
                 value={settings.colors[index]}
@@ -162,13 +160,15 @@ const ControlPanelColor: React.FC<ControlPanelColorProps> = ({
               />
             </div>
           ))}
+
           <div className="control-group">
-            <label className="block mb-2">Transition Duration (seconds):</label>
-            <input type="range" min="1" max="60" value={settings.duration} onChange={handleDurationChange} className="w-full" />
+            <label className="block mb-2 text-xs ">Transition Duration (seconds):</label>
+            <input type="range" min="0.5" max="10" value={settings.duration} onChange={handleDurationChange} className="w-full" />
           </div>
+
           <div className="control-group">
-            <label className="block mb-2">Animation Style:</label>
-            <select value={settings.animationStyle} onChange={handleAnimationStyleChange} className="border p-2 rounded w-full">
+            <label className="block mb-2 text-xs ">Animation Style:</label>
+            <select value={settings.animationStyle} onChange={handleAnimationStyleChange} className="border p-2  text-xs rounded w-full">
               <option value="sine">Sine</option>
               <option value="linear">Linear</option>
               <option value="circular">Circular</option>
@@ -182,6 +182,7 @@ const ControlPanelColor: React.FC<ControlPanelColorProps> = ({
 };
 
 export default ControlPanelColor;
+
 //+++++++++++JS version+++++++++++++++++
 //  // src/components/Therapy/ControlPanelColor.jsx 
 //   // JS version

@@ -135,10 +135,10 @@ const ControlPanelShape: React.FC<ControlPanelShapeProps> = ({
   };
 
   return (
-    <div className="fixed top-16 right-4 bottom-4 w-72 bg-white shadow-lg rounded-lg p-4 overflow-y-auto z-50">
+     <div className={`fixed right-4 top-2 p-4 rounded ${isOpen ? 'shadow-lg bg-transparent' : ''} w-60 z-50 h-full overflow-y-auto`}>
       <button
         onClick={() => setIsOpen(o => !o)}
-        className="w-full bg-gray-200 text-gray-700 text-sm py-2 rounded mb-4"
+        className="w-full bg-gray-200 text-gray-700 text-xs py-2 rounded mb-4"
       >
         {isOpen ? 'Collapse Controls' : 'Expand Controls'}
       </button>
@@ -146,7 +146,7 @@ const ControlPanelShape: React.FC<ControlPanelShapeProps> = ({
       <Collapse isOpened={isOpen}>
         <div className="space-y-4">
           {/* run controls */}
-          <div className="flex space-x-2 text-sm">
+           <div className="text-xs flex space-x-2">
             <button onClick={startAnimation} className="flex-1 bg-green-500 text-white py-2 rounded">Start</button>
             <button onClick={stopAnimation}  className="flex-1 bg-red-500   text-white py-2 rounded">Stop</button>
             <button onClick={resetAnimation} className="flex-1 bg-gray-500  text-white py-2 rounded">Reset</button>
@@ -160,10 +160,11 @@ const ControlPanelShape: React.FC<ControlPanelShapeProps> = ({
             onChange={e => setPresetName(e.target.value)}
             className="w-full border px-2 py-1 rounded text-sm"
           />
-          <div className="flex space-x-2 text-sm">
-            <button onClick={savePreset} className="flex-1 bg-blue-600 text-white py-2 rounded">Save Preset</button>
-            <button onClick={loadPreset} className="flex-1 bg-yellow-600 text-white py-2 rounded">Load Preset</button>
+             <div className=" text-xs flex space-x-2">
+            <button onClick={savePreset} className="bg-blue-500  text-xs text-white p-2 rounded w-1/2">Save Preset</button>
+            <button onClick={loadPreset} className="bg-yellow-500 text-xs text-white p-2 rounded w-1/2">Load Preset</button>
           </div>
+        
           <select
             value={presetName}
             onChange={e => setPresetName(e.target.value)}
@@ -177,14 +178,14 @@ const ControlPanelShape: React.FC<ControlPanelShapeProps> = ({
 
           {msg && (
             <div className={`p-2 rounded text-sm ${
-              msg.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+              msg.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-xs-red-800'
             }`}>
               {msg.message}
             </div>
           )}
 
           {/* shapeType */}
-          <div className="space-y-1 text-sm">
+          <div className="space-y-1 text-xs ">
             <label>Select Shape:</label>
             <select
               value={settings.shapeType}
@@ -202,14 +203,14 @@ const ControlPanelShape: React.FC<ControlPanelShapeProps> = ({
           </div>
 
           {/* direction */}
-          <div className="space-y-1 text-sm">
+          <div className="space-y-1 text-xs ">
             <label>Direction:</label>
             <select
               value={settings.direction}
               onChange={e =>
                 setSettings(s => ({ ...s, direction: e.target.value as any }))
               }
-              className="w-full border px-2 py-1 rounded"
+              className="w-full border text-xs  px-2 py-1 rounded"
             >
               <option value="static">Static</option>
               <option value="up">Up</option>
@@ -298,7 +299,7 @@ const ControlPanelShape: React.FC<ControlPanelShapeProps> = ({
           )}
 
           {/* colors */}
-          <div className="space-y-1 text-sm">
+          <div className="space-y-1 text-xs ">
             <label>Background Color:</label>
             <input
               name="bgColor"
@@ -308,7 +309,7 @@ const ControlPanelShape: React.FC<ControlPanelShapeProps> = ({
               className="w-full h-8 p-0 border rounded"
             />
           </div>
-          <div className="space-y-1 text-sm">
+          <div className="space-y-1 text-xs ">
             <label>Shape Color:</label>
             <input
               name="shapeColor"
@@ -319,7 +320,7 @@ const ControlPanelShape: React.FC<ControlPanelShapeProps> = ({
             />
           </div>
           {settings.layoutSelect === 'checkboard' && (
-            <div className="space-y-1 text-sm">
+            <div className="space-y-1 text-xs ">
               <label>Second Color:</label>
               <input
                 name="secondColor"
@@ -332,7 +333,7 @@ const ControlPanelShape: React.FC<ControlPanelShapeProps> = ({
           )}
 
           {/* palette */}
-          <div className="space-y-1 text-sm">
+          <div className="space-y-1 text-xs ">
             <label>Palette:</label>
             <select
               value={settings.palette}
@@ -346,14 +347,14 @@ const ControlPanelShape: React.FC<ControlPanelShapeProps> = ({
           </div>
 
           {/* layout */}
-          <div className="space-y-1 text-sm">
+          <div className="space-y-1 text-xs ">
             <label>Layout:</label>
             <select
               value={settings.layoutSelect}
               onChange={e =>
                 setSettings(s => ({ ...s, layoutSelect: e.target.value as any }))
               }
-              className="w-full border px-2 py-1 rounded"
+              className="w-full border  text-xs px-2 py-1 rounded"
             >
               <option value="random">Random</option>
               <option value="regular">Regular</option>
