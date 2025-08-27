@@ -1,0 +1,26 @@
+testerId,drora
+email,drora@caltech.edu
+dob,2000-08-23
+consent,Yes
+sessionLabel,5 
+deviceType,Laptop
+os,Windows
+browser,Not;A=Brand 99; Google Chrome 139; Chromium 139
+screen,3440x1440 @ 1x
+connection,Wi‑Fi
+inputMethod,Built‑in laptop keyboard
+posture,Desk chair
+distanceFromScreenCm,50
+highRefresh,Yes (≥120Hz)
+performanceIssues,Input lag
+visualComfort,1
+clarityMotion,1
+controlResponsiveness,2
+sessionDurationMin,60
+typingWPM,4
+typingErrorRate,7
+userId,5KlSrpPxrAh1uYBaJ8fZCpf6Q0y1
+timestamp,2025-08-24T05:19:57.466Z
+localDateTime,8/23/2025; 10:19:57 PM
+ageAtSession,25
+ageRange,25-34

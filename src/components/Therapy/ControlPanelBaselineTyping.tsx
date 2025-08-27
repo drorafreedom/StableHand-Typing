@@ -1,4 +1,3 @@
-// src/components/Therapy/ControlPanelBaselineTyping.tsx
 import React, { useState, useEffect } from 'react';
 import { Collapse } from 'react-collapse';
 import { db, storage } from '../../firebase/firebase';
@@ -6,17 +5,14 @@ import { useAuth } from '../../data/AuthContext';
 import { doc, setDoc, getDoc, collection, getDocs } from 'firebase/firestore';
 import { ref, uploadBytes } from 'firebase/storage';
 import Papa from 'papaparse';
-import type { BaselineTypingSettings } from './BaselineTyping';
-
-type Message = { message: string; type: 'error' | 'success' };
-
+import Slider  from '../common/Slider';
+ 
 interface ControlPanelBaselineTypingProps {
-  settings: BaselineTypingSettings;
-  setSettings: React.Dispatch<React.SetStateAction<BaselineTypingSettings>>;
-  // Optional control callbacks if you add animation behavior later:
-  // startAnimation?: () => void;
-  // stopAnimation?: () => void;
-  // resetAnimation?: () => void;
+  settings: any; // Replace with an explicit interface for settings if available
+  setSettings: React.Dispatch<React.SetStateAction<any>>; // Replace `any` with your settings type
+  // startAnimation: () => void;
+  // stopAnimation: () => void;
+  // resetAnimation: () => void;
 }
 
 const ControlPanelBaselineTyping: React.FC<ControlPanelBaselineTypingProps> = ({
@@ -30,30 +26,56 @@ const ControlPanelBaselineTyping: React.FC<ControlPanelBaselineTypingProps> = ({
   const { currentUser } = useAuth();
   const [presetName, setPresetName] = useState<string>('');
   const [presetList, setPresetList] = useState<string[]>([]);
-  const [message, setMessage] = useState<Message>({ message: '', type: 'success' });
+  const [message, setMessage] = useState<{ message: string; type: 'error' | 'success' }>({ message: '', type: 'success' });
 
-  // Load list of preset document IDs for the select
   useEffect(() => {
-    if (!currentUser) return;
     const fetchPresets = async () => {
       try {
         const userDocsRef = collection(db, `users/${currentUser.uid}/animation-settings`);
         const querySnapshot = await getDocs(userDocsRef);
-        const presets = querySnapshot.docs.map((d) => d.id);
+        const presets = querySnapshot.docs.map((doc) => doc.id);
         setPresetList(presets);
       } catch (err) {
         console.error('Error fetching preset names:', err);
       }
     };
+
     fetchPresets();
   }, [currentUser]);
 
+  const saveCurrentSettings = async () => {
+    const timestamp = new Date();
+    const localDateTime = timestamp.toLocaleString();
+    const settingsWithTimestamp = {
+      ...settings,
+      userId: currentUser.uid,
+      timestamp: timestamp.toISOString(),
+      localDateTime,
+    };
+
+    /* try {
+      const userDocRef = doc(db, `users/${currentUser.uid}/animation-settings/current`);
+      await setDoc(userDocRef, settingsWithTimestamp);
+
+      const csvData = Object.keys(settingsWithTimestamp).map((key) => ({
+        setting: key,
+        value: settingsWithTimestamp[key],
+      }));
+      const csv = Papa.unparse(csvData);
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+
+      const csvRef = ref(storage, `users/${currentUser.uid}/animation-settings/current.csv`);
+      await uploadBytes(csvRef, blob);
+
+      setMessage({ message: 'Current settings saved successfully!', type: 'success' });
+    } catch (err) {
+      console.error('Error saving current settings:', err);
+      setMessage({ message: 'Error saving current settings. Please try again.', type: 'error' });
+    } */
+  };
+
   const savePresetSettings = async () => {
-    if (!currentUser) {
-      setMessage({ message: 'You must be signed in to save presets.', type: 'error' });
-      return;
-    }
-    if (!presetName.trim()) {
+    if (!presetName) {
       setMessage({ message: 'Please provide a name for the preset.', type: 'error' });
       return;
     }
@@ -69,14 +91,12 @@ const ControlPanelBaselineTyping: React.FC<ControlPanelBaselineTypingProps> = ({
     };
 
     try {
-      // Save to Firestore
       const userDocRef = doc(db, `users/${currentUser.uid}/animation-settings/${presetName}`);
       await setDoc(userDocRef, settingsWithTimestamp);
 
-      // Also export a CSV and upload to Storage (optional auditing)
-      const csvData = Object.entries(settingsWithTimestamp).map(([key, value]) => ({
+      const csvData = Object.keys(settingsWithTimestamp).map((key) => ({
         setting: key,
-        value: Array.isArray(value) ? JSON.stringify(value) : String(value),
+        value: settingsWithTimestamp[key],
       }));
       const csv = Papa.unparse(csvData);
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -86,7 +106,7 @@ const ControlPanelBaselineTyping: React.FC<ControlPanelBaselineTypingProps> = ({
 
       setMessage({ message: 'Preset settings saved successfully!', type: 'success' });
       if (!presetList.includes(presetName)) {
-        setPresetList((prev) => [...prev, presetName]);
+        setPresetList([...presetList, presetName]);
       }
     } catch (err) {
       console.error('Error saving preset settings:', err);
@@ -94,12 +114,26 @@ const ControlPanelBaselineTyping: React.FC<ControlPanelBaselineTypingProps> = ({
     }
   };
 
-  const loadPresetSettings = async () => {
-    if (!currentUser) {
-      setMessage({ message: 'You must be signed in to load presets.', type: 'error' });
-      return;
+  const loadCurrentSettings = async () => {
+    try {
+      const userDocRef = doc(db, `users/${currentUser.uid}/animation-settings/current`);
+      const docSnapshot = await getDoc(userDocRef);
+
+      if (docSnapshot.exists()) {
+        const loadedSettings = docSnapshot.data();
+        setSettings(loadedSettings);
+        setMessage({ message: 'Current settings loaded successfully!', type: 'success' });
+      } else {
+        setMessage({ message: 'No current settings found.', type: 'error' });
+      }
+    } catch (err) {
+      console.error('Error loading current settings:', err);
+      setMessage({ message: 'Error loading current settings. Please try again.', type: 'error' });
     }
-    if (!presetName.trim()) {
+  };
+
+  const loadPresetSettings = async () => {
+    if (!presetName) {
       setMessage({ message: 'Please provide the name of the preset to load.', type: 'error' });
       return;
     }
@@ -109,11 +143,8 @@ const ControlPanelBaselineTyping: React.FC<ControlPanelBaselineTypingProps> = ({
       const docSnapshot = await getDoc(userDocRef);
 
       if (docSnapshot.exists()) {
-        const loaded = docSnapshot.data() as Partial<BaselineTypingSettings>;
-        setSettings((prev) => ({
-          bgColor: loaded.bgColor ?? prev.bgColor,
-          bgOpacity: typeof loaded.bgOpacity === 'number' ? loaded.bgOpacity : prev.bgOpacity,
-        }));
+        const loadedSettings = docSnapshot.data();
+        setSettings(loadedSettings);
         setMessage({ message: 'Preset settings loaded successfully!', type: 'success' });
       } else {
         setMessage({ message: 'No settings found with that preset name.', type: 'error' });
@@ -125,17 +156,12 @@ const ControlPanelBaselineTyping: React.FC<ControlPanelBaselineTypingProps> = ({
   };
 
   return (
-    <div className="fixed right-4 top-2 p-4 rounded shadow-lg w-60 z-50 h-full overflow-y-auto bg-white/70 backdrop-blur-sm">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="mb-2 bg-gray-200 text-xs p-2 rounded w-full"
-      >
+    <div className="fixed right-4 top-2 p-4 rounded shadow-lg w-60 z-50  overflow-y-auto">
+      <button onClick={() => setIsOpen(!isOpen)} className="mb-2 bg-gray-200 text-xs p-2 rounded w-full">
         {isOpen ? 'Collapse Controls' : 'Expand Controls'}
       </button>
-
       <Collapse isOpened={isOpen}>
-        <div className="space-y-3 text-xs">
-          {/* Preset name input */}
+        <div className="space-y-2 text-xs">
           <input
             type="text"
             placeholder="Preset Name"
@@ -143,28 +169,14 @@ const ControlPanelBaselineTyping: React.FC<ControlPanelBaselineTypingProps> = ({
             onChange={(e) => setPresetName(e.target.value)}
             className="border p-2 rounded w-full"
           />
-
-          {/* Save / Load buttons */}
           <div className="flex space-x-2">
-            <button
-              onClick={savePresetSettings}
-              className="bg-blue-500 text-white p-2 rounded w-1/2 disabled:opacity-50"
-              disabled={!currentUser}
-              title={!currentUser ? 'Sign in to save presets' : 'Save preset'}
-            >
+            <button onClick={savePresetSettings} className="bg-blue-500 text-white p-2 rounded w-1/2">
               Save Preset
             </button>
-            <button
-              onClick={loadPresetSettings}
-              className="bg-yellow-500 text-white p-2 rounded w-1/2 disabled:opacity-50"
-              disabled={!currentUser}
-              title={!currentUser ? 'Sign in to load presets' : 'Load preset'}
-            >
+            <button onClick={loadPresetSettings} className="bg-yellow-500 text-white p-2 rounded w-1/2">
               Load Preset
             </button>
           </div>
-
-          {/* Preset list */}
           <select
             onChange={(e) => setPresetName(e.target.value)}
             value={presetName}
@@ -178,23 +190,20 @@ const ControlPanelBaselineTyping: React.FC<ControlPanelBaselineTypingProps> = ({
             ))}
           </select>
 
-          {/* Background color */}
-          <div className="control-group">
-            <label className="block mb-1">Background Color</label>
+          <div className="control-group text-xs">
+            <label className="block mb-2 text-xs">Background Color:</label>
             <input
               type="color"
               value={settings.bgColor}
-              onChange={(e) =>
-                setSettings((s) => ({ ...s, bgColor: e.target.value }))
-              }
-              className="w-full h-8 p-0 border rounded"
+              onChange={(e) => setSettings({ ...settings, bgColor: e.target.value })}
+              className="w-full"
             />
           </div>
 
-          {/* Background opacity */}
-          <div className="control-group">
-            <label className="block mb-1">
-              Background Opacity: {Math.round((settings.bgOpacity ?? 1) * 100)}%
+          {/* >>> ADDED: Background Opacity slider (0..100%) <<< */}
+          <div className="control-group text-xs">
+            <label className="block mb-2 text-xs">
+              Background Opacity: {Math.round(((settings.bgOpacity ?? 1) * 100))}
             </label>
             <input
               type="range"
@@ -203,13 +212,12 @@ const ControlPanelBaselineTyping: React.FC<ControlPanelBaselineTypingProps> = ({
               step={1}
               value={Math.round((settings.bgOpacity ?? 1) * 100)}
               onChange={(e) =>
-                setSettings((s) => ({ ...s, bgOpacity: Number(e.target.value) / 100 }))
+                setSettings({ ...settings, bgOpacity: Number(e.target.value) / 100 })
               }
               className="w-full"
             />
           </div>
 
-          {/* Messages */}
           {message.message && (
             <div
               className={`text-white p-2 mt-2 rounded ${

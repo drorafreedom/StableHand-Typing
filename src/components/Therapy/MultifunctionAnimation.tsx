@@ -38,7 +38,7 @@ const MultifunctionAnimation: React.FC = () => {
     phaseOffset: 0,
     numLines: 1,
     distance: 0,
-    bgColor: '#FFFFFF',
+    bgColor: '#ffffff',
     lineColor: '#FF0000',
     selectedPalette: 'none',
     rotationSpeed: 0.02,

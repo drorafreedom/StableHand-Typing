@@ -11,7 +11,7 @@ import DateTimeDisplay from '../common/DateTimeDisplay';
 import TextDisplay from '../Therapy/TextDisplay';
 import TextInput from '../Therapy/TextInput';
 import Alert, { AlertType } from '../common/Alert'
-
+import BaselineTyping from '../Therapy/BaselineTyping';
 
 interface Message {
   message: string;
@@ -23,7 +23,7 @@ interface Settings {
 }
 
 const TherapyPage: React.FC = () => {
-  const [currentAnimation, setCurrentAnimation] = useState<'multifunction' | 'shape' | 'color'>('multifunction');
+  const [currentAnimation, setCurrentAnimation] = useState< 'multifunction' |'baselinetyping'| 'shape' | 'color'>('multifunction');
   const { currentUser } = useAuth();
   const [message, setMessage] = useState<Message | null>(null);
   const [settings, setSettings] = useState<Settings>({});
@@ -54,6 +54,13 @@ const TherapyPage: React.FC = () => {
     <div className="relative w-full ">
       <div className="flex justify-center text-sm text-gray-600 rounded p-2 mb-4 w-full">
         <DateTimeDisplay />
+
+         <button
+          onClick={() => setCurrentAnimation('baselinetyping')}
+          className={`p-2 mx-2 ${currentAnimation === 'baselinetyping' ? 'bg-blue-500 text-white rounded' : 'bg-gray-200'}`}
+        >
+         Baseline Typing
+        </button>
         <button
           onClick={() => setCurrentAnimation('multifunction')}
           className={`p-2 mx-2 ${currentAnimation === 'multifunction' ? 'bg-blue-500 text-white rounded' : 'bg-gray-200'}`}
@@ -68,7 +75,7 @@ const TherapyPage: React.FC = () => {
         </button>
         <button
           onClick={() => setCurrentAnimation('color')}
-          className={`p-2 mx-2 ${currentAnimation === 'color' ? 'bg-blue-500 text-m-white rounded' : 'bg-gray-200'}`}
+          className={`p-2 mx-2 ${currentAnimation === 'color' ? 'bg-blue-500 text-white rounded' : 'bg-gray-200'}`}
         >
           Color Animation
         </button>
@@ -80,6 +87,10 @@ const TherapyPage: React.FC = () => {
         </div>
       )} */}
 
+      
+ {currentAnimation === 'baselinetyping' && (
+        <BaselineTyping settings={settings} setSettings={setSettings} />
+      )}
       {currentAnimation === 'multifunction' && (
         <MultifunctionAnimation settings={settings} setSettings={setSettings} />
       )}
