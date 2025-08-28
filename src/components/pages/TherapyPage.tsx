@@ -6,60 +6,84 @@ import ShapeAnimations from '../Therapy/ShapeAnimations';
 import ColorAnimation from '../Therapy/ColorAnimation';
 import { db } from '../../firebase/firebase';
 import { useAuth } from '../../data/AuthContext';
-import { doc, setDoc, collection } from 'firebase/firestore';
+import { addDoc, collection } from 'firebase/firestore'; // ← use addDoc
 import DateTimeDisplay from '../common/DateTimeDisplay';
 import TextDisplay from '../Therapy/TextDisplay';
 import TextInput from '../Therapy/TextInput';
-import Alert, { AlertType } from '../common/Alert'
+import Alert, { AlertType } from '../common/Alert';
 import BaselineTyping from '../Therapy/BaselineTyping';
 
 interface Message {
   message: string;
   type: 'success' | 'error';
 }
-
 interface Settings {
-  [key: string]: any; // Replace `any` with the specific type for your settings if known
+  [key: string]: any;
 }
 
 const TherapyPage: React.FC = () => {
-  const [currentAnimation, setCurrentAnimation] = useState< 'multifunction' |'baselinetyping'| 'shape' | 'color'>('multifunction');
+  const [currentAnimation, setCurrentAnimation] =
+    useState<'multifunction' | 'baselinetyping' | 'shape' | 'color'>('multifunction');
   const { currentUser } = useAuth();
   const [message, setMessage] = useState<Message | null>(null);
   const [settings, setSettings] = useState<Settings>({});
   const [displayText, setDisplayText] = useState<string>('');
- 
 
   // Auto-clear the message after 3 seconds
   useEffect(() => {
-    if (!message) return
-    const timer = setTimeout(() => setMessage(null), 3000)
-    return () => clearTimeout(timer)
-  }, [message])
+    if (!message) return;
+    const timer = setTimeout(() => setMessage(null), 3000);
+    return () => clearTimeout(timer);
+  }, [message]);
 
-  const saveKeystrokeData = async (keyData: any) => {
+  /**
+   * Save typed keystrokes + typedText + the target sentence shown (displayText)
+   */
+  const saveKeystrokeData = async (payload: { keyData: any[]; errors: number; typedText: string }) => {
     try {
-      const timestamp = new Date().toISOString();
-      const userDocRef = doc(collection(db, `users/${currentUser.uid}/keystroke-data`));
-      await setDoc(userDocRef, { keyData, timestamp });
+      // Guard: must be logged in and have a uid
+      const uid = currentUser?.uid;
+      if (!uid) {
+        setMessage({ message: 'You must be logged in to save.', type: 'error' });
+        return;
+      }
+
+      const timestamp = new Date();
+      const data = {
+        userId: uid,
+        animation: currentAnimation,             // optional context
+        targetText: displayText ?? '',           // the sentence shown
+        typedText: payload.typedText ?? '',
+        keyData: payload.keyData ?? [],
+        errors: payload.errors ?? 0,
+        timestamp: timestamp.toISOString(),
+        localDateTime: timestamp.toLocaleString(),
+      };
+
+      // Write under users/{uid}/keystroke-data
+      await addDoc(collection(db, `users/${uid}/keystroke-data`), data);
+
       setMessage({ message: 'Keystroke data saved successfully!', type: 'success' });
-    } catch (error) {
-      console.error('Error saving keystroke data:', error);
-      setMessage({ message: 'Error saving keystroke data. Are you login? Please try again.', type: 'error' });
+    } catch (err: any) {
+      console.error('Error saving keystroke data:', err);
+      // Show a more useful error to help debug rules / path issues
+      setMessage({
+        message: `Error saving keystroke data: ${err?.code || ''} ${err?.message || ''}`,
+        type: 'error',
+      });
     }
   };
 
   return (
-    
     <div className="relative w-full ">
       <div className="flex justify-center text-sm text-gray-600 rounded p-2 mb-4 w-full">
         <DateTimeDisplay />
 
-         <button
+        <button
           onClick={() => setCurrentAnimation('baselinetyping')}
           className={`p-2 mx-2 ${currentAnimation === 'baselinetyping' ? 'bg-blue-500 text-white rounded' : 'bg-gray-200'}`}
         >
-         Baseline Typing
+          Baseline Typing
         </button>
         <button
           onClick={() => setCurrentAnimation('multifunction')}
@@ -81,34 +105,14 @@ const TherapyPage: React.FC = () => {
         </button>
       </div>
 
-   {/*    {message && (
-        <div className={`alert ${message.type === 'error' ? 'bg-red-500' : 'bg-green-500'} text-white p-2 rounded mb-4`}>
-          {message.message}
-        </div>
-      )} */}
+      {currentAnimation === 'baselinetyping' && <BaselineTyping settings={settings} setSettings={setSettings} />}
+      {currentAnimation === 'multifunction' && <MultifunctionAnimation settings={settings} setSettings={setSettings} />}
+      {currentAnimation === 'shape' && <ShapeAnimations settings={settings} setSettings={setSettings} />}
+      {currentAnimation === 'color' && <ColorAnimation settings={settings} setSettings={setSettings} />}
 
-      
- {currentAnimation === 'baselinetyping' && (
-        <BaselineTyping settings={settings} setSettings={setSettings} />
-      )}
-      {currentAnimation === 'multifunction' && (
-        <MultifunctionAnimation settings={settings} setSettings={setSettings} />
-      )}
-      {currentAnimation === 'shape' && (
-        <ShapeAnimations settings={settings} setSettings={setSettings} />
-      )}
-      {currentAnimation === 'color' && (
-        <ColorAnimation settings={settings} setSettings={setSettings} />
-      )}
-{/* down where you render your TextInput/TextDisplay */}
-
- {/* MAIN CONTENT
-         Right padding avoids overlap with the fixed control panel on the right (w-60 + gap).
-         Adjust pr value if your panel width changes. */}
-      <div className="relative w-full ml-52  mt-4">  
-        {/* Left-aligned column for display + input */}
+      {/* MAIN CONTENT */}
+      <div className="relative w-full ml-52  mt-4">
         <div className="w-full max-w-9xl">
-       
           {/* Typing area (left aligned) */}
           <TextInput
             placeholder="Type here…"
@@ -116,22 +120,13 @@ const TherapyPage: React.FC = () => {
             setDisplayText={setDisplayText}
             saveKeystrokeData={saveKeystrokeData}
           />
-     {/* Text to copy */}
-          {/* Strict LEFT alignment (same left edge as textarea): */}
-         <div className="w-full max-w-9xl">
+
+          {/* Text to copy (left aligned, full width) */}
+          <div className="w-full max-w-9xl mt-4">
             <TextDisplay displayText={displayText} setDisplayText={setDisplayText} />
           </div>
 
-          {/*
-          // OPTIONAL: if you prefer TextDisplay under the input BUT RIGHT-aligned
-          // to the textarea’s right edge, replace the wrapper above with this:
-          //
-          // <div className="mt-4 flex justify-end">
-          //   <TextDisplay displayText={displayText} setDisplayText={setDisplayText} />
-          // </div>
-        
-
-          {/* Inline message (left) */}
+          {/* Inline message */}
           {message && (
             <div className="mt-3">
               <div
@@ -149,36 +144,8 @@ const TherapyPage: React.FC = () => {
   );
 };
 
-{/* <div className="relative w-full ml-52  mt-4 ">
- 
-  
-<TextInput
-      placeholder="Type here…"
-      displayText={displayText}
-      setDisplayText={setDisplayText}       // ← pass it here
-      saveKeystrokeData={saveKeystrokeData}
-    />
-
-
-
-      <div className="absolute center-1920 right-22 w-1/3 z-7 p-4">
-        <TextDisplay displayText={displayText} setDisplayText={setDisplayText} />
-      {message && (
-    <div className="mb-2 w-1/2 text-left">
-      <div className={`
-          inline-block text-white text-xs px-4 py-2 rounded shadow
-          ${message.type === 'error' ? 'bg-red-500' : 'bg-green-500'}
-        `}>
-        {message.message}
-      </div>
-    </div>
-  )}   </div>
-    </div>
-    </div>
-  );
-}; */}
-
 export default TherapyPage;
+
 
 
 //+++++++++++JS version+++++++++++++++++

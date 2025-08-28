@@ -111,7 +111,7 @@ const TextInput: React.FC<TextInputProps> = ({ placeholder, displayText, setDisp
   }, []);
 
   return (
-    <div className="relative w-5/6   ">
+    <div className="relative w-3/4 m-30  ">
       <div className=" flex flex-row justify-between items-start w-full space-x-4 ">
   {/* Left: Text Input */}
   <div className=" flex-1 text-xs">
