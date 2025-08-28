@@ -101,7 +101,55 @@ const TherapyPage: React.FC = () => {
         <ColorAnimation settings={settings} setSettings={setSettings} />
       )}
 {/* down where you render your TextInput/TextDisplay */}
-<div className="relative w-full ml-52  mt-4 ">
+
+ {/* MAIN CONTENT
+         Right padding avoids overlap with the fixed control panel on the right (w-60 + gap).
+         Adjust pr value if your panel width changes. */}
+      <div className="relative w-full ml-52  mt-4">  
+        {/* Left-aligned column for display + input */}
+        <div className="w-full max-w-9xl">
+       
+          {/* Typing area (left aligned) */}
+          <TextInput
+            placeholder="Type here…"
+            displayText={displayText}
+            setDisplayText={setDisplayText}
+            saveKeystrokeData={saveKeystrokeData}
+          />
+     {/* Text to copy */}
+          {/* Strict LEFT alignment (same left edge as textarea): */}
+         <div className="w-full max-w-9xl">
+            <TextDisplay displayText={displayText} setDisplayText={setDisplayText} />
+          </div>
+
+          {/*
+          // OPTIONAL: if you prefer TextDisplay under the input BUT RIGHT-aligned
+          // to the textarea’s right edge, replace the wrapper above with this:
+          //
+          // <div className="mt-4 flex justify-end">
+          //   <TextDisplay displayText={displayText} setDisplayText={setDisplayText} />
+          // </div>
+        
+
+          {/* Inline message (left) */}
+          {message && (
+            <div className="mt-3">
+              <div
+                className={`inline-block text-white text-xs px-4 py-2 rounded shadow ${
+                  message.type === 'error' ? 'bg-red-500' : 'bg-green-500'
+                }`}
+              >
+                {message.message}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+{/* <div className="relative w-full ml-52  mt-4 ">
  
   
 <TextInput
@@ -128,7 +176,7 @@ const TherapyPage: React.FC = () => {
     </div>
     </div>
   );
-};
+}; */}
 
 export default TherapyPage;
 

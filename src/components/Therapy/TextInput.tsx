@@ -111,10 +111,10 @@ const TextInput: React.FC<TextInputProps> = ({ placeholder, displayText, setDisp
   }, []);
 
   return (
-    <div className="relative w-5/6  right-30 ">
-      <div className="flex flex-row justify-between items-start w-full space-x-4 p-4">
+    <div className="relative w-5/6   ">
+      <div className=" flex flex-row justify-between items-start w-full space-x-4 ">
   {/* Left: Text Input */}
-  <div className="flex-1 text-xs">
+  <div className=" flex-1 text-xs">
     <textarea
       value={inputValue}
       placeholder={placeholder}
@@ -145,7 +145,7 @@ const TextInput: React.FC<TextInputProps> = ({ placeholder, displayText, setDisp
         {isPanelOpen ? ' Hide Text Control' : 'Show Text Controls'}
       </button>
       <Collapse isOpened={isPanelOpen}>
-        <div className="flex flex-wrap mb-200  text-xs bg-gray-200 p-200 border rounded w-1/4">
+        <div className="flex flex-wrap  text-xs bg-gray-200 p-200 border rounded w-1/4">
           <div className="w-full md:w-1/4">
             <label>Font:</label>
             <select value={font} onChange={(e) => setFont(e.target.value)} className="border p-2 rounded w-full">
