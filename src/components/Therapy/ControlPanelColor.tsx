@@ -1,24 +1,41 @@
+
+
 import React, { useState } from 'react';
 import { Collapse } from 'react-collapse';
 import { db, storage } from '../../firebase/firebase';
 import { useAuth } from '../../data/AuthContext';
-import { doc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, setDoc, collection, query, where, getDocs, getDoc } from 'firebase/firestore';
 import { ref, uploadBytes } from 'firebase/storage';
 import Papa from 'papaparse';
+ 
 
-interface Settings {
+/** 👉 Exported so the parent (TherapyPage) can import the type */
+export interface ColorSettings {
   colors: string[];
   duration: number;
   animationStyle: 'sine' | 'linear' | 'circular' | 'fractal';
 
-  // NEW
+  // Opacity & direction extensions
   opacity: number;                   // 0..1
   opacityMode: 'constant' | 'pulse';
   opacitySpeed: number;              // >= 0
   direction: 'forward' | 'reverse';
   linearAngle: number;               // degrees
+
   [key: string]: any;
 }
+
+/** 👉 Exported defaults the parent can use for initial state */
+export const COLOR_DEFAULTS: ColorSettings = {
+  colors: ['#FF0000', '#00FF00', '#0000FF', '#FFFF00'],
+  duration: 1,
+  animationStyle: 'sine',
+  opacity: 1,
+  opacityMode: 'constant',
+  opacitySpeed: 1,
+  direction: 'forward',
+  linearAngle: 0,
+};
 
 interface Message {
   message: string;
@@ -26,8 +43,8 @@ interface Message {
 }
 
 interface ControlPanelColorProps {
-  settings: Settings;
-  setSettings: React.Dispatch<React.SetStateAction<Settings>>;
+  settings: ColorSettings;
+  setSettings: React.Dispatch<React.SetStateAction<ColorSettings>>;
   startAnimation?: () => void;
   stopAnimation?: () => void;
   resetAnimation?: () => void;
@@ -46,9 +63,9 @@ const ControlPanelColor: React.FC<ControlPanelColorProps> = ({
   const [message, setMessage] = useState<Message>({ message: '', type: 'success' });
 
   const handleColorChange = (index: number, value: string) => {
-    const newColors = [...settings.colors];
-    newColors[index] = value;
-    setSettings((prev) => ({ ...prev, colors: newColors }));
+    const next = [...settings.colors];
+    next[index] = value;
+    setSettings((prev) => ({ ...prev, colors: next }));
   };
 
   const handleDurationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -56,18 +73,18 @@ const ControlPanelColor: React.FC<ControlPanelColorProps> = ({
   };
 
   const handleAnimationStyleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setSettings((prev) => ({ ...prev, animationStyle: e.target.value as Settings['animationStyle'] }));
+    setSettings((prev) => ({ ...prev, animationStyle: e.target.value as ColorSettings['animationStyle'] }));
   };
 
   const handleDirectionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setSettings((prev) => ({ ...prev, direction: e.target.value as Settings['direction'] }));
+    setSettings((prev) => ({ ...prev, direction: e.target.value as ColorSettings['direction'] }));
   };
 
   const handleOpacityModeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setSettings((prev) => ({ ...prev, opacityMode: e.target.value as Settings['opacityMode'] }));
+    setSettings((prev) => ({ ...prev, opacityMode: e.target.value as ColorSettings['opacityMode'] }));
   };
 
-  const saveSettings = async () => {
+/*   const saveSettings = async () => {
     if (!presetName) {
       setMessage({ message: 'Please provide a name for the preset.', type: 'error' });
       return;
@@ -87,6 +104,11 @@ const ControlPanelColor: React.FC<ControlPanelColorProps> = ({
       const userDocRef = doc(collection(db, `users/${currentUser?.uid}/color-animation-settings`));
       await setDoc(userDocRef, settingsWithTimestamp);
 
+      // instead of: doc(collection(db, `users/${uid}/color-animation-settings`))
+const docRef = doc(db, `users/${uid}/color-animation-settings/${presetName}`);
+await setDoc(docRef, settingsWithTimestamp, { merge: true });
+
+      // Also drop a CSV copy in Storage
       const csvData = Object.entries(settingsWithTimestamp).map(([key, value]) => ({
         setting: key,
         value: Array.isArray(value) ? JSON.stringify(value) : String(value),
@@ -94,7 +116,7 @@ const ControlPanelColor: React.FC<ControlPanelColorProps> = ({
       const csv = Papa.unparse(csvData);
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
 
-      const csvRef = ref(storage, `users/${currentUser?.uid}/color-animation-settings/${timestamp.toISOString()}.csv`);
+      const csvRef = ref(storage, `users/${currentUser?.uid}/color-animation-settings/${presetName}/${timestamp.toISOString()}.csv`);
       await uploadBytes(csvRef, blob);
 
       setMessage({ message: 'Settings saved successfully!', type: 'success' });
@@ -102,9 +124,51 @@ const ControlPanelColor: React.FC<ControlPanelColorProps> = ({
       console.error('Error saving settings:', err);
       setMessage({ message: 'Error saving settings. Please try again.', type: 'error' });
     }
+  }; */
+
+  const saveSettings = async () => {
+  if (!presetName) {
+    setMessage({ message: 'Please provide a name for the preset.', type: 'error' });
+    return;
+  }
+  const uid = currentUser?.uid;
+  if (!uid) {
+    setMessage({ message: 'You must be logged in to save presets.', type: 'error' });
+    return;
+  }
+
+  const timestamp = new Date();
+  const settingsWithTimestamp = {
+    ...settings,
+    presetName,
+    userId: uid,
+    timestamp: timestamp.toISOString(),
+    localDateTime: timestamp.toLocaleString(),
   };
 
-  const loadSettings = async () => {
+  try {
+    // one doc per preset name (overwrite/merge)
+    const docRef = doc(db, `users/${uid}/color-animation-settings/${presetName}`);
+    await setDoc(docRef, settingsWithTimestamp, { merge: true });
+
+    // optional CSV copy to Storage
+    const rows = Object.entries(settingsWithTimestamp).map(([k, v]) => ({
+      setting: k,
+      value: Array.isArray(v) ? JSON.stringify(v) : String(v),
+    }));
+    const csv = Papa.unparse(rows);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const csvRef = ref(storage, `users/${uid}/color-animation-settings/${presetName}.csv`);
+    await uploadBytes(csvRef, blob);
+
+    setMessage({ message: 'Preset saved!', type: 'success' });
+  } catch (err) {
+    console.error('Error saving settings:', err);
+    setMessage({ message: 'Error saving settings. Please try again.', type: 'error' });
+  }
+};
+
+  /* const loadSettings = async () => {
     if (!presetName) {
       setMessage({ message: 'Please provide the name of the preset to load.', type: 'error' });
       return;
@@ -117,8 +181,8 @@ const ControlPanelColor: React.FC<ControlPanelColorProps> = ({
 
       if (!querySnapshot.empty) {
         const docSnapshot = querySnapshot.docs[0];
-        const loadedSettings = docSnapshot.data() as Settings;
-        setSettings(loadedSettings);
+        const loaded = docSnapshot.data() as ColorSettings;
+        setSettings(loaded);
         setMessage({ message: 'Settings loaded successfully!', type: 'success' });
       } else {
         setMessage({ message: 'No settings found with that preset name.', type: 'error' });
@@ -127,11 +191,36 @@ const ControlPanelColor: React.FC<ControlPanelColorProps> = ({
       console.error('Error loading settings:', err);
       setMessage({ message: 'Error loading settings. Please try again.', type: 'error' });
     }
-  };
+  }; */
+const loadSettings = async () => {
+  if (!presetName) {
+    setMessage({ message: 'Please enter the preset name to load.', type: 'error' });
+    return;
+  }
+  const uid = currentUser?.uid;
+  if (!uid) {
+    setMessage({ message: 'You must be logged in to load presets.', type: 'error' });
+    return;
+  }
+
+  try {
+    const docRef = doc(db, `users/${uid}/color-animation-settings/${presetName}`);
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      setSettings(snap.data() as Settings);
+      setMessage({ message: 'Preset loaded!', type: 'success' });
+    } else {
+      setMessage({ message: 'No preset with that name.', type: 'error' });
+    }
+  } catch (err) {
+    console.error('Error loading settings:', err);
+    setMessage({ message: 'Error loading settings. Please try again.', type: 'error' });
+  }
+};
 
   return (
     <div className={`fixed right-4 top-2 p-4 rounded ${isOpen ? 'shadow-lg bg-transparent' : ''} w-60 z-50`}>
-     <button onClick={() => setIsOpen(!isOpen)} className="mb-2 bg-gray-200 text-xs p-2 border p-2 rounded w-full ">
+      <button onClick={() => setIsOpen(!isOpen)} className="mb-2 bg-gray-200 text-xs p-2 border p-2 rounded w-full ">
         {isOpen ? 'Collapse Controls' : 'Expand Controls'}
       </button>
 
@@ -139,13 +228,13 @@ const ControlPanelColor: React.FC<ControlPanelColorProps> = ({
         <div className="space-y-4">
           {/* Transport */}
           <div className="flex space-xs-2">
-            <button onClick={startAnimation} className="bg-green-500 text-white text-xs  p-2 rounded w-1/3">Start</button>
-            <button onClick={stopAnimation} className="bg-red-500 text-white  text-xs p-2 rounded w-1/3">Stop</button>
-            <button onClick={resetAnimation} className="bg-gray-500 text-white text-xs p-2 rounded w-1/3">Reset</button>
+            <button onClick={startAnimation} className="bg-green-500 text-white text-xs p-2 rounded w-1/3">Start</button>
+            <button onClick={stopAnimation}  className="bg-red-500   text-white text-xs p-2 rounded w-1/3">Stop</button>
+            <button onClick={resetAnimation} className="bg-gray-500  text-white text-xs p-2 rounded w-1/3">Reset</button>
           </div>
 
           {/* Preset name */}
-          <div className="flex  text-xs space-x-2">
+          <div className="flex text-xs space-x-2">
             <input
               type="text"
               placeholder="Preset Name"
@@ -168,21 +257,18 @@ const ControlPanelColor: React.FC<ControlPanelColorProps> = ({
           )}
 
           {/* Colors */}
-          {[0, 1, 2, 3].map((index) => (
-            <div key={index} className="control-group">
-              <label className="block mb-2 text-xs">{`Color ${index + 1}:`}</label>
-              <input
-                type="color"
-                value={settings.colors[index]}
-                onChange={(e) => handleColorChange(index, e.target.value)}
-                className="w-full"
-              />
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="control-group">
+              <label className="block mb-2 text-xs">{`Color ${i + 1}:`}</label>
+              <input type="color" value={settings.colors[i]} onChange={(e) => handleColorChange(i, e.target.value)} className="w-full" />
             </div>
           ))}
 
           {/* Duration (speed) */}
           <div className="control-group">
-            <label className="block mb-2 text-xs">Speed (duration multiplier): {settings.duration.toFixed(2)}</label>
+            <label className="block mb-2 text-xs">
+              Speed (duration multiplier): {settings.duration.toFixed(2)}
+            </label>
             <input type="range" min="0" max="5" step="0.1" value={settings.duration} onChange={handleDurationChange} className="w-full" />
           </div>
 
@@ -267,8 +353,278 @@ const ControlPanelColor: React.FC<ControlPanelColorProps> = ({
 };
 
 export default ControlPanelColor;
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+// import React, { useState } from 'react';
+// import { Collapse } from 'react-collapse';
+// import { db, storage } from '../../firebase/firebase';
+// import { useAuth } from '../../data/AuthContext';
+// import { doc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
+// import { ref, uploadBytes } from 'firebase/storage';
+// import Papa from 'papaparse';
 
+// interface Settings {
+//   colors: string[];
+//   duration: number;
+//   animationStyle: 'sine' | 'linear' | 'circular' | 'fractal';
 
+//   // NEW
+//   opacity: number;                   // 0..1
+//   opacityMode: 'constant' | 'pulse';
+//   opacitySpeed: number;              // >= 0
+//   direction: 'forward' | 'reverse';
+//   linearAngle: number;               // degrees
+//   [key: string]: any;
+// }
+
+// interface Message {
+//   message: string;
+//   type: 'success' | 'error';
+// }
+
+// interface ControlPanelColorProps {
+//   settings: Settings;
+//   setSettings: React.Dispatch<React.SetStateAction<Settings>>;
+//   startAnimation?: () => void;
+//   stopAnimation?: () => void;
+//   resetAnimation?: () => void;
+// }
+
+// const ControlPanelColor: React.FC<ControlPanelColorProps> = ({
+//   settings,
+//   setSettings,
+//   startAnimation,
+//   stopAnimation,
+//   resetAnimation,
+// }) => {
+//   const [isOpen, setIsOpen] = useState<boolean>(true);
+//   const { currentUser } = useAuth();
+//   const [presetName, setPresetName] = useState<string>('');
+//   const [message, setMessage] = useState<Message>({ message: '', type: 'success' });
+
+//   const handleColorChange = (index: number, value: string) => {
+//     const newColors = [...settings.colors];
+//     newColors[index] = value;
+//     setSettings((prev) => ({ ...prev, colors: newColors }));
+//   };
+
+//   const handleDurationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+//     setSettings((prev) => ({ ...prev, duration: parseFloat(e.target.value) }));
+//   };
+
+//   const handleAnimationStyleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+//     setSettings((prev) => ({ ...prev, animationStyle: e.target.value as Settings['animationStyle'] }));
+//   };
+
+//   const handleDirectionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+//     setSettings((prev) => ({ ...prev, direction: e.target.value as Settings['direction'] }));
+//   };
+
+//   const handleOpacityModeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+//     setSettings((prev) => ({ ...prev, opacityMode: e.target.value as Settings['opacityMode'] }));
+//   };
+
+//   const saveSettings = async () => {
+//     if (!presetName) {
+//       setMessage({ message: 'Please provide a name for the preset.', type: 'error' });
+//       return;
+//     }
+
+//     const timestamp = new Date();
+//     const localDateTime = timestamp.toLocaleString();
+//     const settingsWithTimestamp = {
+//       ...settings,
+//       presetName,
+//       userId: currentUser?.uid,
+//       timestamp: timestamp.toISOString(),
+//       localDateTime,
+//     };
+
+//     try {
+//       const userDocRef = doc(collection(db, `users/${currentUser?.uid}/color-animation-settings`));
+//       await setDoc(userDocRef, settingsWithTimestamp);
+
+//       const csvData = Object.entries(settingsWithTimestamp).map(([key, value]) => ({
+//         setting: key,
+//         value: Array.isArray(value) ? JSON.stringify(value) : String(value),
+//       }));
+//       const csv = Papa.unparse(csvData);
+//       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+
+//       const csvRef = ref(storage, `users/${currentUser?.uid}/color-animation-settings/${timestamp.toISOString()}.csv`);
+//       await uploadBytes(csvRef, blob);
+
+//       setMessage({ message: 'Settings saved successfully!', type: 'success' });
+//     } catch (err) {
+//       console.error('Error saving settings:', err);
+//       setMessage({ message: 'Error saving settings. Please try again.', type: 'error' });
+//     }
+//   };
+
+//   const loadSettings = async () => {
+//     if (!presetName) {
+//       setMessage({ message: 'Please provide the name of the preset to load.', type: 'error' });
+//       return;
+//     }
+
+//     try {
+//       const userDocsRef = collection(db, `users/${currentUser?.uid}/color-animation-settings`);
+//       const q = query(userDocsRef, where('presetName', '==', presetName));
+//       const querySnapshot = await getDocs(q);
+
+//       if (!querySnapshot.empty) {
+//         const docSnapshot = querySnapshot.docs[0];
+//         const loadedSettings = docSnapshot.data() as Settings;
+//         setSettings(loadedSettings);
+//         setMessage({ message: 'Settings loaded successfully!', type: 'success' });
+//       } else {
+//         setMessage({ message: 'No settings found with that preset name.', type: 'error' });
+//       }
+//     } catch (err) {
+//       console.error('Error loading settings:', err);
+//       setMessage({ message: 'Error loading settings. Please try again.', type: 'error' });
+//     }
+//   };
+
+//   return (
+//     <div className={`fixed right-4 top-2 p-4 rounded ${isOpen ? 'shadow-lg bg-transparent' : ''} w-60 z-50`}>
+//      <button onClick={() => setIsOpen(!isOpen)} className="mb-2 bg-gray-200 text-xs p-2 border p-2 rounded w-full ">
+//         {isOpen ? 'Collapse Controls' : 'Expand Controls'}
+//       </button>
+
+//       <Collapse isOpened={isOpen}>
+//         <div className="space-y-4">
+//           {/* Transport */}
+//           <div className="flex space-xs-2">
+//             <button onClick={startAnimation} className="bg-green-500 text-white text-xs  p-2 rounded w-1/3">Start</button>
+//             <button onClick={stopAnimation} className="bg-red-500 text-white  text-xs p-2 rounded w-1/3">Stop</button>
+//             <button onClick={resetAnimation} className="bg-gray-500 text-white text-xs p-2 rounded w-1/3">Reset</button>
+//           </div>
+
+//           {/* Preset name */}
+//           <div className="flex  text-xs space-x-2">
+//             <input
+//               type="text"
+//               placeholder="Preset Name"
+//               value={presetName}
+//               onChange={(e) => setPresetName(e.target.value)}
+//               className="border p-2 rounded w-full"
+//             />
+//           </div>
+
+//           {/* Save / Load */}
+//           <div className="flex text-xs space-x-2">
+//             <button onClick={saveSettings} className="bg-blue-500 text-white text-xs p-2 rounded w-1/2">Save</button>
+//             <button onClick={loadSettings} className="bg-yellow-500 text-white text-xs p-2 rounded w-1/2">Load</button>
+//           </div>
+
+//           {message.message && (
+//             <div className={`alert ${message.type === 'error' ? 'bg-red-500' : 'bg-green-500'} text-xs text-white p-2 rounded`}>
+//               {message.message}
+//             </div>
+//           )}
+
+//           {/* Colors */}
+//           {[0, 1, 2, 3].map((index) => (
+//             <div key={index} className="control-group">
+//               <label className="block mb-2 text-xs">{`Color ${index + 1}:`}</label>
+//               <input
+//                 type="color"
+//                 value={settings.colors[index]}
+//                 onChange={(e) => handleColorChange(index, e.target.value)}
+//                 className="w-full"
+//               />
+//             </div>
+//           ))}
+
+//           {/* Duration (speed) */}
+//           <div className="control-group">
+//             <label className="block mb-2 text-xs">Speed (duration multiplier): {settings.duration.toFixed(2)}</label>
+//             <input type="range" min="0" max="5" step="0.1" value={settings.duration} onChange={handleDurationChange} className="w-full" />
+//           </div>
+
+//           {/* Animation Style */}
+//           <div className="control-group">
+//             <label className="block mb-2 text-xs">Animation Style:</label>
+//             <select value={settings.animationStyle} onChange={handleAnimationStyleChange} className="border p-2 rounded text-xs w-full">
+//               <option value="sine">Sine</option>
+//               <option value="linear">Linear</option>
+//               <option value="circular">Circular</option>
+//               <option value="fractal">Fractal</option>
+//             </select>
+//           </div>
+
+//           {/* Direction */}
+//           <div className="control-group">
+//             <label className="block mb-2 text-xs">Direction:</label>
+//             <select value={settings.direction} onChange={handleDirectionChange} className="border p-2 rounded text-xs w-full">
+//               <option value="forward">Forward</option>
+//               <option value="reverse">Reverse</option>
+//             </select>
+//           </div>
+
+//           {/* Linear angle (only for linear) */}
+//           {settings.animationStyle === 'linear' && (
+//             <div className="control-group">
+//               <label className="block mb-2 text-xs">Linear Angle (degrees): {Math.round(settings.linearAngle)}</label>
+//               <input
+//                 type="range"
+//                 min="0"
+//                 max="360"
+//                 step="1"
+//                 value={settings.linearAngle}
+//                 onChange={(e) => setSettings((prev) => ({ ...prev, linearAngle: Number(e.target.value) }))}
+//                 className="w-full"
+//               />
+//             </div>
+//           )}
+
+//           {/* Opacity */}
+//           <div className="control-group">
+//             <label className="block mb-2 text-xs">Opacity: {Math.round(settings.opacity * 100)}%</label>
+//             <input
+//               type="range"
+//               min="0"
+//               max="100"
+//               step="1"
+//               value={Math.round(settings.opacity * 100)}
+//               onChange={(e) => setSettings((prev) => ({ ...prev, opacity: Number(e.target.value) / 100 }))}
+//               className="w-full"
+//             />
+//           </div>
+
+//           {/* Opacity mode */}
+//           <div className="control-group">
+//             <label className="block mb-2 text-xs">Opacity Mode:</label>
+//             <select value={settings.opacityMode} onChange={handleOpacityModeChange} className="border p-2 rounded text-xs w-full">
+//               <option value="constant">Constant</option>
+//               <option value="pulse">Pulse</option>
+//             </select>
+//           </div>
+
+//           {/* Opacity speed (only when pulsing) */}
+//           {settings.opacityMode === 'pulse' && (
+//             <div className="control-group">
+//               <label className="block mb-2 text-xs">Opacity Pulse Speed: {settings.opacitySpeed.toFixed(2)}</label>
+//               <input
+//                 type="range"
+//                 min="0"
+//                 max="5"
+//                 step="0.1"
+//                 value={settings.opacitySpeed}
+//                 onChange={(e) => setSettings((prev) => ({ ...prev, opacitySpeed: Number(e.target.value) }))}
+//                 className="w-full"
+//               />
+//             </div>
+//           )}
+//         </div>
+//       </Collapse>
+//     </div>
+//   );
+// };
+
+// export default ControlPanelColor;
+
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 /* import React, { useState } from 'react';
 import { Collapse } from 'react-collapse';
 import { db, storage } from '../../firebase/firebase';
