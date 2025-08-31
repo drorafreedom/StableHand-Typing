@@ -148,7 +148,7 @@ const ColorAnimation: React.FC<{ setCurrentAnimation: (animation: string) => voi
 
   return (
     <div className="relative">
-      <div className="flex justify-center mb-4">
+  {/*     <div className="flex justify-center mb-4">
         <button onClick={() => setCurrentAnimation('multifunction')} className="p-2 mx-2 bg-gray-200">
           Multifunction Animation
         </button>
@@ -159,7 +159,7 @@ const ColorAnimation: React.FC<{ setCurrentAnimation: (animation: string) => voi
           Color Animation
         </button>
       </div>
-
+ */}
       {/* Panel controls settings + start/stop/reset */}
       <ControlPanelColor
         settings={settings}
