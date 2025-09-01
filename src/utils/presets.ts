@@ -1,5 +1,27 @@
-// Use a literal union so you get autocompletion + type safety
+// src\utils\presets.ts
+
 export type PresetModule =
+  | 'baseline-typing'
+  | 'color'
+  | 'shape'
+  | 'multifunction';
+
+// Firestore collection path for this user's module presets
+export const presetsColPath = (uid: string, module: PresetModule) =>
+  `users/${uid}/${module}-settings`;
+
+// Firestore doc path for one preset (by name)
+export const presetDocPath = (uid: string, module: PresetModule, name: string) =>
+  `${presetsColPath(uid, module)}/${name}`;
+
+// Optional: convenience storage paths for CSV/JSON backups
+export const presetCsvPath = (uid: string, module: PresetModule, name: string) =>
+  `users/${uid}/${module}-settings/${name}.csv`;
+
+export const presetJsonPath = (uid: string, module: PresetModule, name: string) =>
+  `users/${uid}/${module}-settings/${name}.json`;
+//--------------------------------------------------
+/* export type PresetModule =
   | 'baseline-typing'
   | 'color'
   | 'shape'
@@ -23,3 +45,6 @@ export const presetCsvPath = (uid: string, mod: PresetModule, name: string) =>
 
 export const presetJsonPath = (uid: string, mod: PresetModule, name: string) =>
   `${presetStoragePrefix(uid, mod)}/${name}.json`;
+ */
+
+

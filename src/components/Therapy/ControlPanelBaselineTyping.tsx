@@ -1,163 +1,40 @@
 // src/components/Therapy/ControlPanelBaselineTyping.tsx
-import React, { useEffect, useState } from 'react';
+// src/components/Therapy/ControlPanelBaselineTyping.tsx
+import React, { useState } from 'react';
 import { Collapse } from 'react-collapse';
-import { useAuth } from '../../data/AuthContext';
-import { db, storage } from '../../firebase/firebase';
-import {
-  collection, doc, getDoc, getDocs, setDoc
-} from 'firebase/firestore';
-import { ref as storageRef, uploadBytes } from 'firebase/storage';
-import Papa from 'papaparse';
-
-import {
-  type PresetModule,
-  presetsColPath,
-  presetDocPath,
-  presetCsvPath,
-  presetJsonPath,
-} from '../../utils/presets';
+import PresetControls from '../common/PresetControls';
+import type { PresetModule } from '../../utils/presets';
 
 export interface BaselineTypingSettings {
-  bgColor: string;   // "#RRGGBB"
-  bgOpacity: number; // 0..1
+  bgColor: string;
+  bgOpacity: number;
 }
+
+const MODULE: PresetModule = 'baseline-typing';
 
 interface Props {
   settings: BaselineTypingSettings;
   setSettings: React.Dispatch<React.SetStateAction<BaselineTypingSettings>>;
 }
 
-const MODULE: PresetModule = 'baseline-typing';
-
 const ControlPanelBaselineTyping: React.FC<Props> = ({ settings, setSettings }) => {
-  const { currentUser } = useAuth();
-  const uid = currentUser?.uid;
-
   const [isOpen, setIsOpen] = useState(true);
 
-  // keep SAVE and LOAD independent
-  const [saveName, setSaveName] = useState('');
-  const [selectedName, setSelectedName] = useState('');
-  const [presetList, setPresetList] = useState<string[]>([]);
-
-  const [message, setMessage] =
-    useState<{ message: string; type: 'success' | 'error' } | null>(null);
-
-  useEffect(() => {
-    if (!message) return;
-    const t = setTimeout(() => setMessage(null), 2500);
-    return () => clearTimeout(t);
-  }, [message]);
-
-  // load list of preset names
-  useEffect(() => {
-    if (!uid) return;
-    (async () => {
-      try {
-        const snap = await getDocs(collection(db, presetsColPath(uid, MODULE)));
-        setPresetList(snap.docs.map(d => d.id).sort());
-      } catch (e) {
-        console.error('Error fetching presets', e);
-      }
-    })();
-  }, [uid]);
-
-  const savePreset = async () => {
-    if (!uid) { setMessage({ message: 'Please log in to save.', type: 'error' }); return; }
-    const name = saveName.trim();
-    if (!name) { setMessage({ message: 'Enter a preset name.', type: 'error' }); return; }
-
-    try {
-      // hard existence check on the exact doc we’re about to write
-      const docRef = doc(db, presetDocPath(uid, MODULE, name));
-      const existing = await getDoc(docRef);
-
-      if (existing.exists()) {
-        const ok = window.confirm(
-          `A preset named "${name}" already exists.\n\nDo you want to overwrite it?`
-        );
-        if (!ok) {
-          setMessage({ message: 'Save cancelled.', type: 'error' });
-          return;
-        }
-      }
-
-      const ts = new Date();
-      const payload = {
-        ...settings,
-        presetName: name,
-        userId: uid,
-        timestamp: ts.toISOString(),
-        localDateTime: ts.toLocaleString(),
-        schema: 1,
-      };
-
-      // Firestore (explicit path by name)
-      await setDoc(docRef, payload, { merge: true });
-
-      // CSV to Storage
-      const csvRows = Object.entries(payload).map(([k, v]) => ({
-        setting: k,
-        value: Array.isArray(v) ? JSON.stringify(v) : String(v),
-      }));
-      const csvText = Papa.unparse(csvRows);
-      await uploadBytes(
-        storageRef(storage, presetCsvPath(uid, MODULE, name)),
-        new Blob([csvText], { type: 'text/csv;charset=utf-8;' })
-      );
-
-      // JSON to Storage
-      const jsonText = JSON.stringify(payload, null, 2);
-      await uploadBytes(
-        storageRef(storage, presetJsonPath(uid, MODULE, name)),
-        new Blob([jsonText], { type: 'application/json' })
-      );
-
-      // refresh the dropdown list if this is a new name
-      setPresetList(prev => (prev.includes(name) ? prev : [...prev, name].sort()));
-
-      setMessage({ message: 'Preset saved.', type: 'success' });
-    } catch (e: any) {
-      console.error('Save preset failed', e);
-      setMessage({ message: `Save failed: ${e?.code || ''} ${e?.message || e}`, type: 'error' });
-    }
-  };
-
-  const loadPreset = async () => {
-    if (!uid) { setMessage({ message: 'Please log in to load.', type: 'error' }); return; }
-    const name = selectedName.trim();
-    if (!name) { setMessage({ message: 'Choose a preset to load.', type: 'error' }); return; }
-
-    try {
-      const snap = await getDoc(doc(db, presetDocPath(uid, MODULE, name)));
-      if (!snap.exists()) {
-        setMessage({ message: 'Preset not found.', type: 'error' });
-        return;
-      }
-      const data = snap.data() as Partial<BaselineTypingSettings>;
-      setSettings(s => ({
-        bgColor: data.bgColor ?? s.bgColor,
-        bgOpacity: typeof data.bgOpacity === 'number' ? data.bgOpacity : s.bgOpacity,
-      }));
-      setMessage({ message: `Loaded "${name}".`, type: 'success' });
-    } catch (e: any) {
-      console.error('Load preset failed', e);
-      setMessage({ message: `Load failed: ${e?.code || ''} ${e?.message || e}`, type: 'error' });
-    }
-  };
+  // strict merge so we don’t accidentally overwrite missing fields
+  const mergeLoaded = (loaded: Partial<BaselineTypingSettings>, curr: BaselineTypingSettings) => ({
+    bgColor: loaded.bgColor ?? curr.bgColor,
+    bgOpacity: typeof loaded.bgOpacity === 'number' ? loaded.bgOpacity : curr.bgOpacity,
+  });
 
   return (
     <div className="fixed right-4 top-2 p-4 rounded shadow-lg w-60 z-50 bg-white/70">
-      <button
-        onClick={() => setIsOpen(o => !o)}
-        className="mb-2 bg-gray-200 text-xs p-2 rounded w-full"
-      >
+      <button onClick={() => setIsOpen(o => !o)} className="mb-2 bg-gray-200 text-xs p-2 rounded w-full">
         {isOpen ? 'Collapse Controls' : 'Expand Controls'}
       </button>
 
       <Collapse isOpened={isOpen}>
         <div className="space-y-3 text-xs">
-          {/* Background color */}
+          {/* Your baseline controls */}
           <div>
             <label className="block mb-1">Background Color</label>
             <input
@@ -168,73 +45,26 @@ const ControlPanelBaselineTyping: React.FC<Props> = ({ settings, setSettings }) 
             />
           </div>
 
-          {/* Background opacity */}
           <div>
-            <label className="block mb-1">
-              Background Opacity: {Math.round(settings.bgOpacity * 100)}%
-            </label>
+            <label className="block mb-1">Background Opacity: {Math.round(settings.bgOpacity * 100)}%</label>
             <input
-              type="range"
-              min={0}
-              max={100}
-              step={1}
+              type="range" min={0} max={100} step={1}
               value={Math.round(settings.bgOpacity * 100)}
-              onChange={(e) =>
-                setSettings(s => ({ ...s, bgOpacity: Number(e.target.value) / 100 }))
-              }
+              onChange={(e) => setSettings(s => ({ ...s, bgOpacity: Number(e.target.value) / 100 }))}
               className="w-full"
             />
           </div>
 
           <hr className="my-2" />
 
-          {/* Save preset (independent text box) */}
-          <div>
-            <label className="block mb-1">Save as new preset</label>
-            <div className="flex gap-2">
-              <input
-                value={saveName}
-                onChange={(e) => setSaveName(e.target.value)}
-                placeholder="Preset name"
-                className="border p-2 rounded w-full"
-              />
-              <button onClick={savePreset} className="bg-blue-500 text-white px-3 rounded">
-                Save
-              </button>
-            </div>
-          </div>
-
-          {/* Load preset (separate dropdown, DOES NOT touch saveName) */}
-          <div>
-            <label className="block mb-1">Load preset</label>
-            <div className="flex gap-2">
-              <select
-                value={selectedName}
-                onChange={(e) => setSelectedName(e.target.value)}
-                className="border p-2 rounded w-full"
-              >
-                <option value="">Select…</option>
-                {presetList.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-              <button onClick={loadPreset} className="bg-yellow-500 text-white px-3 rounded">
-                Load
-              </button>
-            </div>
-          </div>
-
-          {message && (
-            <div
-              className={`text-white p-2 rounded ${
-                message.type === 'success' ? 'bg-green-500' : 'bg-red-500'
-              }`}
-            >
-              {message.message}
-            </div>
-          )}
+          {/* Reusable preset block */}
+          <PresetControls
+            module={MODULE}
+            settings={settings}
+            setSettings={setSettings}
+            mergeLoaded={mergeLoaded}
+            className="bg-transparent"
+          />
         </div>
       </Collapse>
     </div>
@@ -243,7 +73,252 @@ const ControlPanelBaselineTyping: React.FC<Props> = ({ settings, setSettings }) 
 
 export default ControlPanelBaselineTyping;
 
+//---------------------------------------------------------
+// import React, { useEffect, useState } from 'react';
+// import { Collapse } from 'react-collapse';
+// import { useAuth } from '../../data/AuthContext';
+// import { db, storage } from '../../firebase/firebase';
+// import {
+//   collection, doc, getDoc, getDocs, setDoc
+// } from 'firebase/firestore';
+// import { ref as storageRef, uploadBytes } from 'firebase/storage';
+// import Papa from 'papaparse';
 
+// import {
+//   type PresetModule,
+//   presetsColPath,
+//   presetDocPath,
+//   presetCsvPath,
+//   presetJsonPath,
+// } from '../../utils/presets';
+
+// export interface BaselineTypingSettings {
+//   bgColor: string;   // "#RRGGBB"
+//   bgOpacity: number; // 0..1
+// }
+
+// interface Props {
+//   settings: BaselineTypingSettings;
+//   setSettings: React.Dispatch<React.SetStateAction<BaselineTypingSettings>>;
+// }
+
+// const MODULE: PresetModule = 'baseline-typing';
+
+// const ControlPanelBaselineTyping: React.FC<Props> = ({ settings, setSettings }) => {
+//   const { currentUser } = useAuth();
+//   const uid = currentUser?.uid;
+
+//   const [isOpen, setIsOpen] = useState(true);
+
+//   // keep SAVE and LOAD independent
+//   const [saveName, setSaveName] = useState('');
+//   const [selectedName, setSelectedName] = useState('');
+//   const [presetList, setPresetList] = useState<string[]>([]);
+
+//   const [message, setMessage] =
+//     useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+//   useEffect(() => {
+//     if (!message) return;
+//     const t = setTimeout(() => setMessage(null), 2500);
+//     return () => clearTimeout(t);
+//   }, [message]);
+
+//   // load list of preset names
+//   useEffect(() => {
+//     if (!uid) return;
+//     (async () => {
+//       try {
+//         const snap = await getDocs(collection(db, presetsColPath(uid, MODULE)));
+//         setPresetList(snap.docs.map(d => d.id).sort());
+//       } catch (e) {
+//         console.error('Error fetching presets', e);
+//       }
+//     })();
+//   }, [uid]);
+
+//   const savePreset = async () => {
+//     if (!uid) { setMessage({ message: 'Please log in to save.', type: 'error' }); return; }
+//     const name = saveName.trim();
+//     if (!name) { setMessage({ message: 'Enter a preset name.', type: 'error' }); return; }
+
+//     try {
+//       // hard existence check on the exact doc we’re about to write
+//       const docRef = doc(db, presetDocPath(uid, MODULE, name));
+//       const existing = await getDoc(docRef);
+
+//       if (existing.exists()) {
+//         const ok = window.confirm(
+//           `A preset named "${name}" already exists.\n\nDo you want to overwrite it?`
+//         );
+//         if (!ok) {
+//           setMessage({ message: 'Save cancelled.', type: 'error' });
+//           return;
+//         }
+//       }
+
+//       const ts = new Date();
+//       const payload = {
+//         ...settings,
+//         presetName: name,
+//         userId: uid,
+//         timestamp: ts.toISOString(),
+//         localDateTime: ts.toLocaleString(),
+//         schema: 1,
+//       };
+
+//       // Firestore (explicit path by name)
+//       await setDoc(docRef, payload, { merge: true });
+
+//       // CSV to Storage
+//       const csvRows = Object.entries(payload).map(([k, v]) => ({
+//         setting: k,
+//         value: Array.isArray(v) ? JSON.stringify(v) : String(v),
+//       }));
+//       const csvText = Papa.unparse(csvRows);
+//       await uploadBytes(
+//         storageRef(storage, presetCsvPath(uid, MODULE, name)),
+//         new Blob([csvText], { type: 'text/csv;charset=utf-8;' })
+//       );
+
+//       // JSON to Storage
+//       const jsonText = JSON.stringify(payload, null, 2);
+//       await uploadBytes(
+//         storageRef(storage, presetJsonPath(uid, MODULE, name)),
+//         new Blob([jsonText], { type: 'application/json' })
+//       );
+
+//       // refresh the dropdown list if this is a new name
+//       setPresetList(prev => (prev.includes(name) ? prev : [...prev, name].sort()));
+
+//       setMessage({ message: 'Preset saved.', type: 'success' });
+//     } catch (e: any) {
+//       console.error('Save preset failed', e);
+//       setMessage({ message: `Save failed: ${e?.code || ''} ${e?.message || e}`, type: 'error' });
+//     }
+//   };
+
+//   const loadPreset = async () => {
+//     if (!uid) { setMessage({ message: 'Please log in to load.', type: 'error' }); return; }
+//     const name = selectedName.trim();
+//     if (!name) { setMessage({ message: 'Choose a preset to load.', type: 'error' }); return; }
+
+//     try {
+//       const snap = await getDoc(doc(db, presetDocPath(uid, MODULE, name)));
+//       if (!snap.exists()) {
+//         setMessage({ message: 'Preset not found.', type: 'error' });
+//         return;
+//       }
+//       const data = snap.data() as Partial<BaselineTypingSettings>;
+//       setSettings(s => ({
+//         bgColor: data.bgColor ?? s.bgColor,
+//         bgOpacity: typeof data.bgOpacity === 'number' ? data.bgOpacity : s.bgOpacity,
+//       }));
+//       setMessage({ message: `Loaded "${name}".`, type: 'success' });
+//     } catch (e: any) {
+//       console.error('Load preset failed', e);
+//       setMessage({ message: `Load failed: ${e?.code || ''} ${e?.message || e}`, type: 'error' });
+//     }
+//   };
+
+//   return (
+//     <div className="fixed right-4 top-2 p-4 rounded shadow-lg w-60 z-50 bg-white/70">
+//       <button
+//         onClick={() => setIsOpen(o => !o)}
+//         className="mb-2 bg-gray-200 text-xs p-2 rounded w-full"
+//       >
+//         {isOpen ? 'Collapse Controls' : 'Expand Controls'}
+//       </button>
+
+//       <Collapse isOpened={isOpen}>
+//         <div className="space-y-3 text-xs">
+//           {/* Background color */}
+//           <div>
+//             <label className="block mb-1">Background Color</label>
+//             <input
+//               type="color"
+//               value={settings.bgColor}
+//               onChange={(e) => setSettings(s => ({ ...s, bgColor: e.target.value }))}
+//               className="w-full h-8"
+//             />
+//           </div>
+
+//           {/* Background opacity */}
+//           <div>
+//             <label className="block mb-1">
+//               Background Opacity: {Math.round(settings.bgOpacity * 100)}%
+//             </label>
+//             <input
+//               type="range"
+//               min={0}
+//               max={100}
+//               step={1}
+//               value={Math.round(settings.bgOpacity * 100)}
+//               onChange={(e) =>
+//                 setSettings(s => ({ ...s, bgOpacity: Number(e.target.value) / 100 }))
+//               }
+//               className="w-full"
+//             />
+//           </div>
+
+//           <hr className="my-2" />
+
+//           {/* Save preset (independent text box) */}
+//           <div>
+//             <label className="block mb-1">Save as new preset</label>
+//             <div className="flex gap-2">
+//               <input
+//                 value={saveName}
+//                 onChange={(e) => setSaveName(e.target.value)}
+//                 placeholder="Preset name"
+//                 className="border p-2 rounded w-full"
+//               />
+//               <button onClick={savePreset} className="bg-blue-500 text-white px-3 rounded">
+//                 Save
+//               </button>
+//             </div>
+//           </div>
+
+//           {/* Load preset (separate dropdown, DOES NOT touch saveName) */}
+//           <div>
+//             <label className="block mb-1">Load preset</label>
+//             <div className="flex gap-2">
+//               <select
+//                 value={selectedName}
+//                 onChange={(e) => setSelectedName(e.target.value)}
+//                 className="border p-2 rounded w-full"
+//               >
+//                 <option value="">Select…</option>
+//                 {presetList.map((name) => (
+//                   <option key={name} value={name}>
+//                     {name}
+//                   </option>
+//                 ))}
+//               </select>
+//               <button onClick={loadPreset} className="bg-yellow-500 text-white px-3 rounded">
+//                 Load
+//               </button>
+//             </div>
+//           </div>
+
+//           {message && (
+//             <div
+//               className={`text-white p-2 rounded ${
+//                 message.type === 'success' ? 'bg-green-500' : 'bg-red-500'
+//               }`}
+//             >
+//               {message.message}
+//             </div>
+//           )}
+//         </div>
+//       </Collapse>
+//     </div>
+//   );
+// };
+
+// export default ControlPanelBaselineTyping;
+
+//------------------------------------------------------------
 
 // import React, { useEffect, useState } from 'react';
 // import { Collapse } from 'react-collapse';

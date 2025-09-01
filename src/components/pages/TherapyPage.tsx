@@ -30,30 +30,64 @@ interface AnimSnapshot {
   startedAt: string;  // ISO time
 }
 
+
+// --- SETTINGS TYPES FOR OTHER MODULES (adjust to your real ones) ---
+export interface ShapeSettings { /* your shape controls */ }
+export interface MultiSettings { /* your multifunction controls */ }
+export interface BaselineTyping { /* your shape controls */ }
+export interface ColorAnimation { /* your multifunction controls */ }
+
 const TherapyPage: React.FC = () => {
   // ----- Hooks (must be inside component) -----
-  const [currentAnimation, setCurrentAnimation] = useState<Tab>('multifunction');
-  const { currentUser } = useAuth();
 
-  const [message, setMessage] = useState<Message | null>(null);
+  const { currentUser } = useAuth();
+  // which tab is active
+  const [currentAnimation, setCurrentAnimation] =
+    useState<'multifunction'|'baselinetyping'|'shape'|'color'>('multifunction');
+
+  const [message, setMessage] = useState<{message:string; type:'success'|'error'}|null>(null);
+ 
+  //const [message, setMessage] = useState<Message | null>(null);
   const [settings, setSettings] = useState<Settings>({});
   const [displayText, setDisplayText] = useState<string>('');
 
-  // Snapshot of animation settings on first keystroke
-  const [animAtStart, setAnimAtStart] = useState<AnimSnapshot | null>(null);
-  const handleTypingStart = useCallback(() => {
-    setAnimAtStart({
-      tab: currentAnimation,
-      settings: JSON.parse(JSON.stringify(settings)), // deep copy
-      startedAt: new Date().toISOString(),
-    });
-  }, [currentAnimation, settings]);
+
+    // LIFTED SETTINGS (owned by TherapyPage)
+  const [baselineSettings, setBaselineSettings] = useState<BaselineTypingSettings>({} as BaselineTypingSettings);
+  const [colorSettings, setColorSettings]       = useState<ColorAnimationSettings>({} as ColorAnimationSettings);
+  const [shapeSettings, setShapeSettings]       = useState<ShapeSettings>({} as ShapeSettings);
+  const [multiSettings, setMultiSettings]       = useState<MultiSettings>({} as MultiSettings);
+
+  // snapshot captured at first keystroke
+  const [animAtStart, setAnimAtStart] = useState<null | {
+    tab: 'multifunction'|'baselinetyping'|'shape'|'color';
+    settings: any;
+    startedAt: string;
+  }>(null);
 
   useEffect(() => {
     if (!message) return;
-    const t = setTimeout(() => setMessage(null), 3000);
+    const t = setTimeout(() => setMessage(null), 2500);
     return () => clearTimeout(t);
   }, [message]);
+
+  // When typing starts, capture a deep copy of the *active* module settings
+  const handleTypingStart = useCallback(() => {
+    const now = new Date().toISOString();
+    const snapshot = () => {
+      switch (currentAnimation) {
+        case 'baselinetyping': return JSON.parse(JSON.stringify(baselineSettings));
+        case 'color':          return JSON.parse(JSON.stringify(colorSettings));
+        case 'shape':          return JSON.parse(JSON.stringify(shapeSettings));
+        case 'multifunction':  return JSON.parse(JSON.stringify(multiSettings));
+      }
+    };
+    setAnimAtStart({
+      tab: currentAnimation,
+      settings: snapshot(),
+      startedAt: now,
+    });
+  }, [currentAnimation, baselineSettings, colorSettings, shapeSettings, multiSettings]);
 
 
 // --- helpers to flatten objects and CSV-ify arrays ---

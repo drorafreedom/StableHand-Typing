@@ -1,0 +1,8 @@
+1.	The therapy page starts with animation multifunction the default and is empty always. 
+2.	The ending animation only baseline is updated.
+3.	Typed text information needs to be captured at the beginning of the typing and at the end of the typing (can change after and is logged) 
+
+4.	need to have a pop up at the end of the typing to inform the patient. 0 after submitting, would you like to know your scores yes - your score is % accuracy (not error as it is discouraging)
+
+5.	preset load from any other modules across the animation type ( not true , I jsut recheck )  and across users.  9Not true )  is ok  oh wow. 
+6.	Still, we need session ID.  
