@@ -3,18 +3,15 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
- 
   "scripts": {
     "dev": "vite",
-    "build": "vite build",               
+    "build": "vite build",
     "preview": "vite preview",
-     "deploy:fb": "npm run build && firebase deploy --only hosting",
+    "deploy:fb": "npm run build && firebase deploy --only hosting",
     "deploy:gh": "npm run build && gh-pages -d dist -b gh-pages",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "clean": "rimraf dist *.tsbuildinfo || true"
   },
- 
-
   "dependencies": {
     "@firebasegen/default-connector": "file:dataconnect-generated/js/default-connector",
     "@p5-wrapper/react": "^4.4.2",
@@ -43,7 +40,8 @@
     "select": "^1.1.2",
     "selfsigned": "^2.4.1",
     "styled-components": "^6.1.13",
-    "update": "^0.4.2"
+    "update": "^0.4.2",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
