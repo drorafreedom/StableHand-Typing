@@ -1,240 +1,241 @@
-// src/components/pages/TherapyPage.tsx
-import React, { useState, useEffect, useCallback } from 'react';
-import MultifunctionAnimation from '../Therapy/MultifunctionAnimation';
-import ShapeAnimations from '../Therapy/ShapeAnimations';
-import ColorAnimation, { COLOR_DEFAULTS, ColorAnimationSettings } from '../Therapy/ColorAnimation';
-import BaselineTyping, { BaselineTypingSettings, BASELINE_DEFAULTS } from '../Therapy/BaselineTyping';
+Totally hear you—let’s keep changes surgical and consistent with what you already have. Below are minimal patches to add transparency (with optional pulsing) to Multifunction and Shape animations. This touches only:
 
-import DateTimeDisplay from '../common/DateTimeDisplay';
-import TextDisplay from '../Therapy/TextDisplay';
-import TextInput, { KeystrokeSavePayload } from '../Therapy/TextInput';
+settings interfaces + defaults
 
-import { useAuth } from '../../data/AuthContext';
-import { addDoc, collection } from 'firebase/firestore';
-import { db, storage, rtdb } from '../../firebase/firebase';
-import { ref as storageRef, uploadBytes } from 'firebase/storage';
-import { ref as rtdbRef, set as rtdbSet, serverTimestamp } from 'firebase/database';
-import Papa from 'papaparse';
+1–2 lines in the p5 draw path to apply alpha
 
-// --- SETTINGS TYPES FOR OTHER MODULES (adjust to your real ones) ---
-export interface ShapeSettings { /* your shape controls */ }
-export interface MultiSettings { /* your multifunction controls */ }
+a few small controls in each Control Panel
 
-// ---- TherapyPage component ----
-const TherapyPage: React.FC = () => {
-  const { currentUser } = useAuth();
+No TherapyPage changes are needed; your snapshot code will automatically include the new fields.
 
-  // which tab is active
-  const [currentAnimation, setCurrentAnimation] =
-    useState<'multifunction'|'baselinetyping'|'shape'|'color'>('multifunction');
+1) MultifunctionAnimation — add background & line transparency (+ pulse)
+a) Extend the Settings interface & defaults
 
-  const [message, setMessage] = useState<{message:string; type:'success'|'error'}|null>(null);
-  const [displayText, setDisplayText] = useState<string>('');
+In src/components/Therapy/MultifunctionAnimation.tsx
 
-  // LIFTED SETTINGS (owned by TherapyPage)
-  const [baselineSettings, setBaselineSettings] = useState<BaselineTypingSettings>(BASELINE_DEFAULTS);
-  const [colorSettings, setColorSettings]       = useState<ColorAnimationSettings>(COLOR_DEFAULTS);
-  const [shapeSettings, setShapeSettings]       = useState<ShapeSettings>({} as ShapeSettings);
-  const [multiSettings, setMultiSettings]       = useState<MultiSettings>({} as MultiSettings);
+Add these fields to the Settings interface:
 
-  // snapshot captured at first keystroke
-  const [animAtStart, setAnimAtStart] = useState<null | {
-    tab: 'multifunction'|'baselinetyping'|'shape'|'color';
-    settings: any;
-    startedAt: string;
-  }>(null);
+  bgOpacity: number;                // 0..1
+  lineOpacity: number;              // 0..1
+  lineOpacityMode: 'constant' | 'pulse';
+  lineOpacitySpeed: number;         // >= 0
 
-  useEffect(() => {
-    if (!message) return;
-    const t = setTimeout(() => setMessage(null), 2500);
-    return () => clearTimeout(t);
-  }, [message]);
 
-  // When typing starts, capture a deep copy of the *active* module settings
-  const handleTypingStart = useCallback(() => {
-    const now = new Date().toISOString();
-    const snapshot = () => {
-      switch (currentAnimation) {
-        case 'baselinetyping': return JSON.parse(JSON.stringify(baselineSettings));
-        case 'color':          return JSON.parse(JSON.stringify(colorSettings));
-        case 'shape':          return JSON.parse(JSON.stringify(shapeSettings));
-        case 'multifunction':  return JSON.parse(JSON.stringify(multiSettings));
-      }
-    };
-    setAnimAtStart({
-      tab: currentAnimation,
-      settings: snapshot(),
-      startedAt: now,
-    });
-  }, [currentAnimation, baselineSettings, colorSettings, shapeSettings, multiSettings]);
+Add default values in defaultSettings:
 
-  // Save everything (JSON + CSV to Storage; summary to Firestore + RTDB)
-  const saveKeystrokeData = async (payload: KeystrokeSavePayload) => {
-    const uid = currentUser?.uid;
-    if (!uid) {
-      setMessage({ message: 'You must be logged in to save.', type: 'error' });
-      return;
-    }
+  bgOpacity: 1,
+  lineOpacity: 1,
+  lineOpacityMode: 'constant',
+  lineOpacitySpeed: 1,
 
-    const ts = new Date();
-    const sessionId = `${ts.toISOString().replace(/[:.]/g, '-')}-${Math.random().toString(36).slice(2,8)}`;
+b) Apply alpha in the sketch draw loop
 
-    const currentSettingsNow = (() => {
-      switch (currentAnimation) {
-        case 'baselinetyping': return JSON.parse(JSON.stringify(baselineSettings));
-        case 'color':          return JSON.parse(JSON.stringify(colorSettings));
-        case 'shape':          return JSON.parse(JSON.stringify(shapeSettings));
-        case 'multifunction':  return JSON.parse(JSON.stringify(multiSettings));
-      }
-    })();
+Replace the top of your drawing block (just after p5.noFill();) with this:
 
-    const fullRecord = {
-      userId: uid,
-      sessionId,
-      animationTab: currentAnimation,
-      animationAtStart: animAtStart ?? null,
-      animationAtSubmit: {
-        tab: currentAnimation,
-        settings: currentSettingsNow,
-        submittedAt: ts.toISOString(),
-      },
-      targetText: payload.targetText,
-      typedText: payload.typedText,
-      keyData: payload.keyData,
-      analysis: payload.analysis,
-      metrics: payload.metrics,
-      ui: payload.ui, // text-input UI panel
-      timestamp: ts.toISOString(),
-      localDateTime: ts.toLocaleString(),
-      schemaVersion: 1,
-    };
+p5.noFill();
+p5.clear();
 
-    try {
-      // 1) Storage: JSON
-      const jsonPath = `users/${uid}/keystroke-data/sessions/${sessionId}/full.json`;
-      await uploadBytes(
-        storageRef(storage, jsonPath),
-        new Blob([JSON.stringify(fullRecord, null, 2)], { type: 'application/json' })
-      );
+// background with alpha
+const bg = p5.color(settings.bgColor);
+bg.setAlpha(Math.round(255 * (settings.bgOpacity ?? 1)));
+p5.background(bg);
 
-      // 1b) Storage: CSV (key events)
-      const csvRows = (fullRecord.keyData || []).map((k: any, i: number) => ({
-        index: i,
-        key: k.key,
-        pressTime: k.pressTime,
-        releaseTime: k.releaseTime ?? '',
-        holdTime: k.holdTime ?? '',
-        lagTime: k.lagTime,
-        totalLagTime: k.totalLagTime,
-      }));
-      const csvText = Papa.unparse(csvRows);
-      const csvPath = `users/${uid}/keystroke-data/sessions/${sessionId}/keys.csv`;
-      await uploadBytes(
-        storageRef(storage, csvPath),
-        new Blob([csvText], { type: 'text/csv;charset=utf-8;' })
-      );
+// compute line alpha (optionally pulsing)
+const lineAlpha255 = (() => {
+  let a = settings.lineOpacity ?? 1;
+  if ((settings.lineOpacityMode ?? 'constant') === 'pulse') {
+    const pulse = (p5.sin(time * (settings.lineOpacitySpeed || 0)) + 1) * 0.5; // 0..1
+    a = Math.max(0, Math.min(1, a * pulse));
+  }
+  return Math.round(255 * a);
+})();
 
-      // 2) Firestore summary (keep it light)
-      await addDoc(collection(db, `users/${uid}/keystroke-data`), {
-        userId: uid,
-        sessionId,
-        animationTab: currentAnimation,
-        animationAtStart: fullRecord.animationAtStart,
-        animationAtSubmit: fullRecord.animationAtSubmit,
-        targetText: fullRecord.targetText,
-        typedText: fullRecord.typedText,
-        metrics: fullRecord.metrics,
-        storageJsonPath: jsonPath,
-        storageCsvPath: csvPath,
-        approxKeyCount: fullRecord.keyData.length,
-        timestamp: fullRecord.timestamp,
-        localDateTime: fullRecord.localDateTime,
-        schemaVersion: 1,
-      });
+p5.strokeWeight(settings.thickness);
 
-      // 3) RTDB small node
-      await rtdbSet(rtdbRef(rtdb, `users/${uid}/keystroke-data/${sessionId}`), {
-        status: 'submitted',
-        animationTab: currentAnimation,
-        typedLength: (fullRecord.typedText || '').length,
-        wordCount: (fullRecord.typedText || '').trim().split(/\s+/).filter(Boolean).length,
-        storageJsonPath: jsonPath,
-        storageCsvPath: csvPath,
-        createdAt: serverTimestamp(),
-        clientTs: fullRecord.timestamp,
-      });
 
-      setMessage({ message: 'Saved ✔️', type: 'success' });
-    } catch (e: any) {
-      console.error('Save error:', e);
-      setMessage({ message: `Save failed: ${e?.code || ''} ${e?.message || e}`, type: 'error' });
-    }
-  };
+Then, where you set stroke color, set alpha too:
 
-  return (
-    <div className="relative w-full">
-      {/* header / tab buttons, unchanged */}
-      <div className="flex justify-center text-sm text-gray-600 rounded p-2 mb-4 w-full">
-        <DateTimeDisplay />
-        <button onClick={() => setCurrentAnimation('baselinetyping')}
-          className={`p-2 mx-2 ${currentAnimation==='baselinetyping' ? 'bg-blue-500 text-white rounded' : 'bg-gray-200'}`}>
-          Baseline Typing
-        </button>
-        <button onClick={() => setCurrentAnimation('multifunction')}
-          className={`p-2 mx-2 ${currentAnimation==='multifunction' ? 'bg-blue-500 text-white rounded' : 'bg-gray-200'}`}>
-          Multifunction
-        </button>
-        <button onClick={() => setCurrentAnimation('shape')}
-          className={`p-2 mx-2 ${currentAnimation==='shape' ? 'bg-blue-500 text-white rounded' : 'bg-gray-200'}`}>
-          Shape
-        </button>
-        <button onClick={() => setCurrentAnimation('color')}
-          className={`p-2 mx-2 ${currentAnimation==='color' ? 'bg-blue-500 text-white rounded' : 'bg-gray-200'}`}>
-          Color
-        </button>
-      </div>
+For a single color:
 
-      {/* animations now receive lifted settings */}
-      {currentAnimation === 'baselinetyping' && (
-        <BaselineTyping settings={baselineSettings} setSettings={setBaselineSettings} />
-      )}
-      {currentAnimation === 'multifunction' && (
-        <MultifunctionAnimation settings={multiSettings} setSettings={setMultiSettings} />
-      )}
-      {currentAnimation === 'shape' && (
-        <ShapeAnimations settings={shapeSettings} setSettings={setShapeSettings} />
-      )}
-      {currentAnimation === 'color' && (
-        <ColorAnimation settings={colorSettings} setSettings={setColorSettings} />
-      )}
+const sCol = p5.color(settings.lineColor);
+sCol.setAlpha(lineAlpha255);
+p5.stroke(sCol);
 
-      {/* typing + display */}
-      <div className="relative w-full ml-52 mt-[22vh]">
-        <div className="w-full max-w-9xl">
-          <TextInput
-            placeholder="Type here…"
-            displayText={displayText}
-            setDisplayText={setDisplayText}
-            saveKeystrokeData={saveKeystrokeData}
-            onTypingStart={handleTypingStart}
-          />
-          <div className="w-full max-w-9xl mt-4">
-            <TextDisplay displayText={displayText} setDisplayText={setDisplayText} />
-          </div>
 
-          {message && (
-            <div className="mt-3">
-              <div className={`inline-block text-white text-xs px-4 py-2 rounded shadow ${
-                message.type === 'error' ? 'bg-red-500' : 'bg-green-500'
-              }`}>
-                {message.message}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
+For palette colors (inside your loop):
 
-export default TherapyPage;
+if (settings.selectedPalette !== 'none') {
+  const col = p5.color(palettes[settings.selectedPalette][i % palettes[settings.selectedPalette].length]);
+  col.setAlpha(lineAlpha255);
+  p5.stroke(col);
+} else {
+  const sCol = p5.color(settings.lineColor);
+  sCol.setAlpha(lineAlpha255);
+  p5.stroke(sCol);
+}
+
+c) Controls (Minimal UI add)
+
+In your existing ControlPanel.tsx for Multifunction add these small blocks (anywhere sensible, e.g., near the color pickers):
+
+<Slider
+  label="Background Opacity"
+  min={0}
+  max={1}
+  step={0.01}
+  value={settings.bgOpacity ?? 1}
+  onChange={(v) => setSettings((s:any) => ({ ...s, bgOpacity: v }))}
+/>
+
+<Slider
+  label="Line Opacity"
+  min={0}
+  max={1}
+  step={0.01}
+  value={settings.lineOpacity ?? 1}
+  onChange={(v) => setSettings((s:any) => ({ ...s, lineOpacity: v }))}
+/>
+
+<div className="control-group text-xs">
+  <label>Line Opacity Mode:</label>
+  <select
+    value={settings.lineOpacityMode ?? 'constant'}
+    onChange={(e) => setSettings((s:any) => ({ ...s, lineOpacityMode: e.target.value as any }))}
+    className="border p-2 rounded w-full"
+  >
+    <option value="constant">Constant</option>
+    <option value="pulse">Pulse</option>
+  </select>
+</div>
+
+{(settings.lineOpacityMode ?? 'constant') === 'pulse' && (
+  <Slider
+    label="Line Opacity Speed"
+    min={0}
+    max={5}
+    step={0.1}
+    value={settings.lineOpacitySpeed ?? 1}
+    onChange={(v) => setSettings((s:any) => ({ ...s, lineOpacitySpeed: v }))}
+  />
+)}
+
+
+That’s it for Multifunction. ✅
+
+2) ShapeAnimations — add background & shape transparency (+ pulse)
+a) Extend the Settings interface & defaults
+
+In src/components/Therapy/ShapeAnimations.tsx
+
+Add fields:
+
+  bgOpacity: number;                  // 0..1
+  shapeOpacity: number;               // 0..1 (fill alpha)
+  shapeOpacityMode: 'constant' | 'pulse';
+  shapeOpacitySpeed: number;          // >= 0
+
+
+Defaults:
+
+  bgOpacity: 1,
+  shapeOpacity: 1,
+  shapeOpacityMode: 'constant',
+  shapeOpacitySpeed: 1,
+
+b) Use alpha in setup/draw & when building palette colors
+
+In p5.setup, make alpha predictable for HSB palettes:
+
+p5.colorMode(p5.HSB, 360, 100, 100, 255); // add 255 alpha range
+
+
+In p5.draw, use a background color with alpha:
+
+const bg = p5.color(settings.bgColor);
+bg.setAlpha(Math.round(255 * (settings.bgOpacity ?? 1)));
+p5.background(bg);
+
+
+When you build fillColors in createShapes(), compute a per-frame alpha in draw or precompute a base alpha and set it on every color. Easiest is compute per-frame before drawing each shape:
+
+Add near top of p5.draw (before the loop):
+
+const t = p5.frameCount * 0.016; // ~seconds
+const shapeAlpha255 = (() => {
+  let a = settings.shapeOpacity ?? 1;
+  if ((settings.shapeOpacityMode ?? 'constant') === 'pulse') {
+    const pulse = (p5.sin(t * (settings.shapeOpacitySpeed || 0)) + 1) * 0.5; // 0..1
+    a = Math.max(0, Math.min(1, a * pulse));
+  }
+  return Math.round(255 * a);
+})();
+
+
+Then, inside s.display() (right before drawing the geometry), set the fill with alpha:
+
+// If your fillColor was created as p5.color(...), clone & set alpha each frame:
+const c = this.p5.color(this.fillColor);
+c.setAlpha(shapeAlpha255);
+this.p5.fill(c);
+
+
+Note: if you prefer to carry alpha inside fillColor precomputed, you can also rebuild fillColors on each updateWithProps—but the per-frame setAlpha is simpler and light-weight.
+
+If you’d rather bake alpha when constructing palettes in createShapes(), you can, but then you must rebuild shapes/colors whenever opacity changes. The per-frame approach avoids that churn.
+
+c) Controls (Minimal UI add)
+
+In your ControlPanelShape.tsx (the version that already uses PresetControls or your older one—either way works), add:
+
+<Slider
+  label="Background Opacity"
+  min={0}
+  max={1}
+  step={0.01}
+  value={settings.bgOpacity ?? 1}
+  onChange={(v) => setSettings((s) => ({ ...s, bgOpacity: v }))}
+/>
+
+<Slider
+  label="Shape Opacity"
+  min={0}
+  max={1}
+  step={0.01}
+  value={settings.shapeOpacity ?? 1}
+  onChange={(v) => setSettings((s) => ({ ...s, shapeOpacity: v }))}
+/>
+
+<div className="space-y-1 text-xs">
+  <label>Shape Opacity Mode:</label>
+  <select
+    value={settings.shapeOpacityMode ?? 'constant'}
+    onChange={(e) => setSettings((s) => ({ ...s, shapeOpacityMode: e.target.value as any }))}
+    className="w-full border px-2 py-1 rounded"
+  >
+    <option value="constant">Constant</option>
+    <option value="pulse">Pulse</option>
+  </select>
+</div>
+
+{(settings.shapeOpacityMode ?? 'constant') === 'pulse' && (
+  <Slider
+    label="Shape Opacity Speed"
+    min={0}
+    max={5}
+    step={0.1}
+    value={settings.shapeOpacitySpeed ?? 1}
+    onChange={(v) => setSettings((s) => ({ ...s, shapeOpacitySpeed: v }))}
+  />
+)}
+
+Why this design?
+
+Background opacity is always constant (cleaner visually; fewer moving parts).
+
+Line/Shape opacity can be constant or pulse, same mechanism as Color Animation—so it’s consistent across modules.
+
+We apply alpha where the color is set (stroke/fill) without changing your wave/shape math.
+
+If you want the background to pulse too, we can add bgOpacityMode + bgOpacitySpeed later using the same pattern; I kept it simple for now.
+
+Want me to paste these patches directly into your three files exactly where they go?

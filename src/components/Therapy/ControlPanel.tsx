@@ -276,8 +276,8 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
           <div className="control-group text-xs">
             <Slider
               label="Amplitude"
-              min={0}
-              max={360}
+              min={10}
+              max={600}
               step={1}
               value={settings.amplitude}
               onChange={(NV) =>

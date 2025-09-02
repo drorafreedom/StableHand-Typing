@@ -207,8 +207,8 @@ const MultifunctionAnimation: React.FC<Props> = ({ settings, setSettings }) => {
               case 'square':  wave = (p5.sin(k) >= 0 ? 1 : -1) * (current.amplitude / 2); break;
               case 'triangle':wave = (2 * current.amplitude / p5.PI) * p5.asin(p5.sin(k)); break;
             }
-
-            const baseY = yOffset + g * current.groupDistance + i * current.distance;
+//add -2 sp ot wo;; start om tje ,odd;e pf the text box 
+            const baseY = yOffset + (g -2)  * current.groupDistance + i * current.distance;
 
             // rotate around center by current.angle
             const cosA = Math.cos(current.angle);
