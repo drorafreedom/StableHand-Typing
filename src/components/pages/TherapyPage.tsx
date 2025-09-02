@@ -1,5 +1,5 @@
 // src/components/pages/TherapyPage.tsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 
 import MultifunctionAnimation from '../Therapy/MultifunctionAnimation';
 import ShapeAnimations from '../Therapy/ShapeAnimations';
@@ -9,7 +9,6 @@ import BaselineTyping from '../Therapy/BaselineTyping';
 import DateTimeDisplay from '../common/DateTimeDisplay';
 import TextDisplay from '../Therapy/TextDisplay';
 import TextInput from '../Therapy/TextInput';
-import type { KeystrokeSavePayload } from '../Therapy/TextInput';
 
 import { useAuth } from '../../data/AuthContext';
 import { addDoc, collection } from 'firebase/firestore';
@@ -20,96 +19,59 @@ import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 
 type Tab = 'multifunction' | 'baselinetyping' | 'shape' | 'color';
-
 interface Message { message: string; type: 'success' | 'error'; }
 interface Settings { [key: string]: any; }
 
 interface AnimSnapshot {
   tab: Tab;
-  settings: any;      // snapshot at typing start
-  startedAt: string;  // ISO time
+  settings: any;
+  startedAt: string;
 }
 
+export interface KeystrokeSavePayload {
+  keyData: Array<{
+    key: string;
+    pressTime: number;
+    releaseTime: number | null;
+    holdTime: number | null;
+    lagTime: number;
+    totalLagTime: number;
+  }>;
+  typedText: string;
+  targetText: string;
+  analysis: any;
+  metrics: any;
+  ui?: {
+    font: string;
+    fontSize: number;
+    isBold: boolean;
+    textColor: string;
+    backgroundColor: string;
+    backgroundOpacity: number;
+  };
+}
 
-// --- SETTINGS TYPES FOR OTHER MODULES (adjust to your real ones) ---
-export interface ShapeSettings { /* your shape controls */ }
-export interface MultiSettings { /* your multifunction controls */ }
-export interface BaselineTyping { /* your shape controls */ }
-export interface ColorAnimation { /* your multifunction controls */ }
+// ------- utils (same as before) -------
+const isPlainObject = (v: any) =>
+  Object.prototype.toString.call(v) === '[object Object]';
 
-const TherapyPage: React.FC = () => {
-  // ----- Hooks (must be inside component) -----
-
-  const { currentUser } = useAuth();
-  // which tab is active
-  const [currentAnimation, setCurrentAnimation] =
-    useState<'multifunction'|'baselinetyping'|'shape'|'color'>('multifunction');
-
-  const [message, setMessage] = useState<{message:string; type:'success'|'error'}|null>(null);
- 
-  //const [message, setMessage] = useState<Message | null>(null);
-  const [settings, setSettings] = useState<Settings>({});
-  const [displayText, setDisplayText] = useState<string>('');
-
-
-    // LIFTED SETTINGS (owned by TherapyPage)
-  const [baselineSettings, setBaselineSettings] = useState<BaselineTypingSettings>({} as BaselineTypingSettings);
-  const [colorSettings, setColorSettings]       = useState<ColorAnimationSettings>({} as ColorAnimationSettings);
-  const [shapeSettings, setShapeSettings]       = useState<ShapeSettings>({} as ShapeSettings);
-  const [multiSettings, setMultiSettings]       = useState<MultiSettings>({} as MultiSettings);
-
-  // snapshot captured at first keystroke
-  const [animAtStart, setAnimAtStart] = useState<null | {
-    tab: 'multifunction'|'baselinetyping'|'shape'|'color';
-    settings: any;
-    startedAt: string;
-  }>(null);
-
-  useEffect(() => {
-    if (!message) return;
-    const t = setTimeout(() => setMessage(null), 2500);
-    return () => clearTimeout(t);
-  }, [message]);
-
-  // When typing starts, capture a deep copy of the *active* module settings
-  const handleTypingStart = useCallback(() => {
-    const now = new Date().toISOString();
-    const snapshot = () => {
-      switch (currentAnimation) {
-        case 'baselinetyping': return JSON.parse(JSON.stringify(baselineSettings));
-        case 'color':          return JSON.parse(JSON.stringify(colorSettings));
-        case 'shape':          return JSON.parse(JSON.stringify(shapeSettings));
-        case 'multifunction':  return JSON.parse(JSON.stringify(multiSettings));
-      }
-    };
-    setAnimAtStart({
-      tab: currentAnimation,
-      settings: snapshot(),
-      startedAt: now,
-    });
-  }, [currentAnimation, baselineSettings, colorSettings, shapeSettings, multiSettings]);
-
-
-// --- helpers to flatten objects and CSV-ify arrays ---
-const isPlainObject = (v: any) => v && typeof v === 'object' && !Array.isArray(v);
-
-const flattenToKeyValueRows = (obj: any, prefix = ''): Array<{ key: string; value: string | number | boolean | null }> => {
+const flattenToKeyValueRows = (obj: any, prefix = ''): Array<{ key: string; value: any }> => {
   const rows: Array<{ key: string; value: any }> = [];
-  const walk = (val: any, pfx: string) => {
-    if (isPlainObject(val)) {
-      for (const k of Object.keys(val)) walk(val[k], pfx ? `${pfx}.${k}` : k);
-    } else if (Array.isArray(val)) {
-      // store arrays as JSON; (keyData/etc will get their own CSVs separately)
-      rows.push({ key: pfx, value: JSON.stringify(val) });
-    } else {
-      rows.push({ key: pfx, value: val });
+  const walk = (o: any, pfx: string) => {
+    if (Array.isArray(o)) { rows.push({ key: pfx, value: JSON.stringify(o) }); return; }
+    if (!isPlainObject(o)) { rows.push({ key: pfx, value: o }); return; }
+    for (const k of Object.keys(o)) {
+      const nk = pfx ? `${pfx}.${k}` : k;
+      const v = o[k];
+      if (isPlainObject(v)) walk(v, nk);
+      else if (Array.isArray(v)) rows.push({ key: nk, value: JSON.stringify(v) });
+      else rows.push({ key: nk, value: v });
     }
   };
   walk(obj, prefix);
   return rows;
 };
 
-// turn perKey object into rows
 const perKeyToRows = (perKey: Record<string, { count: number; meanHoldMs: number; meanLagMs: number }>) =>
   Object.entries(perKey || {}).map(([ch, v]) => ({
     key: ch,
@@ -118,69 +80,219 @@ const perKeyToRows = (perKey: Record<string, { count: number; meanHoldMs: number
     meanLagMs: v.meanLagMs,
   }));
 
-// ops to rows
-type Op = { op: 'match'|'ins'|'del'|'sub'; a?: string; b?: string; ai: number; bi: number };
-const opsToRows = (ops: Op[]) =>
-  (ops || []).map((o, i) => ({ index: i, op: o.op, a: o.a ?? '', b: o.b ?? '', ai: o.ai, bi: o.bi }));
+const opsToRows = (
+  ops: Array<{ op: 'match'|'ins'|'del'|'sub'; a?: string; b?: string; ai: number; bi: number }>
+) => (ops || []).map((o, i) => ({
+  index: i,
+  op: o.op,
+  a: o.a ?? '',
+  b: o.b ?? '',
+  ai: o.ai,
+  bi: o.bi,
+}));
 
+// ------- per-tab defaults so settings never start as {} -------
+const DEFAULTS: Record<Tab, any> = {
+  baselinetyping: { bgColor: '#ffffff', bgOpacity: 1 },
+  color: {
+    colors: ['#FF0000', '#00FF00', '#0000FF', '#FFFF00'],
+    animationStyle: 'sine',
+    duration: 1,
+    opacity: 1,
+    opacityMode: 'constant',
+    opacitySpeed: 1,
+    direction: 'forward',
+    linearAngle: 45,
+  },
+  multifunction: {
+/*     waveType: 'sine',
+    direction: 'static',
+    rotationSpeed: 0.2,
+    rotationRadius: 120,
+    oscillationRange: 120,
+    angle: 0,                // radians
+    amplitude: 120,
+    frequency: 60,
+    speed: 5,
+    thickness: 2,
+    phaseOffset: 0,
+    numLines: 20,
+    distance: 20,
+    groups: 1,
+    groupDistance: 0,
+    bgColor: '#000000',
+    lineColor: '#ffffff',
+    selectedPalette: 'none', */
 
-
+     
+      waveType: 'sine',
+      direction: 'static',
+      angle: 0,
+      amplitude: 10,
+      frequency: 10,
+      speed: 5,
+      thickness: 1,
+      phaseOffset: 0,
+      numLines: 1,
+      distance: 0,
+      bgColor: '#ffffff',
+      lineColor: '#FF0000',
+      selectedPalette: 'none',
+      rotationSpeed: 0.02,
+      rotationRadius: 150,
+      oscillationRange: 100,
+      groups: 1,
+      groupDistance: 100,
   
-  // ----- Save EVERYTHING -----
+  },
+  shape: {
+    shapeType: 'circle',
+    direction: 'static',
+    rotationSpeed: 0.2,
+    rotationRadius: 120,
+    oscillationRange: 120,
+    angle: 0,             // radians
+    speed: 5,
+    size: 60,
+    numShapes: 20,
+    bgColor: '#000000',
+    shapeColor: '#ffffff',
+    secondColor: '#ff00ff',
+    palette: 'none',
+    layoutSelect: 'random',
+    rowOffset: 0,
+    columnOffset: 0,
+    rowDistance: 40,
+    columnDistance: 40,
+  },
+};
+
+const TherapyPage: React.FC = () => {
+  const { currentUser } = useAuth();
+
+  // 1) tab + synchronous ref to avoid race on first key
+  const [currentAnimation, _setCurrentAnimation] = useState<Tab>('multifunction');
+  const currentTabRef = useRef<Tab>('multifunction');
+  const setCurrentAnimation = (t: Tab) => { currentTabRef.current = t; _setCurrentAnimation(t); };
+
+  // 2) per-tab settings map + ref (so snapshot reads the newest values even if React batches)
+  const [settingsByTab, setSettingsByTab] = useState<Record<Tab, any>>({
+    multifunction: { ...DEFAULTS.multifunction },
+    baselinetyping: { ...DEFAULTS.baselinetyping },
+    shape: { ...DEFAULTS.shape },
+    color: { ...DEFAULTS.color },
+  });
+  const settingsRef = useRef(settingsByTab);
+  useEffect(() => { settingsRef.current = settingsByTab; }, [settingsByTab]);
+
+  // 3) a setter that only touches the *current tab* bucket
+  const setSettingsForCurrentTab = useCallback<React.Dispatch<React.SetStateAction<Settings>>>(
+    (updater) => {
+      const tab = currentTabRef.current; // read synchronously
+      setSettingsByTab(prev => {
+        const curr = prev[tab] ?? {};
+        const next = typeof updater === 'function' ? (updater as any)(curr) : updater;
+        return { ...prev, [tab]: next };
+      });
+    },
+    []
+  );
+
+  const [message, setMessage] = useState<Message | null>(null);
+  useEffect(() => {
+    if (!message) return;
+    const t = setTimeout(() => setMessage(null), 3000);
+    return () => clearTimeout(t);
+  }, [message]);
+
+  // Re-arm TextInput between sessions (forces remount so onTypingStart can fire again)
+  const [typingKey, setTypingKey] = useState<number>(() => Date.now());
+
+  // Snapshot at first visible key
+  const [animAtStart, setAnimAtStart] = useState<AnimSnapshot | null>(null);
+  const handleTypingStart = useCallback(() => {
+    const tab = currentTabRef.current;                         // <- no race
+    const tabSettings = settingsRef.current[tab] ?? {};
+    setAnimAtStart({
+      tab,
+      settings: JSON.parse(JSON.stringify(tabSettings)),
+      startedAt: new Date().toISOString(),
+    });
+  }, []);
+
+  const [displayText, setDisplayText] = useState<string>('');
+
+  // ---------- SAVE (unchanged structure) ----------
   const saveKeystrokeData = async (payload: KeystrokeSavePayload) => {
     const uid = currentUser?.uid;
-    if (!uid) {
-      setMessage({ message: 'You must be logged in to save (no UID).', type: 'error' });
-      return;
-    }
+    if (!uid) { setMessage({ message: 'You must be logged in to save (no UID).', type: 'error' }); return; }
 
     const ts = new Date();
     const sessionId = `${ts.toISOString().replace(/[:.]/g, '-')}-${Math.random().toString(36).slice(2, 8)}`;
 
-    // Build the full record (long JSON)
+    const submitTab = currentTabRef.current;  // read synchronously
+    const submitSettings = JSON.parse(JSON.stringify(settingsRef.current[submitTab] ?? {}));
+
     const fullRecord = {
       userId: uid,
       sessionId,
-
-      // Which tab is active at submit (still useful)
-      animationTab: currentAnimation,
-
-      // Snapshots of animation panel
-      animationAtStart: animAtStart ?? null, // could be null if paste-only
+      animationTab: submitTab,
+      animationAtStart: animAtStart ?? null,
       animationAtSubmit: {
-        tab: currentAnimation,
-        settings: JSON.parse(JSON.stringify(settings)),
+        tab: submitTab,
+        settings: submitSettings,
         submittedAt: ts.toISOString(),
       },
+      settingsSnapshot: submitSettings, // legacy
 
-      // Keep previous single-snapshot for compatibility
-      settingsSnapshot: JSON.parse(JSON.stringify(settings)),
-
-      // Target + typed text
       targetText: payload.targetText || displayText || '',
       typedText: payload.typedText || '',
-
-      // Keystroke stream + analysis + metrics
       keyData: payload.keyData || [],
       analysis: payload.analysis ?? null,
       metrics: payload.metrics ?? null,
-
-      // Optional UI controls from TextInput (font, colors, opacity, etc.)
-      ui: (payload as any).ui ?? undefined,
+      ui: payload.ui ?? undefined,
 
       timestamp: ts.toISOString(),
       localDateTime: ts.toLocaleString(),
       schemaVersion: 1,
     };
 
-/*     try {
-      // 1) STORAGE: JSON
-      const jsonPath = `users/${uid}/keystroke-data/sessions/${sessionId}.json`;
-      const jsonBlob = new Blob([JSON.stringify(fullRecord, null, 2)], { type: 'application/json' });
-      await uploadBytes(storageRef(storage, jsonPath), jsonBlob);
+    try {
+      // ---------- STORAGE: JSON ----------
+      const basePath = `users/${uid}/keystroke-data/sessions/${sessionId}`;
+      const jsonPath = `${basePath}/${sessionId}.json`;
+      const jsonText = JSON.stringify(fullRecord, null, 2);
+      await uploadBytes(storageRef(storage, jsonPath), new Blob([jsonText], { type: 'application/json' }));
 
-      // 1b) STORAGE: CSV for key events
-      const csvRows = (fullRecord.keyData || []).map((k: any, i: number) => ({
+      // ---------- STORAGE: XLSX (multi-sheet) ----------
+      const wb = XLSX.utils.book_new();
+
+      const flatRows = flattenToKeyValueRows({
+        userId: fullRecord.userId,
+        sessionId: fullRecord.sessionId,
+        animationTab: fullRecord.animationTab,
+        animationAtStart: fullRecord.animationAtStart,
+        animationAtSubmit: fullRecord.animationAtSubmit,
+        targetText: fullRecord.targetText,
+        typedText: fullRecord.typedText,
+        metrics: fullRecord.metrics,
+        ui: fullRecord.ui ?? {},
+        timestamp: fullRecord.timestamp,
+        localDateTime: fullRecord.localDateTime,
+        schemaVersion: fullRecord.schemaVersion,
+      });
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(flatRows), 'Summary');
+
+      XLSX.utils.book_append_sheet(
+        wb,
+        XLSX.utils.json_to_sheet([
+          { name: 'targetText', value: fullRecord.targetText ?? '' },
+          { name: 'typedText',  value: fullRecord.typedText  ?? '' },
+        ]),
+        'Texts'
+      );
+
+      const keyRows = (fullRecord.keyData || []).map((k: any, i: number) => ({
         index: i,
         key: k.key,
         pressTime: k.pressTime,
@@ -189,373 +301,167 @@ const opsToRows = (ops: Op[]) =>
         lagTime: k.lagTime,
         totalLagTime: k.totalLagTime,
       }));
-      const csvText = Papa.unparse(csvRows);
-      const csvBlob = new Blob([csvText], { type: 'text/csv;charset=utf-8;' });
-      const csvPath = `users/${uid}/keystroke-data/sessions/${sessionId}.csv`;
-      await uploadBytes(storageRef(storage, csvPath), csvBlob);
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(keyRows), 'KeyEvents');
 
-      // 2) FIRESTORE: summary doc (includes Storage pointers)
-      const summaryDoc = {
-        userId: uid,
-        sessionId,
-        animationTab: currentAnimation,
-        animationAtStart: fullRecord.animationAtStart,
-        animationAtSubmit: fullRecord.animationAtSubmit,
-        targetText: fullRecord.targetText,
-        typedText: fullRecord.typedText,
-        metrics: fullRecord.metrics,
-        storageJsonPath: jsonPath,
-        storageCsvPath: csvPath,
-        approxKeyCount: fullRecord.keyData.length,
-        timestamp: fullRecord.timestamp,
-        localDateTime: fullRecord.localDateTime,
-        schemaVersion: 1,
+      const perKeyRowsArr = perKeyToRows(fullRecord.metrics?.perKey || {});
+      if (perKeyRowsArr.length) {
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(perKeyRowsArr), 'PerKey');
+      }
+
+      const charOpsRows = opsToRows(fullRecord.analysis?.char?.ops || []);
+      if (charOpsRows.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(charOpsRows), 'CharOps');
+      const wordOpsRows = opsToRows(fullRecord.analysis?.word?.ops || []);
+      if (wordOpsRows.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(wordOpsRows), 'WordOps');
+
+      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const xlsxBlob = new Blob([wbout], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const xlsxPath = `${basePath}/${sessionId}.xlsx`;
+      await uploadBytes(storageRef(storage, xlsxPath), xlsxBlob);
+
+      // ---------- STORAGE: CSVs ----------
+      const flatCsv = Papa.unparse(flatRows);
+      await uploadBytes(storageRef(storage, `${basePath}/${sessionId}.session_flat.csv`), new Blob([flatCsv], { type: 'text/csv;charset=utf-8;' }));
+      const keyCsv = Papa.unparse(keyRows);
+      await uploadBytes(storageRef(storage, `${basePath}/${sessionId}.key_events.csv`), new Blob([keyCsv], { type: 'text/csv;charset=utf-8;' }));
+      if (perKeyRowsArr.length) {
+        const perKeyCsv = Papa.unparse(perKeyRowsArr);
+        await uploadBytes(storageRef(storage, `${basePath}/${sessionId}.per_key.csv`), new Blob([perKeyCsv], { type: 'text/csv;charset=utf-8;' }));
+      }
+      if (charOpsRows.length) {
+        const charOpsCsv = Papa.unparse(charOpsRows);
+        await uploadBytes(storageRef(storage, `${basePath}/${sessionId}.char_ops.csv`), new Blob([charOpsCsv], { type: 'text/csv;charset=utf-8;' }));
+      }
+      if (wordOpsRows.length) {
+        const wordOpsCsv = Papa.unparse(wordOpsRows);
+        await uploadBytes(storageRef(storage, `${basePath}/${sessionId}.word_ops.csv`), new Blob([wordOpsCsv], { type: 'text/csv;charset=utf-8;' }));
+      }
+
+      // ---------- FIRESTORE ----------
+      const jsonSize = jsonText.length;
+      const storagePaths = {
+        json: jsonPath,
+        xlsx: xlsxPath,
+        csv: {
+          flat: `${basePath}/${sessionId}.session_flat.csv`,
+          keyEvents: `${basePath}/${sessionId}.key_events.csv`,
+          perKey: `${basePath}/${sessionId}.per_key.csv`,
+          charOps: `${basePath}/${sessionId}.char_ops.csv`,
+          wordOps: `${basePath}/${sessionId}.word_ops.csv`,
+        },
       };
-      await addDoc(collection(db, `users/${uid}/keystroke-data`), summaryDoc);
 
-      // 3) RTDB: small summary node
+      if (jsonSize < 900_000) {
+        await addDoc(collection(db, `users/${uid}/keystroke-data`), { ...fullRecord, storagePaths });
+      } else {
+        await addDoc(collection(db, `users/${uid}/keystroke-data`), {
+          userId: uid,
+          sessionId,
+          animationTab: fullRecord.animationTab,
+          animationAtStart: fullRecord.animationAtStart,
+          animationAtSubmit: fullRecord.animationAtSubmit,
+          targetText: fullRecord.targetText,
+          typedText: fullRecord.typedText,
+          metrics: fullRecord.metrics,
+          approxKeyCount: (fullRecord.keyData || []).length,
+          timestamp: fullRecord.timestamp,
+          localDateTime: fullRecord.localDateTime,
+          schemaVersion: fullRecord.schemaVersion,
+          storagePaths,
+        });
+      }
+
+      // ---------- RTDB ----------
       await rtdbSet(
         rtdbRef(rtdb, `users/${uid}/keystroke-data/${sessionId}`),
         {
           status: 'submitted',
-          animationTab: currentAnimation,
+          animationTab: fullRecord.animationTab,
           targetLength: fullRecord.targetText?.length ?? 0,
           typedLength: fullRecord.typedText?.length ?? 0,
           wordCount: (fullRecord.typedText || '').trim().split(/\s+/).filter(Boolean).length,
-          storageJsonPath: jsonPath,
-          storageCsvPath: csvPath,
           createdAt: serverTimestamp(),
           clientTs: fullRecord.timestamp,
+          storageJsonPath: jsonPath,
+          storageXlsxPath: xlsxPath,
         }
       );
 
-      setMessage({ message: 'Saved JSON + CSV to Storage, summary to Firestore & RTDB ✔️', type: 'success' });
+      setMessage({ message: 'Saved JSON + XLSX + CSVs; Firestore & RTDB updated ✔️', type: 'success' });
+
+      // re-arm the next session
+      setAnimAtStart(null);
+      setTypingKey(Date.now());
     } catch (err: any) {
       console.error('Save error:', err);
-      setMessage({
-        message: `Error saving data: ${err?.code || ''} ${err?.message || String(err)}`,
-        type: 'error',
-      });
-    } */
-  
-  try {
- 
-
-  // ---------- STORAGE: JSON (full) ----------
-const jsonPath = `users/${uid}/keystroke-data/sessions/${sessionId}.json`;
-const jsonText = JSON.stringify(fullRecord, null, 2);
-await uploadBytes(storageRef(storage, jsonPath), new Blob([jsonText], { type: 'application/json' }));
-
-// ---------- STORAGE: XLSX (one workbook, many sheets) ----------
-const wb = XLSX.utils.book_new();
-
-// A) Summary (flattened important fields; huge arrays kept in their own sheets)
-const flatRows = flattenToKeyValueRows({
-  
-    userId: fullRecord.userId,
-    sessionId: fullRecord.sessionId,
-    animationTab: fullRecord.animationTab,
-    animationAtStart: fullRecord.animationAtStart,
-    animationAtSubmit: fullRecord.animationAtSubmit,
-    targetText: fullRecord.targetText,
-    typedText: fullRecord.typedText,
-    metrics: fullRecord.metrics,
-    ui: fullRecord.ui ?? {},
-    timestamp: fullRecord.timestamp,
-    localDateTime: fullRecord.localDateTime,
-    schemaVersion: fullRecord.schemaVersion,
-  });
-
-XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(flatRows), 'Summary');
-
-// B) Texts (store full target & typed as separate rows to avoid giant single cell)
-XLSX.utils.book_append_sheet(
-  wb,
-  XLSX.utils.json_to_sheet([
-    { name: 'targetText', value: fullRecord.targetText ?? '' },
-    { name: 'typedText',  value: fullRecord.typedText  ?? '' },
-  ]),
-  'Texts'
-);
-
-// C) KeyEvents (every keystroke including Backspace/Enter)
-const keyRows = (fullRecord.keyData || []).map((k: any, i: number) => ({
-  index: i,
-  key: k.key,
-  pressTime: k.pressTime,
-  releaseTime: k.releaseTime ?? '',
-  holdTime: k.holdTime ?? '',
-  lagTime: k.lagTime,
-  totalLagTime: k.totalLagTime,
-}));
-XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(keyRows), 'KeyEvents');
-
-// D) PerKey stats
-const perKeyRows = perKeyToRows(fullRecord.metrics?.perKey || {});
-if (perKeyRows.length) {
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(perKeyRows), 'PerKey');
-}
-
-// E) Alignment ops
-const charOpsRows = opsToRows(fullRecord.analysis?.char?.ops || []);
-if (charOpsRows.length) {
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(charOpsRows), 'CharOps');
-}
-const wordOpsRows = opsToRows(fullRecord.analysis?.word?.ops || []);
-if (wordOpsRows.length) {
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(wordOpsRows), 'WordOps');
-}
-
-// Write workbook -> ArrayBuffer -> Blob
-const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-const xlsxBlob = new Blob([wbout], {
-  type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-});
-const xlsxPath = `users/${uid}/keystroke-data/sessions/${sessionId}.xlsx`;
-await uploadBytes(storageRef(storage, xlsxPath), xlsxBlob);
-
-// ---------- FIRESTORE: store full doc if small, else pointer summary ----------
-const jsonSize = jsonText.length;
-const storagePaths = {
-  json: jsonPath,
-  xlsx: xlsxPath,
-};
-
-if (jsonSize < 900_000) {
-  await addDoc(collection(db, `users/${uid}/keystroke-data`), {
-    ...fullRecord,
-    storagePaths,
-  });
-} else {
-  await addDoc(collection(db, `users/${uid}/keystroke-data`), {
-    userId: uid,
-    sessionId,
-    animationTab: fullRecord.animationTab,
-    animationAtStart: fullRecord.animationAtStart,
-    animationAtSubmit: fullRecord.animationAtSubmit,
-    targetText: fullRecord.targetText,
-    typedText: fullRecord.typedText,
-    metrics: fullRecord.metrics,
-    approxKeyCount: (fullRecord.keyData || []).length,
-    timestamp: fullRecord.timestamp,
-    localDateTime: fullRecord.localDateTime,
-    schemaVersion: fullRecord.schemaVersion,
-    storagePaths,
-  });
-}
-
-// ---------- RTDB: keep your compact summary ----------
-await rtdbSet(
-  rtdbRef(rtdb, `users/${uid}/keystroke-data/${sessionId}`),
-  {
-    status: 'submitted',
-    animationTab: fullRecord.animationTab,
-    targetLength: fullRecord.targetText?.length ?? 0,
-    typedLength: fullRecord.typedText?.length ?? 0,
-    wordCount: (fullRecord.typedText || '').trim().split(/\s+/).filter(Boolean).length,
-    createdAt: serverTimestamp(),
-    clientTs: fullRecord.timestamp,
-    storageJsonPath: jsonPath,
-    storageXlsxPath: xlsxPath,
-  }
-);
-
-setMessage({ message: 'Saved JSON + single XLSX (multi-sheet), Firestore & RTDB updated ✔️', type: 'success' });
-
-
-  // ---------- STORAGE: CSVs ----------
-/*   // A) full record flattened (key/value rows)
-  const flatRows = flattenToKeyValueRows({
-    userId: fullRecord.userId,
-    sessionId: fullRecord.sessionId,
-    animationTab: fullRecord.animationTab,
-    animationAtStart: fullRecord.animationAtStart,
-    animationAtSubmit: fullRecord.animationAtSubmit,
-    targetText: fullRecord.targetText,
-    typedText: fullRecord.typedText,
-    metrics: fullRecord.metrics,
-    ui: fullRecord.ui ?? {},
-    timestamp: fullRecord.timestamp,
-    localDateTime: fullRecord.localDateTime,
-    schemaVersion: fullRecord.schemaVersion,
-  }); */
-  const flatCsv = Papa.unparse(flatRows);
-  await uploadBytes(
-    storageRef(storage, `users/${uid}/keystroke-data/sessions/${sessionId}.session_flat.csv`),
-    new Blob([flatCsv], { type: 'text/csv;charset=utf-8;' })
-  );
-
-  // B) every keystroke (includes Backspace/Enter/etc.)
-/*   const keyRows = (fullRecord.keyData || []).map((k: any, i: number) => ({
-    index: i,
-    key: k.key,
-    pressTime: k.pressTime,
-    releaseTime: k.releaseTime ?? '',
-    holdTime: k.holdTime ?? '',
-    lagTime: k.lagTime,
-    totalLagTime: k.totalLagTime,
-  })); */
-  const keyCsv = Papa.unparse(keyRows);
-  await uploadBytes(
-    storageRef(storage, `users/${uid}/keystroke-data/sessions/${sessionId}.key_events.csv`),
-    new Blob([keyCsv], { type: 'text/csv;charset=utf-8;' })
-  );
-
-  // C) per-key timing stats from metrics
-//  const perKeyRows = perKeyToRows(fullRecord.metrics?.perKey || {});
-  if (perKeyRows.length) {
-    const perKeyCsv = Papa.unparse(perKeyRows);
-    await uploadBytes(
-      storageRef(storage, `users/${uid}/keystroke-data/sessions/${sessionId}.per_key.csv`),
-      new Blob([perKeyCsv], { type: 'text/csv;charset=utf-8;' })
-    );
-  }
-
-  // D) alignment ops (character-level)
-//  const charOpsRows = opsToRows(fullRecord.analysis?.char?.ops || []);
-  if (charOpsRows.length) {
-    const charOpsCsv = Papa.unparse(charOpsRows);
-    await uploadBytes(
-      storageRef(storage, `users/${uid}/keystroke-data/sessions/${sessionId}.char_ops.csv`),
-      new Blob([charOpsCsv], { type: 'text/csv;charset=utf-8;' })
-    );
-  }
-
-  // E) alignment ops (word-level)
-//  const wordOpsRows = opsToRows(fullRecord.analysis?.word?.ops || []);
-  if (wordOpsRows.length) {
-    const wordOpsCsv = Papa.unparse(wordOpsRows);
-    await uploadBytes(
-      storageRef(storage, `users/${uid}/keystroke-data/sessions/${sessionId}.word_ops.csv`),
-      new Blob([wordOpsCsv], { type: 'text/csv;charset=utf-8;' })
-    );
-  }
-
-  // ---------- FIRESTORE: try full doc, else pointer summary ----------
-  
-  if (jsonSize < 900_000) {
-    // full record fits comfortably — store the whole thing
-    await addDoc(collection(db, `users/${uid}/keystroke-data`), {
-      ...fullRecord,
-      storageJsonPath: jsonPath,
-      storageCsvPaths: {
-        flat: `users/${uid}/keystroke-data/sessions/${sessionId}.session_flat.csv`,
-        keyEvents: `users/${uid}/keystroke-data/sessions/${sessionId}.key_events.csv`,
-        perKey: `users/${uid}/keystroke-data/sessions/${sessionId}.per_key.csv`,
-        charOps: `users/${uid}/keystroke-data/sessions/${sessionId}.char_ops.csv`,
-        wordOps: `users/${uid}/keystroke-data/sessions/${sessionId}.word_ops.csv`,
-      },
-    });
-  } else {
-    // too big — store a compact pointer summary
-    await addDoc(collection(db, `users/${uid}/keystroke-data`), {
-      userId: uid,
-      sessionId,
-      animationTab: fullRecord.animationTab,
-      animationAtStart: fullRecord.animationAtStart,
-      animationAtSubmit: fullRecord.animationAtSubmit,
-      targetText: fullRecord.targetText,
-      typedText: fullRecord.typedText,
-      metrics: fullRecord.metrics,
-      approxKeyCount: (fullRecord.keyData || []).length,
-      timestamp: fullRecord.timestamp,
-      localDateTime: fullRecord.localDateTime,
-      schemaVersion: fullRecord.schemaVersion,
-      storageJsonPath: jsonPath,
-      storageCsvPaths: {
-        flat: `users/${uid}/keystroke-data/sessions/${sessionId}.session_flat.csv`,
-        keyEvents: `users/${uid}/keystroke-data/sessions/${sessionId}.key_events.csv`,
-        perKey: `users/${uid}/keystroke-data/sessions/${sessionId}.per_key.csv`,
-        charOps: `users/${uid}/keystroke-data/sessions/${sessionId}.char_ops.csv`,
-        wordOps: `users/${uid}/keystroke-data/sessions/${sessionId}.word_ops.csv`,
-      },
-    });
-  }
-
-  // ---------- RTDB: compact summary (expand if you want) ----------
-  await rtdbSet(
-    rtdbRef(rtdb, `users/${uid}/keystroke-data/${sessionId}`),
-    {
-      status: 'submitted',
-      animationTab: fullRecord.animationTab,
-      targetLength: fullRecord.targetText?.length ?? 0,
-      typedLength: fullRecord.typedText?.length ?? 0,
-      wordCount: (fullRecord.typedText || '').trim().split(/\s+/).filter(Boolean).length,
-      createdAt: serverTimestamp(),
-      clientTs: fullRecord.timestamp,
-      storageJsonPath: jsonPath,
+      setMessage({ message: `Error saving data: ${err?.code || ''} ${err?.message || String(err)}`, type: 'error' });
     }
-  );
-
-  setMessage({ message: 'Saved JSON + full CSV set to Storage, and Firestore/RTDB updated ✔️', type: 'success' });
-} catch (err: any) {
-  console.error('Save error:', err);
-  setMessage({
-    message: `Error saving data: ${err?.code || ''} ${err?.message || String(err)}`,
-    type: 'error',
-  });
-}
-
-  
-    };
+  };
 
   return (
     <div className="relative w-full">
       <div className="flex justify-center text-sm text-gray-600 rounded p-2 mb-4 w-full">
         <DateTimeDisplay />
-        <button
-          onClick={() => setCurrentAnimation('baselinetyping')}
-          className={`p-2 mx-2 ${currentAnimation === 'baselinetyping' ? 'bg-blue-500 text-white rounded' : 'bg-gray-200'}`}
-        >
+        <button onClick={() => setCurrentAnimation('baselinetyping')}
+          className={`p-2 mx-2 ${currentAnimation === 'baselinetyping' ? 'bg-blue-500 text-white rounded' : 'bg-gray-200'}`}>
           Baseline Typing
         </button>
-        <button
-          onClick={() => setCurrentAnimation('multifunction')}
-          className={`p-2 mx-2 ${currentAnimation === 'multifunction' ? 'bg-blue-500 text-white rounded' : 'bg-gray-200'}`}
-        >
+        <button onClick={() => setCurrentAnimation('multifunction')}
+          className={`p-2 mx-2 ${currentAnimation === 'multifunction' ? 'bg-blue-500 text-white rounded' : 'bg-gray-200'}`}>
           Multifunction Animation
         </button>
-        <button
-          onClick={() => setCurrentAnimation('shape')}
-          className={`p-2 mx-2 ${currentAnimation === 'shape' ? 'bg-blue-500 text-white rounded' : 'bg-gray-200'}`}
-        >
+        <button onClick={() => setCurrentAnimation('shape')}
+          className={`p-2 mx-2 ${currentAnimation === 'shape' ? 'bg-blue-500 text-white rounded' : 'bg-gray-200'}`}>
           Shape Animation
         </button>
-        <button
-          onClick={() => setCurrentAnimation('color')}
-          className={`p-2 mx-2 ${currentAnimation === 'color' ? 'bg-blue-500 text-white rounded' : 'bg-gray-200'}`}
-        >
+        <button onClick={() => setCurrentAnimation('color')}
+          className={`p-2 mx-2 ${currentAnimation === 'color' ? 'bg-blue-500 text-white rounded' : 'bg-gray-200'}`}>
           Color Animation
         </button>
       </div>
 
-      {currentAnimation === 'baselinetyping' && <BaselineTyping settings={settings} setSettings={setSettings} />}
-      {currentAnimation === 'multifunction' && <MultifunctionAnimation settings={settings} setSettings={setSettings} />}
-      {currentAnimation === 'shape' && <ShapeAnimations settings={settings} setSettings={setSettings} />}
-      {currentAnimation === 'color' && <ColorAnimation settings={settings} setSettings={setSettings} />}
+      {currentAnimation === 'baselinetyping' && (
+        <BaselineTyping
+          settings={settingsByTab.baselinetyping}
+          setSettings={setSettingsForCurrentTab}
+        />
+      )}
+      {currentAnimation === 'multifunction' && (
+        <MultifunctionAnimation
+          settings={settingsByTab.multifunction}
+          setSettings={setSettingsForCurrentTab}
+        />
+      )}
+      {currentAnimation === 'shape' && (
+        <ShapeAnimations
+          settings={settingsByTab.shape}
+          setSettings={setSettingsForCurrentTab}
+        />
+      )}
+      {currentAnimation === 'color' && (
+        <ColorAnimation
+          settings={settingsByTab.color}
+          setSettings={setSettingsForCurrentTab}
+        />
+      )}
 
-      {/* push content down for background visibility */}
       <div className="relative w-full ml-52 mt-[22vh]">
         <div className="w-full max-w-9xl">
           <TextInput
+            key={typingKey}
             placeholder="Type here…"
             displayText={displayText}
             setDisplayText={setDisplayText}
             saveKeystrokeData={saveKeystrokeData}
-            onTypingStart={handleTypingStart}  // capture animation-at-start
+            onTypingStart={handleTypingStart}
           />
-
           <div className="w-full max-w-9xl mt-4">
             <TextDisplay displayText={displayText} setDisplayText={setDisplayText} />
           </div>
-
           {message && (
             <div className="mt-3">
-              <div
-                className={`inline-block text-white text-xs px-4 py-2 rounded shadow ${
-                  message.type === 'error' ? 'bg-red-500' : 'bg-green-500'
-                }`}
-              >
+              <div className={`inline-block text-white text-xs px-4 py-2 rounded shadow ${message.type === 'error' ? 'bg-red-500' : 'bg-green-500'}`}>
                 {message.message}
               </div>
             </div>
@@ -567,6 +473,578 @@ setMessage({ message: 'Saved JSON + single XLSX (multi-sheet), Firestore & RTDB 
 };
 
 export default TherapyPage;
+
+
+
+// src/components/pages/TherapyPage.tsx
+// import React, { useState, useEffect, useCallback } from 'react';
+
+// import MultifunctionAnimation from '../Therapy/MultifunctionAnimation';
+// import ShapeAnimations from '../Therapy/ShapeAnimations';
+// import ColorAnimation from '../Therapy/ColorAnimation';
+// import BaselineTyping from '../Therapy/BaselineTyping';
+
+// import DateTimeDisplay from '../common/DateTimeDisplay';
+// import TextDisplay from '../Therapy/TextDisplay';
+// import TextInput from '../Therapy/TextInput';
+// import type { KeystrokeSavePayload } from '../Therapy/TextInput';
+
+// import { useAuth } from '../../data/AuthContext';
+// import { addDoc, collection } from 'firebase/firestore';
+// import { db, storage, rtdb } from '../../firebase/firebase';
+// import { ref as storageRef, uploadBytes } from 'firebase/storage';
+// import { ref as rtdbRef, set as rtdbSet, serverTimestamp } from 'firebase/database';
+// import Papa from 'papaparse';
+// import * as XLSX from 'xlsx';
+
+// type Tab = 'multifunction' | 'baselinetyping' | 'shape' | 'color';
+
+// interface Message { message: string; type: 'success' | 'error'; }
+// interface Settings { [key: string]: any; }
+
+// interface AnimSnapshot {
+//   tab: Tab;
+//   settings: any;      // snapshot at typing start
+//   startedAt: string;  // ISO time
+// }
+
+
+// // --- SETTINGS TYPES FOR OTHER MODULES (adjust to your real ones) ---
+// export interface ShapeSettings { /* your shape controls */ }
+// export interface MultiSettings { /* your multifunction controls */ }
+// export interface BaselineTyping { /* your shape controls */ }
+// export interface ColorAnimation { /* your multifunction controls */ }
+
+// const TherapyPage: React.FC = () => {
+//   // ----- Hooks (must be inside component) -----
+
+//   const { currentUser } = useAuth();
+//   // which tab is active
+//   const [currentAnimation, setCurrentAnimation] =
+//     useState<'multifunction'|'baselinetyping'|'shape'|'color'>('multifunction');
+
+//   const [message, setMessage] = useState<{message:string; type:'success'|'error'}|null>(null);
+ 
+//   //const [message, setMessage] = useState<Message | null>(null);
+//   const [settings, setSettings] = useState<Settings>({});
+//   const [displayText, setDisplayText] = useState<string>('');
+
+
+//     // LIFTED SETTINGS (owned by TherapyPage)
+//   const [baselineSettings, setBaselineSettings] = useState<BaselineTypingSettings>({} as BaselineTypingSettings);
+//   const [colorSettings, setColorSettings]       = useState<ColorAnimationSettings>({} as ColorAnimationSettings);
+//   const [shapeSettings, setShapeSettings]       = useState<ShapeSettings>({} as ShapeSettings);
+//   const [multiSettings, setMultiSettings]       = useState<MultiSettings>({} as MultiSettings);
+
+//   // snapshot captured at first keystroke
+//   const [animAtStart, setAnimAtStart] = useState<null | {
+//     tab: 'multifunction'|'baselinetyping'|'shape'|'color';
+//     settings: any;
+//     startedAt: string;
+//   }>(null);
+
+//   useEffect(() => {
+//     if (!message) return;
+//     const t = setTimeout(() => setMessage(null), 2500);
+//     return () => clearTimeout(t);
+//   }, [message]);
+
+//   // When typing starts, capture a deep copy of the *active* module settings
+//   const handleTypingStart = useCallback(() => {
+//     const now = new Date().toISOString();
+//     const snapshot = () => {
+//       switch (currentAnimation) {
+//         case 'baselinetyping': return JSON.parse(JSON.stringify(baselineSettings));
+//         case 'color':          return JSON.parse(JSON.stringify(colorSettings));
+//         case 'shape':          return JSON.parse(JSON.stringify(shapeSettings));
+//         case 'multifunction':  return JSON.parse(JSON.stringify(multiSettings));
+//       }
+//     };
+//     setAnimAtStart({
+//       tab: currentAnimation,
+//       settings: snapshot(),
+//       startedAt: now,
+//     });
+//   }, [currentAnimation, baselineSettings, colorSettings, shapeSettings, multiSettings]);
+
+
+// // --- helpers to flatten objects and CSV-ify arrays ---
+// const isPlainObject = (v: any) => v && typeof v === 'object' && !Array.isArray(v);
+
+// const flattenToKeyValueRows = (obj: any, prefix = ''): Array<{ key: string; value: string | number | boolean | null }> => {
+//   const rows: Array<{ key: string; value: any }> = [];
+//   const walk = (val: any, pfx: string) => {
+//     if (isPlainObject(val)) {
+//       for (const k of Object.keys(val)) walk(val[k], pfx ? `${pfx}.${k}` : k);
+//     } else if (Array.isArray(val)) {
+//       // store arrays as JSON; (keyData/etc will get their own CSVs separately)
+//       rows.push({ key: pfx, value: JSON.stringify(val) });
+//     } else {
+//       rows.push({ key: pfx, value: val });
+//     }
+//   };
+//   walk(obj, prefix);
+//   return rows;
+// };
+
+// // turn perKey object into rows
+// const perKeyToRows = (perKey: Record<string, { count: number; meanHoldMs: number; meanLagMs: number }>) =>
+//   Object.entries(perKey || {}).map(([ch, v]) => ({
+//     key: ch,
+//     count: v.count,
+//     meanHoldMs: v.meanHoldMs,
+//     meanLagMs: v.meanLagMs,
+//   }));
+
+// // ops to rows
+// type Op = { op: 'match'|'ins'|'del'|'sub'; a?: string; b?: string; ai: number; bi: number };
+// const opsToRows = (ops: Op[]) =>
+//   (ops || []).map((o, i) => ({ index: i, op: o.op, a: o.a ?? '', b: o.b ?? '', ai: o.ai, bi: o.bi }));
+
+
+
+  
+//   // ----- Save EVERYTHING -----
+//   const saveKeystrokeData = async (payload: KeystrokeSavePayload) => {
+//     const uid = currentUser?.uid;
+//     if (!uid) {
+//       setMessage({ message: 'You must be logged in to save (no UID).', type: 'error' });
+//       return;
+//     }
+
+//     const ts = new Date();
+//     const sessionId = `${ts.toISOString().replace(/[:.]/g, '-')}-${Math.random().toString(36).slice(2, 8)}`;
+
+//     // Build the full record (long JSON)
+//     const fullRecord = {
+//       userId: uid,
+//       sessionId,
+
+//       // Which tab is active at submit (still useful)
+//       animationTab: currentAnimation,
+
+//       // Snapshots of animation panel
+//       animationAtStart: animAtStart ?? null, // could be null if paste-only
+//       animationAtSubmit: {
+//         tab: currentAnimation,
+//         settings: JSON.parse(JSON.stringify(settings)),
+//         submittedAt: ts.toISOString(),
+//       },
+
+//       // Keep previous single-snapshot for compatibility
+//       settingsSnapshot: JSON.parse(JSON.stringify(settings)),
+
+//       // Target + typed text
+//       targetText: payload.targetText || displayText || '',
+//       typedText: payload.typedText || '',
+
+//       // Keystroke stream + analysis + metrics
+//       keyData: payload.keyData || [],
+//       analysis: payload.analysis ?? null,
+//       metrics: payload.metrics ?? null,
+
+//       // Optional UI controls from TextInput (font, colors, opacity, etc.)
+//       ui: (payload as any).ui ?? undefined,
+
+//       timestamp: ts.toISOString(),
+//       localDateTime: ts.toLocaleString(),
+//       schemaVersion: 1,
+//     };
+
+// /*     try {
+//       // 1) STORAGE: JSON
+//       const jsonPath = `users/${uid}/keystroke-data/sessions/${sessionId}.json`;
+//       const jsonBlob = new Blob([JSON.stringify(fullRecord, null, 2)], { type: 'application/json' });
+//       await uploadBytes(storageRef(storage, jsonPath), jsonBlob);
+
+//       // 1b) STORAGE: CSV for key events
+//       const csvRows = (fullRecord.keyData || []).map((k: any, i: number) => ({
+//         index: i,
+//         key: k.key,
+//         pressTime: k.pressTime,
+//         releaseTime: k.releaseTime ?? '',
+//         holdTime: k.holdTime ?? '',
+//         lagTime: k.lagTime,
+//         totalLagTime: k.totalLagTime,
+//       }));
+//       const csvText = Papa.unparse(csvRows);
+//       const csvBlob = new Blob([csvText], { type: 'text/csv;charset=utf-8;' });
+//       const csvPath = `users/${uid}/keystroke-data/sessions/${sessionId}.csv`;
+//       await uploadBytes(storageRef(storage, csvPath), csvBlob);
+
+//       // 2) FIRESTORE: summary doc (includes Storage pointers)
+//       const summaryDoc = {
+//         userId: uid,
+//         sessionId,
+//         animationTab: currentAnimation,
+//         animationAtStart: fullRecord.animationAtStart,
+//         animationAtSubmit: fullRecord.animationAtSubmit,
+//         targetText: fullRecord.targetText,
+//         typedText: fullRecord.typedText,
+//         metrics: fullRecord.metrics,
+//         storageJsonPath: jsonPath,
+//         storageCsvPath: csvPath,
+//         approxKeyCount: fullRecord.keyData.length,
+//         timestamp: fullRecord.timestamp,
+//         localDateTime: fullRecord.localDateTime,
+//         schemaVersion: 1,
+//       };
+//       await addDoc(collection(db, `users/${uid}/keystroke-data`), summaryDoc);
+
+//       // 3) RTDB: small summary node
+//       await rtdbSet(
+//         rtdbRef(rtdb, `users/${uid}/keystroke-data/${sessionId}`),
+//         {
+//           status: 'submitted',
+//           animationTab: currentAnimation,
+//           targetLength: fullRecord.targetText?.length ?? 0,
+//           typedLength: fullRecord.typedText?.length ?? 0,
+//           wordCount: (fullRecord.typedText || '').trim().split(/\s+/).filter(Boolean).length,
+//           storageJsonPath: jsonPath,
+//           storageCsvPath: csvPath,
+//           createdAt: serverTimestamp(),
+//           clientTs: fullRecord.timestamp,
+//         }
+//       );
+
+//       setMessage({ message: 'Saved JSON + CSV to Storage, summary to Firestore & RTDB ✔️', type: 'success' });
+//     } catch (err: any) {
+//       console.error('Save error:', err);
+//       setMessage({
+//         message: `Error saving data: ${err?.code || ''} ${err?.message || String(err)}`,
+//         type: 'error',
+//       });
+//     } */
+  
+//   try {
+ 
+
+//   // ---------- STORAGE: JSON (full) ----------
+// const jsonPath = `users/${uid}/keystroke-data/sessions/${sessionId}.json`;
+// const jsonText = JSON.stringify(fullRecord, null, 2);
+// await uploadBytes(storageRef(storage, jsonPath), new Blob([jsonText], { type: 'application/json' }));
+
+// // ---------- STORAGE: XLSX (one workbook, many sheets) ----------
+// const wb = XLSX.utils.book_new();
+
+// // A) Summary (flattened important fields; huge arrays kept in their own sheets)
+// const flatRows = flattenToKeyValueRows({
+  
+//     userId: fullRecord.userId,
+//     sessionId: fullRecord.sessionId,
+//     animationTab: fullRecord.animationTab,
+//     animationAtStart: fullRecord.animationAtStart,
+//     animationAtSubmit: fullRecord.animationAtSubmit,
+//     targetText: fullRecord.targetText,
+//     typedText: fullRecord.typedText,
+//     metrics: fullRecord.metrics,
+//     ui: fullRecord.ui ?? {},
+//     timestamp: fullRecord.timestamp,
+//     localDateTime: fullRecord.localDateTime,
+//     schemaVersion: fullRecord.schemaVersion,
+//   });
+
+// XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(flatRows), 'Summary');
+
+// // B) Texts (store full target & typed as separate rows to avoid giant single cell)
+// XLSX.utils.book_append_sheet(
+//   wb,
+//   XLSX.utils.json_to_sheet([
+//     { name: 'targetText', value: fullRecord.targetText ?? '' },
+//     { name: 'typedText',  value: fullRecord.typedText  ?? '' },
+//   ]),
+//   'Texts'
+// );
+
+// // C) KeyEvents (every keystroke including Backspace/Enter)
+// const keyRows = (fullRecord.keyData || []).map((k: any, i: number) => ({
+//   index: i,
+//   key: k.key,
+//   pressTime: k.pressTime,
+//   releaseTime: k.releaseTime ?? '',
+//   holdTime: k.holdTime ?? '',
+//   lagTime: k.lagTime,
+//   totalLagTime: k.totalLagTime,
+// }));
+// XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(keyRows), 'KeyEvents');
+
+// // D) PerKey stats
+// const perKeyRows = perKeyToRows(fullRecord.metrics?.perKey || {});
+// if (perKeyRows.length) {
+//   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(perKeyRows), 'PerKey');
+// }
+
+// // E) Alignment ops
+// const charOpsRows = opsToRows(fullRecord.analysis?.char?.ops || []);
+// if (charOpsRows.length) {
+//   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(charOpsRows), 'CharOps');
+// }
+// const wordOpsRows = opsToRows(fullRecord.analysis?.word?.ops || []);
+// if (wordOpsRows.length) {
+//   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(wordOpsRows), 'WordOps');
+// }
+
+// // Write workbook -> ArrayBuffer -> Blob
+// const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+// const xlsxBlob = new Blob([wbout], {
+//   type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+// });
+// const xlsxPath = `users/${uid}/keystroke-data/sessions/${sessionId}.xlsx`;
+// await uploadBytes(storageRef(storage, xlsxPath), xlsxBlob);
+
+// // ---------- FIRESTORE: store full doc if small, else pointer summary ----------
+// const jsonSize = jsonText.length;
+// const storagePaths = {
+//   json: jsonPath,
+//   xlsx: xlsxPath,
+// };
+
+// if (jsonSize < 900_000) {
+//   await addDoc(collection(db, `users/${uid}/keystroke-data`), {
+//     ...fullRecord,
+//     storagePaths,
+//   });
+// } else {
+//   await addDoc(collection(db, `users/${uid}/keystroke-data`), {
+//     userId: uid,
+//     sessionId,
+//     animationTab: fullRecord.animationTab,
+//     animationAtStart: fullRecord.animationAtStart,
+//     animationAtSubmit: fullRecord.animationAtSubmit,
+//     targetText: fullRecord.targetText,
+//     typedText: fullRecord.typedText,
+//     metrics: fullRecord.metrics,
+//     approxKeyCount: (fullRecord.keyData || []).length,
+//     timestamp: fullRecord.timestamp,
+//     localDateTime: fullRecord.localDateTime,
+//     schemaVersion: fullRecord.schemaVersion,
+//     storagePaths,
+//   });
+// }
+
+// // ---------- RTDB: keep your compact summary ----------
+// await rtdbSet(
+//   rtdbRef(rtdb, `users/${uid}/keystroke-data/${sessionId}`),
+//   {
+//     status: 'submitted',
+//     animationTab: fullRecord.animationTab,
+//     targetLength: fullRecord.targetText?.length ?? 0,
+//     typedLength: fullRecord.typedText?.length ?? 0,
+//     wordCount: (fullRecord.typedText || '').trim().split(/\s+/).filter(Boolean).length,
+//     createdAt: serverTimestamp(),
+//     clientTs: fullRecord.timestamp,
+//     storageJsonPath: jsonPath,
+//     storageXlsxPath: xlsxPath,
+//   }
+// );
+
+// setMessage({ message: 'Saved JSON + single XLSX (multi-sheet), Firestore & RTDB updated ✔️', type: 'success' });
+
+
+//   // ---------- STORAGE: CSVs ----------
+// /*   // A) full record flattened (key/value rows)
+//   const flatRows = flattenToKeyValueRows({
+//     userId: fullRecord.userId,
+//     sessionId: fullRecord.sessionId,
+//     animationTab: fullRecord.animationTab,
+//     animationAtStart: fullRecord.animationAtStart,
+//     animationAtSubmit: fullRecord.animationAtSubmit,
+//     targetText: fullRecord.targetText,
+//     typedText: fullRecord.typedText,
+//     metrics: fullRecord.metrics,
+//     ui: fullRecord.ui ?? {},
+//     timestamp: fullRecord.timestamp,
+//     localDateTime: fullRecord.localDateTime,
+//     schemaVersion: fullRecord.schemaVersion,
+//   }); */
+//   const flatCsv = Papa.unparse(flatRows);
+//   await uploadBytes(
+//     storageRef(storage, `users/${uid}/keystroke-data/sessions/${sessionId}.session_flat.csv`),
+//     new Blob([flatCsv], { type: 'text/csv;charset=utf-8;' })
+//   );
+
+//   // B) every keystroke (includes Backspace/Enter/etc.)
+// /*   const keyRows = (fullRecord.keyData || []).map((k: any, i: number) => ({
+//     index: i,
+//     key: k.key,
+//     pressTime: k.pressTime,
+//     releaseTime: k.releaseTime ?? '',
+//     holdTime: k.holdTime ?? '',
+//     lagTime: k.lagTime,
+//     totalLagTime: k.totalLagTime,
+//   })); */
+//   const keyCsv = Papa.unparse(keyRows);
+//   await uploadBytes(
+//     storageRef(storage, `users/${uid}/keystroke-data/sessions/${sessionId}.key_events.csv`),
+//     new Blob([keyCsv], { type: 'text/csv;charset=utf-8;' })
+//   );
+
+//   // C) per-key timing stats from metrics
+// //  const perKeyRows = perKeyToRows(fullRecord.metrics?.perKey || {});
+//   if (perKeyRows.length) {
+//     const perKeyCsv = Papa.unparse(perKeyRows);
+//     await uploadBytes(
+//       storageRef(storage, `users/${uid}/keystroke-data/sessions/${sessionId}.per_key.csv`),
+//       new Blob([perKeyCsv], { type: 'text/csv;charset=utf-8;' })
+//     );
+//   }
+
+//   // D) alignment ops (character-level)
+// //  const charOpsRows = opsToRows(fullRecord.analysis?.char?.ops || []);
+//   if (charOpsRows.length) {
+//     const charOpsCsv = Papa.unparse(charOpsRows);
+//     await uploadBytes(
+//       storageRef(storage, `users/${uid}/keystroke-data/sessions/${sessionId}.char_ops.csv`),
+//       new Blob([charOpsCsv], { type: 'text/csv;charset=utf-8;' })
+//     );
+//   }
+
+//   // E) alignment ops (word-level)
+// //  const wordOpsRows = opsToRows(fullRecord.analysis?.word?.ops || []);
+//   if (wordOpsRows.length) {
+//     const wordOpsCsv = Papa.unparse(wordOpsRows);
+//     await uploadBytes(
+//       storageRef(storage, `users/${uid}/keystroke-data/sessions/${sessionId}.word_ops.csv`),
+//       new Blob([wordOpsCsv], { type: 'text/csv;charset=utf-8;' })
+//     );
+//   }
+
+//   // ---------- FIRESTORE: try full doc, else pointer summary ----------
+  
+//   if (jsonSize < 900_000) {
+//     // full record fits comfortably — store the whole thing
+//     await addDoc(collection(db, `users/${uid}/keystroke-data`), {
+//       ...fullRecord,
+//       storageJsonPath: jsonPath,
+//       storageCsvPaths: {
+//         flat: `users/${uid}/keystroke-data/sessions/${sessionId}.session_flat.csv`,
+//         keyEvents: `users/${uid}/keystroke-data/sessions/${sessionId}.key_events.csv`,
+//         perKey: `users/${uid}/keystroke-data/sessions/${sessionId}.per_key.csv`,
+//         charOps: `users/${uid}/keystroke-data/sessions/${sessionId}.char_ops.csv`,
+//         wordOps: `users/${uid}/keystroke-data/sessions/${sessionId}.word_ops.csv`,
+//       },
+//     });
+//   } else {
+//     // too big — store a compact pointer summary
+//     await addDoc(collection(db, `users/${uid}/keystroke-data`), {
+//       userId: uid,
+//       sessionId,
+//       animationTab: fullRecord.animationTab,
+//       animationAtStart: fullRecord.animationAtStart,
+//       animationAtSubmit: fullRecord.animationAtSubmit,
+//       targetText: fullRecord.targetText,
+//       typedText: fullRecord.typedText,
+//       metrics: fullRecord.metrics,
+//       approxKeyCount: (fullRecord.keyData || []).length,
+//       timestamp: fullRecord.timestamp,
+//       localDateTime: fullRecord.localDateTime,
+//       schemaVersion: fullRecord.schemaVersion,
+//       storageJsonPath: jsonPath,
+//       storageCsvPaths: {
+//         flat: `users/${uid}/keystroke-data/sessions/${sessionId}.session_flat.csv`,
+//         keyEvents: `users/${uid}/keystroke-data/sessions/${sessionId}.key_events.csv`,
+//         perKey: `users/${uid}/keystroke-data/sessions/${sessionId}.per_key.csv`,
+//         charOps: `users/${uid}/keystroke-data/sessions/${sessionId}.char_ops.csv`,
+//         wordOps: `users/${uid}/keystroke-data/sessions/${sessionId}.word_ops.csv`,
+//       },
+//     });
+//   }
+
+//   // ---------- RTDB: compact summary (expand if you want) ----------
+//   await rtdbSet(
+//     rtdbRef(rtdb, `users/${uid}/keystroke-data/${sessionId}`),
+//     {
+//       status: 'submitted',
+//       animationTab: fullRecord.animationTab,
+//       targetLength: fullRecord.targetText?.length ?? 0,
+//       typedLength: fullRecord.typedText?.length ?? 0,
+//       wordCount: (fullRecord.typedText || '').trim().split(/\s+/).filter(Boolean).length,
+//       createdAt: serverTimestamp(),
+//       clientTs: fullRecord.timestamp,
+//       storageJsonPath: jsonPath,
+//     }
+//   );
+
+//   setMessage({ message: 'Saved JSON + full CSV set to Storage, and Firestore/RTDB updated ✔️', type: 'success' });
+// } catch (err: any) {
+//   console.error('Save error:', err);
+//   setMessage({
+//     message: `Error saving data: ${err?.code || ''} ${err?.message || String(err)}`,
+//     type: 'error',
+//   });
+// }
+
+  
+//     };
+
+//   return (
+//     <div className="relative w-full">
+//       <div className="flex justify-center text-sm text-gray-600 rounded p-2 mb-4 w-full">
+//         <DateTimeDisplay />
+//         <button
+//           onClick={() => setCurrentAnimation('baselinetyping')}
+//           className={`p-2 mx-2 ${currentAnimation === 'baselinetyping' ? 'bg-blue-500 text-white rounded' : 'bg-gray-200'}`}
+//         >
+//           Baseline Typing
+//         </button>
+//         <button
+//           onClick={() => setCurrentAnimation('multifunction')}
+//           className={`p-2 mx-2 ${currentAnimation === 'multifunction' ? 'bg-blue-500 text-white rounded' : 'bg-gray-200'}`}
+//         >
+//           Multifunction Animation
+//         </button>
+//         <button
+//           onClick={() => setCurrentAnimation('shape')}
+//           className={`p-2 mx-2 ${currentAnimation === 'shape' ? 'bg-blue-500 text-white rounded' : 'bg-gray-200'}`}
+//         >
+//           Shape Animation
+//         </button>
+//         <button
+//           onClick={() => setCurrentAnimation('color')}
+//           className={`p-2 mx-2 ${currentAnimation === 'color' ? 'bg-blue-500 text-white rounded' : 'bg-gray-200'}`}
+//         >
+//           Color Animation
+//         </button>
+//       </div>
+
+//       {currentAnimation === 'baselinetyping' && <BaselineTyping settings={settings} setSettings={setSettings} />}
+//       {currentAnimation === 'multifunction' && <MultifunctionAnimation settings={settings} setSettings={setSettings} />}
+//       {currentAnimation === 'shape' && <ShapeAnimations settings={settings} setSettings={setSettings} />}
+//       {currentAnimation === 'color' && <ColorAnimation settings={settings} setSettings={setSettings} />}
+
+//       {/* push content down for background visibility */}
+//       <div className="relative w-full ml-52 mt-[22vh]">
+//         <div className="w-full max-w-9xl">
+//           <TextInput
+//             placeholder="Type here…"
+//             displayText={displayText}
+//             setDisplayText={setDisplayText}
+//             saveKeystrokeData={saveKeystrokeData}
+//             onTypingStart={handleTypingStart}  // capture animation-at-start
+//           />
+
+//           <div className="w-full max-w-9xl mt-4">
+//             <TextDisplay displayText={displayText} setDisplayText={setDisplayText} />
+//           </div>
+
+//           {message && (
+//             <div className="mt-3">
+//               <div
+//                 className={`inline-block text-white text-xs px-4 py-2 rounded shadow ${
+//                   message.type === 'error' ? 'bg-red-500' : 'bg-green-500'
+//                 }`}
+//               >
+//                 {message.message}
+//               </div>
+//             </div>
+//           )}
+//         </div>
+//       </div>
+//     </div>
+//   );
+// };
+
+// export default TherapyPage;
 
 
 

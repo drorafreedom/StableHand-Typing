@@ -1,14 +1,19 @@
-
-// src/components/Therapy/MultifunctionAnimation.tsx
-
-import React, { useState, useEffect,useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import ControlPanel from './ControlPanel';
 import { ReactP5Wrapper } from 'react-p5-wrapper';
 
-interface Settings {
-  waveType: string;
-  direction: string;
-  angle: number;
+export interface Settings {
+  waveType: 'sine' | 'tan' | 'cotan' | 'sawtooth' | 'square' | 'triangle';
+  direction:
+    | 'static'
+    | 'up'
+    | 'down'
+    | 'left'
+    | 'right'
+    | 'oscillateUpDown'
+    | 'oscillateRightLeft'
+    | 'circular';
+  angle: number;            // radians
   amplitude: number;
   frequency: number;
   speed: number;
@@ -18,161 +23,202 @@ interface Settings {
   distance: number;
   bgColor: string;
   lineColor: string;
-  selectedPalette: string;
-  rotationSpeed: number;
-  rotationRadius: number;
-  oscillationRange: number;
-  groups: number;
-  groupDistance: number;
+  selectedPalette: 'none' | 'rainbow' | 'pastel';
+  rotationSpeed: number;    // for circular
+  rotationRadius: number;   // for circular
+  oscillationRange: number; // for oscillations
+  groups: number;           // number of line groups
+  groupDistance: number;    // distance between groups
 }
 
-const MultifunctionAnimation: React.FC = () => {
-  const defaultSettings: Settings = {
-    waveType: 'sine',
-    direction: 'static',
-    angle: 0,
-    amplitude: 10,
-    frequency: 10,
-    speed: 5,
-    thickness: 1,
-    phaseOffset: 0,
-    numLines: 1,
-    distance: 0,
-    bgColor: '#ffffff',
-    lineColor: '#FF0000',
-    selectedPalette: 'none',
-    rotationSpeed: 0.02,
-    rotationRadius: 150,
-    oscillationRange: 100,
-    groups: 1,
-    groupDistance: 100,
+const DEFAULTS: Settings = {
+  waveType: 'sine',
+  direction: 'static',
+  angle: 0,
+  amplitude: 10,
+  frequency: 10,
+  speed: 5,
+  thickness: 1,
+  phaseOffset: 0,
+  numLines: 1,
+  distance: 0,
+  bgColor: '#ffffff',
+  lineColor: '#FF0000',
+  selectedPalette: 'none',
+  rotationSpeed: 0.02,
+  rotationRadius: 150,
+  oscillationRange: 100,
+  groups: 1,
+  groupDistance: 100,
+};
+
+// Make a fresh copy for resets (avoid sharing object refs)
+const cloneDefaults = (): Settings => ({ ...DEFAULTS });
+
+type Props = {
+  settings: Settings;
+  setSettings: React.Dispatch<React.SetStateAction<Settings>>;
+};
+
+const MultifunctionAnimation: React.FC<Props> = ({ settings, setSettings }) => {
+  const [running, setRunning] = useState(true);
+  const [resetKey, setResetKey] = useState(0); // bump to rewind time in sketch
+
+  const startAnimation = () => setRunning(true);
+  const stopAnimation  = () => setRunning(false);
+  const resetAnimation = () => {
+    setSettings(cloneDefaults()); // reset the panel/props
+    setResetKey((k) => k + 1);    // rewind time in p5
+    setRunning(false);            // pause after reset (like other modules)
   };
 
-  const [settings, setSettings] = useState<Settings>(defaultSettings);
-  const [isAnimating, setIsAnimating] = useState<boolean>(true);
+  const sketch = useCallback((p5: any) => {
+    // Local sketch state (NOT React state)
+    let t = 0;                     // time accumulator
+    let current: Settings = cloneDefaults();
+    let isRunning = true;
+    let lastResetKey = -1;
 
- const sketch = useCallback((p5: any) => {
+    // motion offsets
     let x = 0;
-    let yOffset = p5.height / 2;
-    let time = 0;
+    let yOffset = 0;
 
-    const palettes: Record<string, string[]> = {
-      rainbow: ["#FF0000", "#FF7F00", "#FFFF00", "#7FFF00", "#00FF00", "#00FF7F", "#00FFFF", "#007FFF", "#0000FF", "#7F00FF", "#FF00FF", "#FF007F"],
-      pastel: ["#FFD1DC", "#FFABAB", "#FFC3A0", "#FF677D", "#D4A5A5", "#392F5A", "#31A2AC", "#61C0BF", "#6B4226", "#ACD8AA"]
+    const palettes: Record<'rainbow'|'pastel', string[]> = {
+      rainbow: [
+        '#FF0000','#FF7F00','#FFFF00','#7FFF00','#00FF00','#00FF7F',
+        '#00FFFF','#007FFF','#0000FF','#7F00FF','#FF00FF','#FF007F'
+      ],
+      pastel: [
+        '#FFD1DC','#FFABAB','#FFC3A0','#FF677D','#D4A5A5',
+        '#392F5A','#31A2AC','#61C0BF','#6B4226','#ACD8AA'
+      ],
     };
 
     p5.setup = () => {
       p5.createCanvas(p5.windowWidth, p5.windowHeight);
-      p5.noLoop();
+      p5.noStroke();
+      p5.frameRate(60);
     };
 
-    p5.updateWithProps = (props: { settings: Settings; isAnimating: boolean }) => {
-      if (props.settings) {
-        Object.assign(settings, props.settings);
-      }
-      if (props.isAnimating !== undefined) {
-        if (props.isAnimating) {
-          p5.loop();
-        } else {
-          p5.noLoop();
-        }
+    // p5-wrapper will pass our props here
+    p5.updateWithProps = (props: any) => {
+      if (props && props.settings) current = props.settings;
+      if (typeof props.running === 'boolean') isRunning = props.running;
+
+      if (typeof props.resetKey === 'number' && props.resetKey !== lastResetKey) {
+        // rewind time & reset offsets
+        t = 0;
+        x = 0;
+        yOffset = p5.height / 2;
+        lastResetKey = props.resetKey;
       }
     };
 
     const move = () => {
-      switch (settings.direction) {
+      // freeze motion when paused
+      if (!isRunning) return;
+
+      switch (current.direction) {
         case 'static':
+          // keep at center (don’t drift)
           yOffset = p5.height / 2;
           break;
+
         case 'up':
-          yOffset -= settings.speed;
+          yOffset -= current.speed;
           if (yOffset < -p5.height) yOffset += p5.height;
           break;
+
         case 'down':
-          yOffset += settings.speed;
+          yOffset += current.speed;
           if (yOffset > p5.height) yOffset -= p5.height;
           break;
+
         case 'left':
-          x -= settings.speed;
+          x -= current.speed;
           if (x < -p5.width) x += p5.width;
           break;
+
         case 'right':
-          x += settings.speed;
+          x += current.speed;
           if (x > p5.width) x -= p5.width;
           break;
+
         case 'oscillateUpDown':
-          yOffset = p5.height / 2 + settings.oscillationRange * p5.sin(time);
-          time += settings.speed / 100;
+          yOffset = p5.height / 2 + current.oscillationRange * p5.sin(t);
+          t += current.speed / 100;
           break;
+
         case 'oscillateRightLeft':
-          x = p5.width / 2 + settings.oscillationRange * p5.sin(time);
-          time += settings.speed / 100;
+          x = p5.width / 2 + current.oscillationRange * p5.sin(t);
+          t += current.speed / 100;
           break;
-        case 'circular':
-          x = p5.width / 2 + settings.rotationRadius * p5.cos(time * settings.rotationSpeed);
-          yOffset = p5.height / 2 + settings.rotationRadius * p5.sin(time * settings.rotationSpeed);
-          time += settings.speed / 100;
+
+        case 'circular': {
+          const tt = t * current.rotationSpeed;
+          x = p5.width  / 2 + current.rotationRadius * p5.cos(tt);
+          yOffset = p5.height / 2 + current.rotationRadius * p5.sin(tt);
+          t += current.speed / 100;
           break;
-        default:
-          break;
+        }
       }
     };
 
     p5.draw = () => {
-      if (!isAnimating) return;
-// Drawing your wave or other animation
-p5.noFill();
+      const w = p5.width;
+      const h = p5.height;
+      const centerX = w / 2;
+      const centerY = h / 2;
+
       p5.clear();
-      p5.background(p5.color(settings.bgColor));
-      p5.stroke(p5.color(settings.lineColor));
-      p5.strokeWeight(settings.thickness);
+      p5.background(p5.color(current.bgColor));
+      p5.strokeWeight(current.thickness);
 
-      const centerX = p5.width / 2;
-      const centerY = p5.height / 2;
+      move(); // updates x/yOffset/t based on current + isRunning
 
-      move();
+      const usePalette = current.selectedPalette !== 'none';
+      const palette = current.selectedPalette === 'rainbow'
+        ? palettes.rainbow
+        : palettes.pastel;
 
-      for (let g = 0; g < settings.groups; g++) {
-        for (let i = 0; i < settings.numLines; i++) {
+      for (let g = 0; g < current.groups; g++) {
+        for (let i = 0; i < current.numLines; i++) {
+          // set stroke per line
+          if (usePalette) {
+            const col = palette[i % palette.length];
+            p5.stroke(p5.color(col));
+          } else {
+            p5.stroke(p5.color(current.lineColor));
+          }
+
+          p5.noFill();
           p5.beginShape();
-          for (let j = 0; j <= p5.width; j++) {
-            const k = (j + x + settings.phaseOffset * i) / settings.frequency;
-            let sineValue;
 
-            switch (settings.waveType) {
-              case 'sine':
-                sineValue = p5.sin(k) * settings.amplitude;
-                break;
-              case 'tan':
-                sineValue = p5.tan(k) * settings.amplitude / 4;
-                break;
-              case 'cotan':
-                sineValue = (1 / p5.tan(k)) * settings.amplitude / 4;
-                break;
-              case 'sawtooth':
-                sineValue = ((k / p5.PI) % 2 - 1) * settings.amplitude;
-                break;
-              case 'square':
-                sineValue = (p5.sin(k) >= 0 ? 1 : -1) * settings.amplitude / 2;
-                break;
-              case 'triangle':
-                sineValue = (2 * settings.amplitude / p5.PI) * p5.asin(p5.sin(k));
-                break;
-              default:
-                sineValue = p5.sin(k) * settings.amplitude;
+          for (let j = 0; j <= w; j++) {
+            const k = (j + x + current.phaseOffset * i) / current.frequency;
+
+            // wave families
+            let wave = 0;
+            switch (current.waveType) {
+              case 'sine':    wave = p5.sin(k) * current.amplitude; break;
+              case 'tan':     wave = p5.tan(k) * (current.amplitude / 4); break;
+              case 'cotan':   wave = (1 / p5.tan(k)) * (current.amplitude / 4); break;
+              case 'sawtooth':wave = ((k / p5.PI) % 2 - 1) * current.amplitude; break;
+              case 'square':  wave = (p5.sin(k) >= 0 ? 1 : -1) * (current.amplitude / 2); break;
+              case 'triangle':wave = (2 * current.amplitude / p5.PI) * p5.asin(p5.sin(k)); break;
             }
 
-            const baseY = yOffset + g * settings.groupDistance + i * settings.distance;
-            const rotatedX = (j - centerX) * p5.cos(settings.angle) - sineValue * p5.sin(settings.angle) + centerX;
-            const rotatedY = (j - centerX) * p5.sin(settings.angle) + (sineValue + baseY - centerY) * p5.cos(settings.angle) + centerY;
+            const baseY = yOffset + g * current.groupDistance + i * current.distance;
 
-            p5.vertex(rotatedX, rotatedY);
+            // rotate around center by current.angle
+            const cosA = Math.cos(current.angle);
+            const sinA = Math.sin(current.angle);
+            const rx = (j - centerX) * cosA - (wave) * sinA + centerX;
+            const ry = (j - centerX) * sinA + (wave + baseY - centerY) * cosA + centerY;
+
+            p5.vertex(rx, ry);
           }
-          if (settings.selectedPalette !== 'none') {
-            p5.stroke(p5.color(palettes[settings.selectedPalette][i % palettes[settings.selectedPalette].length]));
-          } else {
-            p5.stroke(p5.color(settings.lineColor));
-          }
+
           p5.endShape();
         }
       }
@@ -181,14 +227,7 @@ p5.noFill();
     p5.windowResized = () => {
       p5.resizeCanvas(p5.windowWidth, p5.windowHeight);
     };
-  },[]);
-
-  const startAnimation = () => setIsAnimating(true);
-  const stopAnimation = () => setIsAnimating(false);
-  const resetAnimation = () => {
-    setSettings(defaultSettings);
-    setIsAnimating(true);
-  };
+  }, []);
 
   return (
     <div className="relative">
@@ -199,12 +238,225 @@ p5.noFill();
         stopAnimation={stopAnimation}
         resetAnimation={resetAnimation}
       />
-      <ReactP5Wrapper sketch={sketch} settings={settings} isAnimating={isAnimating} />
+
+      <ReactP5Wrapper
+        sketch={sketch}
+        settings={settings}   // <- the source of truth comes from TherapyPage
+        running={running}     // <- start/stop without stale closures
+        resetKey={resetKey}   // <- bump to rewind time
+      />
     </div>
   );
 };
 
 export default MultifunctionAnimation;
+
+// // src/components/Therapy/MultifunctionAnimation.tsx
+
+// import React, { useState, useEffect,useCallback } from 'react';
+// import ControlPanel from './ControlPanel';
+// import { ReactP5Wrapper } from 'react-p5-wrapper';
+
+// interface Settings {
+//   waveType: string;
+//   direction: string;
+//   angle: number;
+//   amplitude: number;
+//   frequency: number;
+//   speed: number;
+//   thickness: number;
+//   phaseOffset: number;
+//   numLines: number;
+//   distance: number;
+//   bgColor: string;
+//   lineColor: string;
+//   selectedPalette: string;
+//   rotationSpeed: number;
+//   rotationRadius: number;
+//   oscillationRange: number;
+//   groups: number;
+//   groupDistance: number;
+// }
+
+// const MultifunctionAnimation: React.FC = () => {
+//   const defaultSettings: Settings = {
+//     waveType: 'sine',
+//     direction: 'static',
+//     angle: 0,
+//     amplitude: 10,
+//     frequency: 10,
+//     speed: 5,
+//     thickness: 1,
+//     phaseOffset: 0,
+//     numLines: 1,
+//     distance: 0,
+//     bgColor: '#ffffff',
+//     lineColor: '#FF0000',
+//     selectedPalette: 'none',
+//     rotationSpeed: 0.02,
+//     rotationRadius: 150,
+//     oscillationRange: 100,
+//     groups: 1,
+//     groupDistance: 100,
+//   };
+
+//   const [settings, setSettings] = useState<Settings>(defaultSettings);
+//   const [isAnimating, setIsAnimating] = useState<boolean>(true);
+
+//  const sketch = useCallback((p5: any) => {
+//     let x = 0;
+//     let yOffset = p5.height / 2;
+//     let time = 0;
+
+//     const palettes: Record<string, string[]> = {
+//       rainbow: ["#FF0000", "#FF7F00", "#FFFF00", "#7FFF00", "#00FF00", "#00FF7F", "#00FFFF", "#007FFF", "#0000FF", "#7F00FF", "#FF00FF", "#FF007F"],
+//       pastel: ["#FFD1DC", "#FFABAB", "#FFC3A0", "#FF677D", "#D4A5A5", "#392F5A", "#31A2AC", "#61C0BF", "#6B4226", "#ACD8AA"]
+//     };
+
+//     p5.setup = () => {
+//       p5.createCanvas(p5.windowWidth, p5.windowHeight);
+//       p5.noLoop();
+//     };
+
+//     p5.updateWithProps = (props: { settings: Settings; isAnimating: boolean }) => {
+//       if (props.settings) {
+//         Object.assign(settings, props.settings);
+//       }
+//       if (props.isAnimating !== undefined) {
+//         if (props.isAnimating) {
+//           p5.loop();
+//         } else {
+//           p5.noLoop();
+//         }
+//       }
+//     };
+
+//     const move = () => {
+//       switch (settings.direction) {
+//         case 'static':
+//           yOffset = p5.height / 2;
+//           break;
+//         case 'up':
+//           yOffset -= settings.speed;
+//           if (yOffset < -p5.height) yOffset += p5.height;
+//           break;
+//         case 'down':
+//           yOffset += settings.speed;
+//           if (yOffset > p5.height) yOffset -= p5.height;
+//           break;
+//         case 'left':
+//           x -= settings.speed;
+//           if (x < -p5.width) x += p5.width;
+//           break;
+//         case 'right':
+//           x += settings.speed;
+//           if (x > p5.width) x -= p5.width;
+//           break;
+//         case 'oscillateUpDown':
+//           yOffset = p5.height / 2 + settings.oscillationRange * p5.sin(time);
+//           time += settings.speed / 100;
+//           break;
+//         case 'oscillateRightLeft':
+//           x = p5.width / 2 + settings.oscillationRange * p5.sin(time);
+//           time += settings.speed / 100;
+//           break;
+//         case 'circular':
+//           x = p5.width / 2 + settings.rotationRadius * p5.cos(time * settings.rotationSpeed);
+//           yOffset = p5.height / 2 + settings.rotationRadius * p5.sin(time * settings.rotationSpeed);
+//           time += settings.speed / 100;
+//           break;
+//         default:
+//           break;
+//       }
+//     };
+
+//     p5.draw = () => {
+//       if (!isAnimating) return;
+// // Drawing your wave or other animation
+// p5.noFill();
+//       p5.clear();
+//       p5.background(p5.color(settings.bgColor));
+//       p5.stroke(p5.color(settings.lineColor));
+//       p5.strokeWeight(settings.thickness);
+
+//       const centerX = p5.width / 2;
+//       const centerY = p5.height / 2;
+
+//       move();
+
+//       for (let g = 0; g < settings.groups; g++) {
+//         for (let i = 0; i < settings.numLines; i++) {
+//           p5.beginShape();
+//           for (let j = 0; j <= p5.width; j++) {
+//             const k = (j + x + settings.phaseOffset * i) / settings.frequency;
+//             let sineValue;
+
+//             switch (settings.waveType) {
+//               case 'sine':
+//                 sineValue = p5.sin(k) * settings.amplitude;
+//                 break;
+//               case 'tan':
+//                 sineValue = p5.tan(k) * settings.amplitude / 4;
+//                 break;
+//               case 'cotan':
+//                 sineValue = (1 / p5.tan(k)) * settings.amplitude / 4;
+//                 break;
+//               case 'sawtooth':
+//                 sineValue = ((k / p5.PI) % 2 - 1) * settings.amplitude;
+//                 break;
+//               case 'square':
+//                 sineValue = (p5.sin(k) >= 0 ? 1 : -1) * settings.amplitude / 2;
+//                 break;
+//               case 'triangle':
+//                 sineValue = (2 * settings.amplitude / p5.PI) * p5.asin(p5.sin(k));
+//                 break;
+//               default:
+//                 sineValue = p5.sin(k) * settings.amplitude;
+//             }
+
+//             const baseY = yOffset + g * settings.groupDistance + i * settings.distance;
+//             const rotatedX = (j - centerX) * p5.cos(settings.angle) - sineValue * p5.sin(settings.angle) + centerX;
+//             const rotatedY = (j - centerX) * p5.sin(settings.angle) + (sineValue + baseY - centerY) * p5.cos(settings.angle) + centerY;
+
+//             p5.vertex(rotatedX, rotatedY);
+//           }
+//           if (settings.selectedPalette !== 'none') {
+//             p5.stroke(p5.color(palettes[settings.selectedPalette][i % palettes[settings.selectedPalette].length]));
+//           } else {
+//             p5.stroke(p5.color(settings.lineColor));
+//           }
+//           p5.endShape();
+//         }
+//       }
+//     };
+
+//     p5.windowResized = () => {
+//       p5.resizeCanvas(p5.windowWidth, p5.windowHeight);
+//     };
+//   },[]);
+
+//   const startAnimation = () => setIsAnimating(true);
+//   const stopAnimation = () => setIsAnimating(false);
+//   const resetAnimation = () => {
+//     setSettings(defaultSettings);
+//     setIsAnimating(true);
+//   };
+
+//   return (
+//     <div className="relative">
+//       <ControlPanel
+//         settings={settings}
+//         setSettings={setSettings}
+//         startAnimation={startAnimation}
+//         stopAnimation={stopAnimation}
+//         resetAnimation={resetAnimation}
+//       />
+//       <ReactP5Wrapper sketch={sketch} settings={settings} isAnimating={isAnimating} />
+//     </div>
+//   );
+// };
+
+// export default MultifunctionAnimation;
 
 
 

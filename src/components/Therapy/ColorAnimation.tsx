@@ -6,7 +6,8 @@ import React, { useState, useCallback } from 'react';
 import ControlPanelColor from './ControlPanelColor';
 import { ReactP5Wrapper, SketchProps } from 'react-p5-wrapper';
 
-interface ColorAnimationSettings {
+// interface ColorAnimationSettings {
+export interface ColorAnimationSettings {
   colors: string[];
   animationStyle: 'sine' | 'linear' | 'circular' | 'fractal';
   duration: number; // speed multiplier
