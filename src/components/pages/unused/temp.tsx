@@ -122,6 +122,8 @@ In your existing ControlPanel.tsx for Multifunction add these small blocks (anyw
 
 That’s it for Multifunction. ✅
 
+//----------------------------------------------------------------------------
+
 2) ShapeAnimations — add background & shape transparency (+ pulse)
 a) Extend the Settings interface & defaults
 
@@ -239,3 +241,47 @@ We apply alpha where the color is set (stroke/fill) without changing your wave/s
 If you want the background to pulse too, we can add bgOpacityMode + bgOpacitySpeed later using the same pattern; I kept it simple for now.
 
 Want me to paste these patches directly into your three files exactly where they go?
+
+
+//---------------------------------------------pop up msg
+
+Love that idea. Let’s keep it super light so you don’t have to touch TherapyPage at all.
+
+Below is a tiny, drop-in patch for your existing TextInput component: after handleSubmit() builds the payload and calls saveKeystrokeData(payload), it asks the user if they want a quick summary. If they click OK, it shows an accuracy-first summary (via alert). Zero extra dependencies, no layout changes.
+
+Patch: add this to TextInput.tsx
+
+Helpers (put them near the other helpers at the top of the file):
+
+const pct = (x: number) => `${Math.round((x ?? 0) * 100)}%`;
+const s1  = (x: number) => (Math.round((x ?? 0) * 10) / 10).toString(); // one decimal
+
+
+In handleSubmit, right after saveKeystrokeData(payload); add:
+
+// Ask if they want a quick performance summary
+if (window.confirm('Would you like to see a quick performance summary?')) {
+  const m = payload.metrics;
+  const secs = Math.max(0, Math.round(m.durationMs / 100) / 10); // 0.1s precision
+
+  const summary =
+    `Time: ${secs}s
+Raw WPM (5-char): ${s1(m.rawWpm5)}
+Net WPM (5-char): ${s1(m.netWpm5)}
+Char Accuracy: ${pct(m.charAccuracy)}
+Word Accuracy: ${pct(m.wordAccuracy)}
+Normalized Char Accuracy: ${pct(m.normalizedCharAccuracy)}`;
+
+  window.alert(summary);
+}
+
+
+That’s it. You’ll get a friendly “accuracy-first” pop-up after every Submit, without touching the storage flow.
+
+Want it prettier later?
+
+If you prefer a styled modal instead of confirm/alert, we can swap this for a tiny Tailwind modal component and feed it the same fields—no logic change needed. But the above is the safest/quickest version.
+
+If you want the same feature available from TherapyPage (e.g., only after the save succeeds), we can expose a callback from saveKeystrokeData that resolves a boolean and show the summary after persistence—also easy to do later.
+
+Shout if you want me to convert this to a polished modal; I’ll keep the diff just as small.

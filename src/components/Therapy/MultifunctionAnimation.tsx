@@ -1,3 +1,4 @@
+ // src/components/Therapy/MultifunctionAnimation.tsx
 import React, { useCallback, useState } from 'react';
 import ControlPanel from './ControlPanel';
 import { ReactP5Wrapper } from 'react-p5-wrapper';

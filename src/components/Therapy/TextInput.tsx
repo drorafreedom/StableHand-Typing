@@ -3,7 +3,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Collapse } from 'react-collapse';
 import buttonStyle from './buttonStyle';
  
-
+const pct = (x: number) => `${Math.round((x ?? 0) * 100)}%`;
+const s1  = (x: number) => (Math.round((x ?? 0) * 10) / 10).toString(); // one decimal
 export interface KeyData {
   key: string;           // e.g. "a", "Backspace", " "
   code: string;          // e.g. "KeyA", "Space", "ArrowLeft"
@@ -339,7 +340,26 @@ const TextInput: React.FC<TextInputProps> = ({
       },
     };
 
+
+
     saveKeystrokeData(payload);
+    
+// Ask if they want a quick performance summary
+if (window.confirm('Would you like to see a quick performance summary?')) {
+  const m = payload.metrics;
+  const secs = Math.max(0, Math.round(m.durationMs / 100) / 10); // 0.1s precision
+
+  const summary =
+    `Time: ${secs}s
+Raw WPM (5-char): ${s1(m.rawWpm5)}
+Net WPM (5-char): ${s1(m.netWpm5)}
+Char Accuracy: ${pct(m.charAccuracy)}
+Word Accuracy: ${pct(m.wordAccuracy)}
+Normalized Char Accuracy: ${pct(m.normalizedCharAccuracy)}`;
+
+  window.alert(summary);
+}
+
   };
 
   const handleReset = () => {
