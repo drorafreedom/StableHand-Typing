@@ -1,7 +1,4 @@
-
-// src/components/Therapy/ControlPanel.tsx (Multifunction)
-// Uses shared PresetControls + utils/presets. Keeps all   existing UI.
-
+// src/components/Therapy/ControlPanel.tsx
 import React, { useState } from 'react';
 import { Collapse } from 'react-collapse';
 import Slider from '../common/Slider';
@@ -38,6 +35,12 @@ export interface MultifunctionSettings {
   bgColor: string;
   lineColor: string;
   selectedPalette: 'none' | 'rainbow' | 'pastel';
+
+  // ✅ NEW opacity controls
+  bgOpacity?: number;                 // 0..1
+  lineOpacity?: number;               // 0..1
+  opacityMode?: 'constant' | 'pulse';
+  opacitySpeed?: number;
 }
 
 interface ControlPanelProps {
@@ -52,18 +55,10 @@ const MODULE: PresetModule = 'multifunction';
 
 const WAVE_OPTS = ['sine', 'tan', 'cotan', 'sawtooth', 'square', 'triangle'] as const;
 const DIR_OPTS = [
-  'static',
-  'up',
-  'down',
-  'left',
-  'right',
-  'oscillateUpDown',
-  'oscillateRightLeft',
-  'circular',
+  'static','up','down','left','right','oscillateUpDown','oscillateRightLeft','circular',
 ] as const;
 const PALETTE_OPTS = ['none', 'rainbow', 'pastel'] as const;
 
-// strict merge so we don’t accidentally overwrite missing fields
 const mergeLoaded = (
   loaded: Partial<MultifunctionSettings>,
   curr: MultifunctionSettings
@@ -104,6 +99,16 @@ const mergeLoaded = (
   selectedPalette: PALETTE_OPTS.includes(loaded.selectedPalette as any)
     ? (loaded.selectedPalette as any)
     : curr.selectedPalette,
+
+  // ✅ merge new fields with sensible fallbacks
+  bgOpacity: typeof loaded.bgOpacity === 'number' ? loaded.bgOpacity : (curr.bgOpacity ?? 1),
+  lineOpacity: typeof loaded.lineOpacity === 'number' ? loaded.lineOpacity : (curr.lineOpacity ?? 1),
+  opacityMode:
+    loaded.opacityMode === 'pulse' || loaded.opacityMode === 'constant'
+      ? loaded.opacityMode
+      : (curr.opacityMode ?? 'constant'),
+  opacitySpeed:
+    typeof loaded.opacitySpeed === 'number' ? loaded.opacitySpeed : (curr.opacitySpeed ?? 1),
 });
 
 const ControlPanel: React.FC<ControlPanelProps> = ({
@@ -114,6 +119,12 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   resetAnimation,
 }) => {
   const [isOpen, setIsOpen] = useState<boolean>(true);
+
+  // local getters with defaults so UI always shows valid values
+  const bgOpacity   = settings.bgOpacity   ?? 1;
+  const lineOpacity = settings.lineOpacity ?? 1;
+  const opacityMode = settings.opacityMode ?? 'constant';
+  const opacitySpeed= settings.opacitySpeed?? 1;
 
   return (
     <div
@@ -132,15 +143,9 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         <div className="space-y-2">
           {/* Transport */}
           <div className="text-xs flex space-x-2">
-            <button onClick={startAnimation} className="bg-green-500 text-xs text-white p-2 rounded w-1/3">
-              Start
-            </button>
-            <button onClick={stopAnimation} className="bg-red-500 text-xs text-white p-2 rounded w-1/3">
-              Stop
-            </button>
-            <button onClick={resetAnimation} className="bg-gray-500 text-xs text-white p-2 rounded w-1/3">
-              Reset
-            </button>
+            <button onClick={startAnimation} className="bg-green-500 text-xs text-white p-2 rounded w-1/3">Start</button>
+            <button onClick={stopAnimation}  className="bg-red-500   text-xs text-white p-2 rounded w-1/3">Stop</button>
+            <button onClick={resetAnimation} className="bg-gray-500  text-xs text-white p-2 rounded w-1/3">Reset</button>
           </div>
 
           {/* Wave Type */}
@@ -185,40 +190,25 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
               <div className="control-group text-xs">
                 <label className="block mb-2 text-xs">Rotation Speed:</label>
                 <input
-                  type="range"
-                  min="0.0"
-                  max="2"
-                  step="0.1"
+                  type="range" min="0.0" max="2" step="0.1"
                   value={settings.rotationSpeed}
-                  onChange={(e) =>
-                    setSettings({ ...settings, rotationSpeed: parseFloat(e.target.value) })
-                  }
-                  className="w-full"
-                  list="rotationSpeedSteps"
+                  onChange={(e) => setSettings({ ...settings, rotationSpeed: parseFloat(e.target.value) })}
+                  className="w-full" list="rotationSpeedSteps"
                 />
                 <datalist id="rotationSpeedSteps">
-                  {[...Array(100)].map((_, i) => (
-                    <option key={i} value={i / 100}></option>
-                  ))}
+                  {[...Array(100)].map((_, i) => <option key={i} value={i / 100}></option>)}
                 </datalist>
               </div>
               <div className="control-group text-xs ">
                 <label className="block mb-2 text-xs">Rotation Radius:</label>
                 <input
-                  type="range"
-                  min="10"
-                  max="500"
+                  type="range" min="10" max="500"
                   value={settings.rotationRadius}
-                  onChange={(e) =>
-                    setSettings({ ...settings, rotationRadius: parseFloat(e.target.value) })
-                  }
-                  className="w-full"
-                  list="rotationRadiusSteps"
+                  onChange={(e) => setSettings({ ...settings, rotationRadius: parseFloat(e.target.value) })}
+                  className="w-full" list="rotationRadiusSteps"
                 />
                 <datalist id="rotationRadiusSteps">
-                  {[...Array(50)].map((_, i) => (
-                    <option key={i} value={i * 10}></option>
-                  ))}
+                  {[...Array(50)].map((_, i) => <option key={i} value={i * 10}></option>)}
                 </datalist>
               </div>
             </>
@@ -230,19 +220,13 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
               <label className="block mb-2 text-xs">Oscillation Range:</label>
               <input
                 type="range"
-                min="10"
-                max={Math.min(window.innerWidth, window.innerHeight)}
+                min="10" max={Math.min(window.innerWidth, window.innerHeight)}
                 value={settings.oscillationRange}
-                onChange={(e) =>
-                  setSettings({ ...settings, oscillationRange: parseFloat(e.target.value) })
-                }
-                className="w-full"
-                list="oscillationRangeSteps"
+                onChange={(e) => setSettings({ ...settings, oscillationRange: parseFloat(e.target.value) })}
+                className="w-full" list="oscillationRangeSteps"
               />
               <datalist id="oscillationRangeSteps">
-                {[...Array(10)].map((_, i) => (
-                  <option key={i} value={i * 10}></option>
-                ))}
+                {[...Array(10)].map((_, i) => <option key={i} value={i * 10}></option>)}
               </datalist>
             </div>
           )}
@@ -251,41 +235,22 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
           <div className="control-group text-xs">
             <label className="block mb-2 text-xs">Angle:</label>
             <input
-              type="range"
-              min="0"
-              max="360"
-              step="1"
+              type="range" min="0" max="360" step="1"
               value={settings.angle * (180 / Math.PI)}
-              onChange={(e) =>
-                setSettings({
-                  ...settings,
-                  angle: parseFloat(e.target.value) * (Math.PI / 180),
-                })
-              }
-              className="w-full"
-              list="angleSteps"
+              onChange={(e) => setSettings({ ...settings, angle: parseFloat(e.target.value) * (Math.PI / 180) })}
+              className="w-full" list="angleSteps"
             />
             <datalist id="angleSteps">
-              {[...Array(36)].map((_, i) => (
-                <option key={i} value={i * 10}></option>
-              ))}
+              {[...Array(36)].map((_, i) => <option key={i} value={i * 10}></option>)}
             </datalist>
           </div>
 
           {/* Amplitude */}
           <div className="control-group text-xs">
             <Slider
-              label="Amplitude"
-              min={10}
-              max={600}
-              step={1}
+              label="Amplitude" min={10} max={600} step={1}
               value={settings.amplitude}
-              onChange={(NV) =>
-                setSettings((OV) => ({
-                  ...OV,
-                  amplitude: NV,
-                }))
-              }
+              onChange={(NV) => setSettings((OV) => ({ ...OV, amplitude: NV }))}
             />
           </div>
 
@@ -293,38 +258,22 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
           <div className="control-group text-xs">
             <label className="block mb-2 text-xs">Frequency:</label>
             <input
-              type="range"
-              min="1"
-              max="300"
-              step="1"
+              type="range" min="1" max="300" step="1"
               value={settings.frequency}
-              onChange={(e) =>
-                setSettings({ ...settings, frequency: parseFloat(e.target.value) })
-              }
-              className="w-full"
-              list="frequencySteps"
+              onChange={(e) => setSettings({ ...settings, frequency: parseFloat(e.target.value) })}
+              className="w-full" list="frequencySteps"
             />
             <datalist id="frequencySteps">
-              {[...Array(30)].map((_, i) => (
-                <option key={i} value={i * 10}></option>
-              ))}
+              {[...Array(30)].map((_, i) => <option key={i} value={i * 10}></option>)}
             </datalist>
           </div>
 
           {/* Speed */}
           <div className="control-group text-xs">
             <Slider
-              label="Speed"
-              min={1}
-              max={10}
-              step={1}
+              label="Speed" min={1} max={10} step={1}
               value={settings.speed}
-              onChange={(NV) =>
-                setSettings((OV) => ({
-                  ...OV,
-                  speed: NV,
-                }))
-              }
+              onChange={(NV) => setSettings((OV) => ({ ...OV, speed: NV }))}
             />
           </div>
 
@@ -332,21 +281,13 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
           <div className="control-group text-xs">
             <label className="block mb-2 text-xs">Line Thickness:</label>
             <input
-              type="range"
-              min="1"
-              max="10"
-              step="1"
+              type="range" min="1" max="10" step="1"
               value={settings.thickness}
-              onChange={(e) =>
-                setSettings({ ...settings, thickness: parseFloat(e.target.value) })
-              }
-              className="w-full"
-              list="thicknessSteps"
+              onChange={(e) => setSettings({ ...settings, thickness: parseFloat(e.target.value) })}
+              className="w-full" list="thicknessSteps"
             />
             <datalist id="thicknessSteps">
-              {[...Array(10)].map((_, i) => (
-                <option key={i} value={i + 1}></option>
-              ))}
+              {[...Array(10)].map((_, i) => <option key={i} value={i + 1}></option>)}
             </datalist>
           </div>
 
@@ -354,24 +295,15 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
           <div className="control-group text-xs">
             <label className="block mb-2 text-xs">Phase Offset:</label>
             <input
-              type="range"
-              min="0"
-              max="360"
-              step="1"
+              type="range" min="0" max="360" step="1"
               value={settings.phaseOffset * (180 / Math.PI)}
               onChange={(e) =>
-                setSettings({
-                  ...settings,
-                  phaseOffset: (parseFloat(e.target.value) / 360) * (2 * Math.PI),
-                })
+                setSettings({ ...settings, phaseOffset: (parseFloat(e.target.value) / 360) * (2 * Math.PI) })
               }
-              className="w-full"
-              list="phaseOffsetSteps"
+              className="w-full" list="phaseOffsetSteps"
             />
             <datalist id="phaseOffsetSteps">
-              {[...Array(36)].map((_, i) => (
-                <option key={i} value={i * 10}></option>
-              ))}
+              {[...Array(36)].map((_, i) => <option key={i} value={i * 10}></option>)}
             </datalist>
           </div>
 
@@ -379,82 +311,52 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
           <div className="control-group text-xs">
             <label className="block mb-2 text-xs">Number of Lines:</label>
             <input
-              type="range"
-              min="1"
-              max="100"
-              step="1"
+              type="range" min="1" max="100" step="1"
               value={settings.numLines}
-              onChange={(e) =>
-                setSettings({ ...settings, numLines: parseInt(e.target.value, 10) })
-              }
-              className="w-full"
-              list="numLinesSteps"
+              onChange={(e) => setSettings({ ...settings, numLines: parseInt(e.target.value, 10) })}
+              className="w-full" list="numLinesSteps"
             />
             <datalist id="numLinesSteps">
-              {[...Array(10)].map((_, i) => (
-                <option key={i} value={i * 10}></option>
-              ))}
+              {[...Array(10)].map((_, i) => <option key={i} value={i * 10}></option>)}
             </datalist>
           </div>
 
           <div className="control-group text-xs">
             <label className="block mb-2 text-xs">Distance Between Lines:</label>
             <input
-              type="range"
-              min="1"
-              max="200"
-              step="1"
+              type="range" min="1" max="200" step="1"
               value={settings.distance}
-              onChange={(e) =>
-                setSettings({ ...settings, distance: parseFloat(e.target.value) })
-              }
-              className="w-full"
-              list="distanceSteps"
+              onChange={(e) => setSettings({ ...settings, distance: parseFloat(e.target.value) })}
+              className="w-full" list="distanceSteps"
             />
             <datalist id="distanceSteps">
-              {[...Array(20)].map((_, i) => (
-                <option key={i} value={i * 10}></option>
-              ))}
+              {[...Array(20)].map((_, i) => <option key={i} value={i * 10}></option>)}
             </datalist>
           </div>
 
           <div className="control-group text-xs">
             <label className="block mb-2 text-xs">Number of Groups:</label>
             <input
-              type="range"
-              min="1"
-              max="10"
-              step="1"
+              type="range" min="1" max="10" step="1"
               value={settings.groups}
               onChange={(e) => setSettings({ ...settings, groups: parseInt(e.target.value, 10) })}
-              className="w-full"
-              list="groupsSteps"
+              className="w-full" list="groupsSteps"
             />
             <datalist id="groupsSteps">
-              {[...Array(10)].map((_, i) => (
-                <option key={i} value={i + 1}></option>
-              ))}
+              {[...Array(10)].map((_, i) => <option key={i} value={i + 1}></option>)}
             </datalist>
           </div>
 
           <div className="control-group text-xs">
             <label className="block mb-2 text-xs">Distance between Groups:</label>
             <input
-              type="range"
-              min="0"
-              max="1000"
-              step="1"
+              type="range" min="0" max="1000" step="1"
               value={settings.groupDistance}
-              onChange={(e) =>
-                setSettings({ ...settings, groupDistance: parseFloat(e.target.value) })
-              }
-              className="w-full"
-              list="groupDistanceSteps"
+              onChange={(e) => setSettings({ ...settings, groupDistance: parseFloat(e.target.value) })}
+              className="w-full" list="groupDistanceSteps"
             />
             <datalist id="groupDistanceSteps">
-              {[...Array(100)].map((_, i) => (
-                <option key={i} value={i * 10}></option>
-              ))}
+              {[...Array(100)].map((_, i) => <option key={i} value={i * 10}></option>)}
             </datalist>
           </div>
 
@@ -462,9 +364,19 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
           <div className="control-group text-xs">
             <label className="block mb-2 text-xs">Background Color:</label>
             <input
-              type="color"
-              value={settings.bgColor}
+              type="color" value={settings.bgColor}
               onChange={(e) => setSettings({ ...settings, bgColor: e.target.value })}
+              className="w-full"
+            />
+          </div>
+
+          {/* ✅ Background Opacity */}
+          <div className="control-group text-xs">
+            <label className="block mb-1">Background Opacity: {Math.round((bgOpacity) * 100)}%</label>
+            <input
+              type="range" min={0} max={100} step={1}
+              value={Math.round(bgOpacity * 100)}
+              onChange={(e) => setSettings({ ...settings, bgOpacity: Number(e.target.value) / 100 })}
               className="w-full"
             />
           </div>
@@ -472,20 +384,52 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
           <div className="control-group text-xs">
             <label className="block mb-2 text-xs">Line Color:</label>
             <input
-              type="color"
-              value={settings.lineColor}
+              type="color" value={settings.lineColor}
               onChange={(e) => setSettings({ ...settings, lineColor: e.target.value })}
               className="w-full"
             />
           </div>
 
+          {/* ✅ Line Opacity + Mode */}
+          <div className="control-group text-xs">
+            <label className="block mb-1">Line Opacity: {Math.round((lineOpacity) * 100)}%</label>
+            <input
+              type="range" min={0} max={100} step={1}
+              value={Math.round(lineOpacity * 100)}
+              onChange={(e) => setSettings({ ...settings, lineOpacity: Number(e.target.value) / 100 })}
+              className="w-full"
+            />
+          </div>
+
+          <div className="control-group text-xs">
+            <label className="block mb-1">Opacity Mode</label>
+            <select
+              value={opacityMode}
+              onChange={(e) => setSettings({ ...settings, opacityMode: e.target.value as any })}
+              className="border p-2 rounded w-full"
+            >
+              <option value="constant">Constant</option>
+              <option value="pulse">Pulse</option>
+            </select>
+          </div>
+
+          {opacityMode === 'pulse' && (
+            <div className="control-group text-xs">
+              <label className="block mb-1">Opacity Speed</label>
+              <input
+                type="range" min={0} max={5} step={0.1}
+                value={opacitySpeed}
+                onChange={(e) => setSettings({ ...settings, opacitySpeed: parseFloat(e.target.value) })}
+                className="w-full"
+              />
+            </div>
+          )}
+
           <div className="control-group text-xs">
             <label className="block mb-2 text-xs">Use Palette:</label>
             <select
               value={settings.selectedPalette}
-              onChange={(e) =>
-                setSettings({ ...settings, selectedPalette: e.target.value as any })
-              }
+              onChange={(e) => setSettings({ ...settings, selectedPalette: e.target.value as any })}
               className="border p-2 rounded w-full"
             >
               <option value="none">None</option>
@@ -496,7 +440,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 
           <hr className="my-2" />
 
-          {/* Reusable preset block (Save/Load UI + Firebase writes) */}
+          {/* Reusable preset block */}
           <PresetControls
             module={MODULE}
             settings={settings}
@@ -511,6 +455,519 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 };
 
 export default ControlPanel;
+
+// // src/components/Therapy/ControlPanel.tsx (Multifunction)
+// // Uses shared PresetControls + utils/presets. Keeps all   existing UI.
+
+// import React, { useState } from 'react';
+// import { Collapse } from 'react-collapse';
+// import Slider from '../common/Slider';
+// import PresetControls from '../common/PresetControls';
+// import type { PresetModule } from '../../utils/presets';
+
+// export interface MultifunctionSettings {
+//   waveType: 'sine' | 'tan' | 'cotan' | 'sawtooth' | 'square' | 'triangle';
+//   direction:
+//     | 'static'
+//     | 'up'
+//     | 'down'
+//     | 'left'
+//     | 'right'
+//     | 'oscillateUpDown'
+//     | 'oscillateRightLeft'
+//     | 'circular';
+//   rotationSpeed: number;
+//   rotationRadius: number;
+//   oscillationRange: number;
+
+//   angle: number;         // radians
+//   amplitude: number;
+//   frequency: number;
+//   speed: number;
+
+//   thickness: number;
+//   phaseOffset: number;   // radians
+//   numLines: number;
+//   distance: number;
+//   groups: number;
+//   groupDistance: number;
+
+//   bgColor: string;
+//   lineColor: string;
+//   selectedPalette: 'none' | 'rainbow' | 'pastel';
+// }
+
+// interface ControlPanelProps {
+//   settings: MultifunctionSettings;
+//   setSettings: React.Dispatch<React.SetStateAction<MultifunctionSettings>>;
+//   startAnimation: () => void;
+//   stopAnimation: () => void;
+//   resetAnimation: () => void;
+// }
+
+// const MODULE: PresetModule = 'multifunction';
+
+// const WAVE_OPTS = ['sine', 'tan', 'cotan', 'sawtooth', 'square', 'triangle'] as const;
+// const DIR_OPTS = [
+//   'static',
+//   'up',
+//   'down',
+//   'left',
+//   'right',
+//   'oscillateUpDown',
+//   'oscillateRightLeft',
+//   'circular',
+// ] as const;
+// const PALETTE_OPTS = ['none', 'rainbow', 'pastel'] as const;
+
+// // strict merge so we don’t accidentally overwrite missing fields
+// const mergeLoaded = (
+//   loaded: Partial<MultifunctionSettings>,
+//   curr: MultifunctionSettings
+// ): MultifunctionSettings => ({
+//   ...curr,
+
+//   waveType: WAVE_OPTS.includes(loaded.waveType as any)
+//     ? (loaded.waveType as any)
+//     : curr.waveType,
+
+//   direction: DIR_OPTS.includes(loaded.direction as any)
+//     ? (loaded.direction as any)
+//     : curr.direction,
+
+//   rotationSpeed:
+//     typeof loaded.rotationSpeed === 'number' ? loaded.rotationSpeed : curr.rotationSpeed,
+//   rotationRadius:
+//     typeof loaded.rotationRadius === 'number' ? loaded.rotationRadius : curr.rotationRadius,
+//   oscillationRange:
+//     typeof loaded.oscillationRange === 'number' ? loaded.oscillationRange : curr.oscillationRange,
+
+//   angle: typeof loaded.angle === 'number' ? loaded.angle : curr.angle,
+//   amplitude: typeof loaded.amplitude === 'number' ? loaded.amplitude : curr.amplitude,
+//   frequency: typeof loaded.frequency === 'number' ? loaded.frequency : curr.frequency,
+//   speed: typeof loaded.speed === 'number' ? loaded.speed : curr.speed,
+
+//   thickness: typeof loaded.thickness === 'number' ? loaded.thickness : curr.thickness,
+//   phaseOffset: typeof loaded.phaseOffset === 'number' ? loaded.phaseOffset : curr.phaseOffset,
+//   numLines: typeof loaded.numLines === 'number' ? loaded.numLines : curr.numLines,
+//   distance: typeof loaded.distance === 'number' ? loaded.distance : curr.distance,
+//   groups: typeof loaded.groups === 'number' ? loaded.groups : curr.groups,
+//   groupDistance:
+//     typeof loaded.groupDistance === 'number' ? loaded.groupDistance : curr.groupDistance,
+
+//   bgColor: typeof loaded.bgColor === 'string' ? loaded.bgColor : curr.bgColor,
+//   lineColor: typeof loaded.lineColor === 'string' ? loaded.lineColor : curr.lineColor,
+
+//   selectedPalette: PALETTE_OPTS.includes(loaded.selectedPalette as any)
+//     ? (loaded.selectedPalette as any)
+//     : curr.selectedPalette,
+// });
+
+// const ControlPanel: React.FC<ControlPanelProps> = ({
+//   settings,
+//   setSettings,
+//   startAnimation,
+//   stopAnimation,
+//   resetAnimation,
+// }) => {
+//   const [isOpen, setIsOpen] = useState<boolean>(true);
+
+//   return (
+//     <div
+//       className={`fixed right-4 top-2 p-4 rounded ${
+//         isOpen ? 'shadow-lg bg-transparent' : ''
+//       } w-60 z-50 h-full overflow-y-auto`}
+//     >
+//       <button
+//         onClick={() => setIsOpen(!isOpen)}
+//         className="mb-2 bg-gray-200 text-xs p-2 border rounded w-full"
+//       >
+//         {isOpen ? 'Collapse Controls' : 'Expand Controls'}
+//       </button>
+
+//       <Collapse isOpened={isOpen}>
+//         <div className="space-y-2">
+//           {/* Transport */}
+//           <div className="text-xs flex space-x-2">
+//             <button onClick={startAnimation} className="bg-green-500 text-xs text-white p-2 rounded w-1/3">
+//               Start
+//             </button>
+//             <button onClick={stopAnimation} className="bg-red-500 text-xs text-white p-2 rounded w-1/3">
+//               Stop
+//             </button>
+//             <button onClick={resetAnimation} className="bg-gray-500 text-xs text-white p-2 rounded w-1/3">
+//               Reset
+//             </button>
+//           </div>
+
+//           {/* Wave Type */}
+//           <div className="control-group text-xs">
+//             <label className="block mb-2 text-xs">Wave Type:</label>
+//             <select
+//               value={settings.waveType}
+//               onChange={(e) => setSettings({ ...settings, waveType: e.target.value as any })}
+//               className="border p-2 rounded w-full"
+//             >
+//               <option value="sine">Sine</option>
+//               <option value="tan">Tan</option>
+//               <option value="cotan">Cotan</option>
+//               <option value="sawtooth">Sawtooth</option>
+//               <option value="square">Square</option>
+//               <option value="triangle">Triangle</option>
+//             </select>
+//           </div>
+
+//           {/* Direction */}
+//           <div className="control-group text-xs">
+//             <label className="block mb-2 text-xs">Direction:</label>
+//             <select
+//               value={settings.direction}
+//               onChange={(e) => setSettings({ ...settings, direction: e.target.value as any })}
+//               className="border p-2 rounded w-full"
+//             >
+//               <option value="static">Static</option>
+//               <option value="up">Up</option>
+//               <option value="down">Down</option>
+//               <option value="left">Left</option>
+//               <option value="right">Right</option>
+//               <option value="oscillateUpDown">Oscillate Up and Down</option>
+//               <option value="oscillateRightLeft">Oscillate Right and Left</option>
+//               <option value="circular">Circular</option>
+//             </select>
+//           </div>
+
+//           {/* Circular-only controls */}
+//           {settings.direction === 'circular' && (
+//             <>
+//               <div className="control-group text-xs">
+//                 <label className="block mb-2 text-xs">Rotation Speed:</label>
+//                 <input
+//                   type="range"
+//                   min="0.0"
+//                   max="2"
+//                   step="0.1"
+//                   value={settings.rotationSpeed}
+//                   onChange={(e) =>
+//                     setSettings({ ...settings, rotationSpeed: parseFloat(e.target.value) })
+//                   }
+//                   className="w-full"
+//                   list="rotationSpeedSteps"
+//                 />
+//                 <datalist id="rotationSpeedSteps">
+//                   {[...Array(100)].map((_, i) => (
+//                     <option key={i} value={i / 100}></option>
+//                   ))}
+//                 </datalist>
+//               </div>
+//               <div className="control-group text-xs ">
+//                 <label className="block mb-2 text-xs">Rotation Radius:</label>
+//                 <input
+//                   type="range"
+//                   min="10"
+//                   max="500"
+//                   value={settings.rotationRadius}
+//                   onChange={(e) =>
+//                     setSettings({ ...settings, rotationRadius: parseFloat(e.target.value) })
+//                   }
+//                   className="w-full"
+//                   list="rotationRadiusSteps"
+//                 />
+//                 <datalist id="rotationRadiusSteps">
+//                   {[...Array(50)].map((_, i) => (
+//                     <option key={i} value={i * 10}></option>
+//                   ))}
+//                 </datalist>
+//               </div>
+//             </>
+//           )}
+
+//           {/* Oscillation-only control */}
+//           {['oscillateUpDown', 'oscillateRightLeft'].includes(settings.direction) && (
+//             <div className="control-group">
+//               <label className="block mb-2 text-xs">Oscillation Range:</label>
+//               <input
+//                 type="range"
+//                 min="10"
+//                 max={Math.min(window.innerWidth, window.innerHeight)}
+//                 value={settings.oscillationRange}
+//                 onChange={(e) =>
+//                   setSettings({ ...settings, oscillationRange: parseFloat(e.target.value) })
+//                 }
+//                 className="w-full"
+//                 list="oscillationRangeSteps"
+//               />
+//               <datalist id="oscillationRangeSteps">
+//                 {[...Array(10)].map((_, i) => (
+//                   <option key={i} value={i * 10}></option>
+//                 ))}
+//               </datalist>
+//             </div>
+//           )}
+
+//           {/* Angle (degrees input, stored as radians) */}
+//           <div className="control-group text-xs">
+//             <label className="block mb-2 text-xs">Angle:</label>
+//             <input
+//               type="range"
+//               min="0"
+//               max="360"
+//               step="1"
+//               value={settings.angle * (180 / Math.PI)}
+//               onChange={(e) =>
+//                 setSettings({
+//                   ...settings,
+//                   angle: parseFloat(e.target.value) * (Math.PI / 180),
+//                 })
+//               }
+//               className="w-full"
+//               list="angleSteps"
+//             />
+//             <datalist id="angleSteps">
+//               {[...Array(36)].map((_, i) => (
+//                 <option key={i} value={i * 10}></option>
+//               ))}
+//             </datalist>
+//           </div>
+
+//           {/* Amplitude */}
+//           <div className="control-group text-xs">
+//             <Slider
+//               label="Amplitude"
+//               min={10}
+//               max={600}
+//               step={1}
+//               value={settings.amplitude}
+//               onChange={(NV) =>
+//                 setSettings((OV) => ({
+//                   ...OV,
+//                   amplitude: NV,
+//                 }))
+//               }
+//             />
+//           </div>
+
+//           {/* Frequency */}
+//           <div className="control-group text-xs">
+//             <label className="block mb-2 text-xs">Frequency:</label>
+//             <input
+//               type="range"
+//               min="1"
+//               max="300"
+//               step="1"
+//               value={settings.frequency}
+//               onChange={(e) =>
+//                 setSettings({ ...settings, frequency: parseFloat(e.target.value) })
+//               }
+//               className="w-full"
+//               list="frequencySteps"
+//             />
+//             <datalist id="frequencySteps">
+//               {[...Array(30)].map((_, i) => (
+//                 <option key={i} value={i * 10}></option>
+//               ))}
+//             </datalist>
+//           </div>
+
+//           {/* Speed */}
+//           <div className="control-group text-xs">
+//             <Slider
+//               label="Speed"
+//               min={1}
+//               max={10}
+//               step={1}
+//               value={settings.speed}
+//               onChange={(NV) =>
+//                 setSettings((OV) => ({
+//                   ...OV,
+//                   speed: NV,
+//                 }))
+//               }
+//             />
+//           </div>
+
+//           {/* Line thickness */}
+//           <div className="control-group text-xs">
+//             <label className="block mb-2 text-xs">Line Thickness:</label>
+//             <input
+//               type="range"
+//               min="1"
+//               max="10"
+//               step="1"
+//               value={settings.thickness}
+//               onChange={(e) =>
+//                 setSettings({ ...settings, thickness: parseFloat(e.target.value) })
+//               }
+//               className="w-full"
+//               list="thicknessSteps"
+//             />
+//             <datalist id="thicknessSteps">
+//               {[...Array(10)].map((_, i) => (
+//                 <option key={i} value={i + 1}></option>
+//               ))}
+//             </datalist>
+//           </div>
+
+//           {/* Phase offset (degrees input, stored as radians) */}
+//           <div className="control-group text-xs">
+//             <label className="block mb-2 text-xs">Phase Offset:</label>
+//             <input
+//               type="range"
+//               min="0"
+//               max="360"
+//               step="1"
+//               value={settings.phaseOffset * (180 / Math.PI)}
+//               onChange={(e) =>
+//                 setSettings({
+//                   ...settings,
+//                   phaseOffset: (parseFloat(e.target.value) / 360) * (2 * Math.PI),
+//                 })
+//               }
+//               className="w-full"
+//               list="phaseOffsetSteps"
+//             />
+//             <datalist id="phaseOffsetSteps">
+//               {[...Array(36)].map((_, i) => (
+//                 <option key={i} value={i * 10}></option>
+//               ))}
+//             </datalist>
+//           </div>
+
+//           {/* Counts and distances */}
+//           <div className="control-group text-xs">
+//             <label className="block mb-2 text-xs">Number of Lines:</label>
+//             <input
+//               type="range"
+//               min="1"
+//               max="100"
+//               step="1"
+//               value={settings.numLines}
+//               onChange={(e) =>
+//                 setSettings({ ...settings, numLines: parseInt(e.target.value, 10) })
+//               }
+//               className="w-full"
+//               list="numLinesSteps"
+//             />
+//             <datalist id="numLinesSteps">
+//               {[...Array(10)].map((_, i) => (
+//                 <option key={i} value={i * 10}></option>
+//               ))}
+//             </datalist>
+//           </div>
+
+//           <div className="control-group text-xs">
+//             <label className="block mb-2 text-xs">Distance Between Lines:</label>
+//             <input
+//               type="range"
+//               min="1"
+//               max="200"
+//               step="1"
+//               value={settings.distance}
+//               onChange={(e) =>
+//                 setSettings({ ...settings, distance: parseFloat(e.target.value) })
+//               }
+//               className="w-full"
+//               list="distanceSteps"
+//             />
+//             <datalist id="distanceSteps">
+//               {[...Array(20)].map((_, i) => (
+//                 <option key={i} value={i * 10}></option>
+//               ))}
+//             </datalist>
+//           </div>
+
+//           <div className="control-group text-xs">
+//             <label className="block mb-2 text-xs">Number of Groups:</label>
+//             <input
+//               type="range"
+//               min="1"
+//               max="10"
+//               step="1"
+//               value={settings.groups}
+//               onChange={(e) => setSettings({ ...settings, groups: parseInt(e.target.value, 10) })}
+//               className="w-full"
+//               list="groupsSteps"
+//             />
+//             <datalist id="groupsSteps">
+//               {[...Array(10)].map((_, i) => (
+//                 <option key={i} value={i + 1}></option>
+//               ))}
+//             </datalist>
+//           </div>
+
+//           <div className="control-group text-xs">
+//             <label className="block mb-2 text-xs">Distance between Groups:</label>
+//             <input
+//               type="range"
+//               min="0"
+//               max="1000"
+//               step="1"
+//               value={settings.groupDistance}
+//               onChange={(e) =>
+//                 setSettings({ ...settings, groupDistance: parseFloat(e.target.value) })
+//               }
+//               className="w-full"
+//               list="groupDistanceSteps"
+//             />
+//             <datalist id="groupDistanceSteps">
+//               {[...Array(100)].map((_, i) => (
+//                 <option key={i} value={i * 10}></option>
+//               ))}
+//             </datalist>
+//           </div>
+
+//           {/* Colors & palette */}
+//           <div className="control-group text-xs">
+//             <label className="block mb-2 text-xs">Background Color:</label>
+//             <input
+//               type="color"
+//               value={settings.bgColor}
+//               onChange={(e) => setSettings({ ...settings, bgColor: e.target.value })}
+//               className="w-full"
+//             />
+//           </div>
+
+//           <div className="control-group text-xs">
+//             <label className="block mb-2 text-xs">Line Color:</label>
+//             <input
+//               type="color"
+//               value={settings.lineColor}
+//               onChange={(e) => setSettings({ ...settings, lineColor: e.target.value })}
+//               className="w-full"
+//             />
+//           </div>
+
+//           <div className="control-group text-xs">
+//             <label className="block mb-2 text-xs">Use Palette:</label>
+//             <select
+//               value={settings.selectedPalette}
+//               onChange={(e) =>
+//                 setSettings({ ...settings, selectedPalette: e.target.value as any })
+//               }
+//               className="border p-2 rounded w-full"
+//             >
+//               <option value="none">None</option>
+//               <option value="rainbow">Rainbow</option>
+//               <option value="pastel">Pastel</option>
+//             </select>
+//           </div>
+
+//           <hr className="my-2" />
+
+//           {/* Reusable preset block (Save/Load UI + Firebase writes) */}
+//           <PresetControls
+//             module={MODULE}
+//             settings={settings}
+//             setSettings={setSettings}
+//             mergeLoaded={mergeLoaded}
+//             className="bg-transparent"
+//           />
+//         </div>
+//       </Collapse>
+//     </div>
+//   );
+// };
+
+// export default ControlPanel;
 
 // src/components/Therapy/ControlPanel.tsx
 // worked but the preset and load are inside 

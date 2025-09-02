@@ -1,7 +1,8 @@
- // src/components/Therapy/MultifunctionAnimation.tsx
+// src/components/Therapy/MultifunctionAnimation.tsx
 import React, { useCallback, useState } from 'react';
 import ControlPanel from './ControlPanel';
 import { ReactP5Wrapper } from 'react-p5-wrapper';
+import { hexToRgba } from '../../utils/color'; // <<< ADD
 
 export interface Settings {
   waveType: 'sine' | 'tan' | 'cotan' | 'sawtooth' | 'square' | 'triangle';
@@ -25,11 +26,18 @@ export interface Settings {
   bgColor: string;
   lineColor: string;
   selectedPalette: 'none' | 'rainbow' | 'pastel';
-  rotationSpeed: number;    // for circular
-  rotationRadius: number;   // for circular
-  oscillationRange: number; // for oscillations
-  groups: number;           // number of line groups
-  groupDistance: number;    // distance between groups
+  rotationSpeed: number;
+  rotationRadius: number;
+  oscillationRange: number;
+  groups: number;
+  groupDistance: number;
+    
+
+  // <<< ADD (optional-safe: old presets still work)
+  bgOpacity?: number;                       // 0..1
+  lineOpacity?: number;                     // 0..1
+  lineOpacityMode?: 'constant' | 'pulse';   // default 'constant'
+  lineOpacitySpeed?: number;                // >=0 (default 1)
 }
 
 const DEFAULTS: Settings = {
@@ -51,9 +59,14 @@ const DEFAULTS: Settings = {
   oscillationRange: 100,
   groups: 1,
   groupDistance: 100,
+
+  // <<< ADD defaults
+  bgOpacity: 1,
+  lineOpacity: 1,
+  lineOpacityMode: 'constant',
+  lineOpacitySpeed: 1,
 };
 
-// Make a fresh copy for resets (avoid sharing object refs)
 const cloneDefaults = (): Settings => ({ ...DEFAULTS });
 
 type Props = {
@@ -63,24 +76,23 @@ type Props = {
 
 const MultifunctionAnimation: React.FC<Props> = ({ settings, setSettings }) => {
   const [running, setRunning] = useState(true);
-  const [resetKey, setResetKey] = useState(0); // bump to rewind time in sketch
+  const [resetKey, setResetKey] = useState(0);
 
   const startAnimation = () => setRunning(true);
   const stopAnimation  = () => setRunning(false);
   const resetAnimation = () => {
-    setSettings(cloneDefaults()); // reset the panel/props
-    setResetKey((k) => k + 1);    // rewind time in p5
-    setRunning(false);            // pause after reset (like other modules)
+    setSettings(cloneDefaults());
+    setResetKey((k) => k + 1);
+    setRunning(false);
   };
 
   const sketch = useCallback((p5: any) => {
-    // Local sketch state (NOT React state)
-    let t = 0;                     // time accumulator
+    let t = 0;        // motion time
+    let tAlpha = 0;   // opacity time (separate so pulsing works even if motion is static)
     let current: Settings = cloneDefaults();
     let isRunning = true;
     let lastResetKey = -1;
 
-    // motion offsets
     let x = 0;
     let yOffset = 0;
 
@@ -101,14 +113,13 @@ const MultifunctionAnimation: React.FC<Props> = ({ settings, setSettings }) => {
       p5.frameRate(60);
     };
 
-    // p5-wrapper will pass our props here
     p5.updateWithProps = (props: any) => {
       if (props && props.settings) current = props.settings;
       if (typeof props.running === 'boolean') isRunning = props.running;
 
       if (typeof props.resetKey === 'number' && props.resetKey !== lastResetKey) {
-        // rewind time & reset offsets
         t = 0;
+        tAlpha = 0;
         x = 0;
         yOffset = p5.height / 2;
         lastResetKey = props.resetKey;
@@ -116,45 +127,36 @@ const MultifunctionAnimation: React.FC<Props> = ({ settings, setSettings }) => {
     };
 
     const move = () => {
-      // freeze motion when paused
       if (!isRunning) return;
 
       switch (current.direction) {
         case 'static':
-          // keep at center (don’t drift)
           yOffset = p5.height / 2;
           break;
-
         case 'up':
           yOffset -= current.speed;
           if (yOffset < -p5.height) yOffset += p5.height;
           break;
-
         case 'down':
           yOffset += current.speed;
           if (yOffset > p5.height) yOffset -= p5.height;
           break;
-
         case 'left':
           x -= current.speed;
           if (x < -p5.width) x += p5.width;
           break;
-
         case 'right':
           x += current.speed;
           if (x > p5.width) x -= p5.width;
           break;
-
         case 'oscillateUpDown':
           yOffset = p5.height / 2 + current.oscillationRange * p5.sin(t);
           t += current.speed / 100;
           break;
-
         case 'oscillateRightLeft':
           x = p5.width / 2 + current.oscillationRange * p5.sin(t);
           t += current.speed / 100;
           break;
-
         case 'circular': {
           const tt = t * current.rotationSpeed;
           x = p5.width  / 2 + current.rotationRadius * p5.cos(tt);
@@ -163,6 +165,9 @@ const MultifunctionAnimation: React.FC<Props> = ({ settings, setSettings }) => {
           break;
         }
       }
+
+      // advance opacity time for pulsing
+      tAlpha += 0.02 * (current.lineOpacitySpeed ?? 1);
     };
 
     p5.draw = () => {
@@ -171,34 +176,45 @@ const MultifunctionAnimation: React.FC<Props> = ({ settings, setSettings }) => {
       const centerX = w / 2;
       const centerY = h / 2;
 
+      // --- background with opacity (same approach as Baseline)
+      const bgA = typeof current.bgOpacity === 'number' ? current.bgOpacity : 1;
+      const bgRgba = hexToRgba(current.bgColor || '#000000', bgA);
       p5.clear();
-      p5.background(p5.color(current.bgColor));
+      p5.background(p5.color(bgRgba));
+
       p5.strokeWeight(current.thickness);
 
-      move(); // updates x/yOffset/t based on current + isRunning
+      move();
 
       const usePalette = current.selectedPalette !== 'none';
       const palette = current.selectedPalette === 'rainbow'
         ? palettes.rainbow
         : palettes.pastel;
 
-      for (let g = 0; g < current.groups; g++) {
-        for (let i = 0; i < current.numLines; i++) {
-          // set stroke per line
-          if (usePalette) {
-            const col = palette[i % palette.length];
-            p5.stroke(p5.color(col));
-          } else {
-            p5.stroke(p5.color(current.lineColor));
-          }
+      // compute line alpha (0..1)
+      let lineAlpha = typeof current.lineOpacity === 'number' ? current.lineOpacity : 1;
+      const mode = current.lineOpacityMode || 'constant';
+      if (mode === 'pulse') {
+        const pulse = (p5.sin(tAlpha) + 1) * 0.5; // 0..1
+        lineAlpha = Math.max(0, Math.min(1, lineAlpha * pulse));
+      }
+      const lineAlpha255 = Math.round(255 * lineAlpha);
+
+      for (let g = 0; g < (current.groups ?? 1); g++) {
+        for (let i = 0; i < (current.numLines ?? 1); i++) {
+          // stroke color (with alpha)
+          let col = usePalette
+            ? p5.color(palette[i % palette.length])
+            : p5.color(current.lineColor || '#ffffff');
+          col.setAlpha(lineAlpha255);
+          p5.stroke(col);
 
           p5.noFill();
           p5.beginShape();
 
           for (let j = 0; j <= w; j++) {
-            const k = (j + x + current.phaseOffset * i) / current.frequency;
+            const k = (j + x + (current.phaseOffset ?? 0) * i) / (current.frequency || 1);
 
-            // wave families
             let wave = 0;
             switch (current.waveType) {
               case 'sine':    wave = p5.sin(k) * current.amplitude; break;
@@ -207,14 +223,14 @@ const MultifunctionAnimation: React.FC<Props> = ({ settings, setSettings }) => {
               case 'sawtooth':wave = ((k / p5.PI) % 2 - 1) * current.amplitude; break;
               case 'square':  wave = (p5.sin(k) >= 0 ? 1 : -1) * (current.amplitude / 2); break;
               case 'triangle':wave = (2 * current.amplitude / p5.PI) * p5.asin(p5.sin(k)); break;
+              default:        wave = p5.sin(k) * current.amplitude;
             }
-//add -2 sp ot wo;; start om tje ,odd;e pf the text box 
-            const baseY = yOffset + (g -2)  * current.groupDistance + i * current.distance;
 
-            // rotate around center by current.angle
-            const cosA = Math.cos(current.angle);
-            const sinA = Math.sin(current.angle);
-            const rx = (j - centerX) * cosA - (wave) * sinA + centerX;
+            const baseY = yOffset + (g - 2) * (current.groupDistance ?? 0) + i * (current.distance ?? 0);
+
+            const cosA = Math.cos(current.angle || 0);
+            const sinA = Math.sin(current.angle || 0);
+            const rx = (j - centerX) * cosA - wave * sinA + centerX;
             const ry = (j - centerX) * sinA + (wave + baseY - centerY) * cosA + centerY;
 
             p5.vertex(rx, ry);
@@ -235,22 +251,559 @@ const MultifunctionAnimation: React.FC<Props> = ({ settings, setSettings }) => {
       <ControlPanel
         settings={settings}
         setSettings={setSettings}
-        startAnimation={startAnimation}
-        stopAnimation={stopAnimation}
+        startAnimation={() => setRunning(true)}
+        stopAnimation={() => setRunning(false)}
         resetAnimation={resetAnimation}
       />
-
-      <ReactP5Wrapper
-        sketch={sketch}
-        settings={settings}   // <- the source of truth comes from TherapyPage
-        running={running}     // <- start/stop without stale closures
-        resetKey={resetKey}   // <- bump to rewind time
-      />
+      <ReactP5Wrapper sketch={sketch} settings={settings} running={running} resetKey={resetKey} />
     </div>
   );
 };
 
 export default MultifunctionAnimation;
+
+// src/components/Therapy/MultifunctionAnimation.tsx
+// added opacity option and opacity pulsing / constatnt 
+// import React, { useCallback, useState } from 'react';
+// import ControlPanel from './ControlPanel';
+// import { ReactP5Wrapper } from 'react-p5-wrapper';
+// import { hexToRgba } from '../../utils/color';
+
+// export interface Settings {
+//   waveType: 'sine' | 'tan' | 'cotan' | 'sawtooth' | 'square' | 'triangle';
+//   direction:
+//     | 'static'
+//     | 'up'
+//     | 'down'
+//     | 'left'
+//     | 'right'
+//     | 'oscillateUpDown'
+//     | 'oscillateRightLeft'
+//     | 'circular';
+//   angle: number;            // radians
+//   amplitude: number;
+//   frequency: number;
+//   speed: number;
+//   thickness: number;
+//   phaseOffset: number;
+//   numLines: number;
+//   distance: number;
+//   bgColor: string;
+//   lineColor: string;
+//   selectedPalette: 'none' | 'rainbow' | 'pastel';
+//   rotationSpeed: number;    // for circular
+//   rotationRadius: number;   // for circular
+//   oscillationRange: number; // for oscillations
+//   groups: number;           // number of line groups
+//   groupDistance: number;    // distance between groups
+
+//   // NEW — opacity controls (kept optional-safe for older saved presets)
+//   bgOpacity?: number;                      // 0..1 (default 1)
+//   lineOpacity?: number;                    // 0..1 (default 1)
+//   lineOpacityMode?: 'constant' | 'pulse';  // default 'constant'
+//   lineOpacitySpeed?: number;               // >=0 (default 1)
+// }
+
+// const DEFAULTS: Settings = {
+//   waveType: 'sine',
+//   direction: 'static',
+//   angle: 0,
+//   amplitude: 10,
+//   frequency: 10,
+//   speed: 5,
+//   thickness: 1,
+//   phaseOffset: 0,
+//   numLines: 1,
+//   distance: 0,
+//   bgColor: '#ffffff',
+//   lineColor: '#FF0000',
+//   selectedPalette: 'none',
+//   rotationSpeed: 0.02,
+//   rotationRadius: 150,
+//   oscillationRange: 100,
+//   groups: 1,
+//   groupDistance: 100,
+
+//   // NEW defaults
+//   bgOpacity: 1,
+//   lineOpacity: 1,
+//   lineOpacityMode: 'constant',
+//   lineOpacitySpeed: 1,
+// };
+
+// // Make a fresh copy for resets (avoid sharing object refs)
+// const cloneDefaults = (): Settings => ({ ...DEFAULTS });
+
+// type Props = {
+//   settings: Settings;
+//   setSettings: React.Dispatch<React.SetStateAction<Settings>>;
+// };
+
+// const MultifunctionAnimation: React.FC<Props> = ({ settings, setSettings }) => {
+//   const [running, setRunning] = useState(true);
+//   const [resetKey, setResetKey] = useState(0); // bump to rewind time in sketch
+
+//   const startAnimation = () => setRunning(true);
+//   const stopAnimation  = () => setRunning(false);
+//   const resetAnimation = () => {
+//     setSettings(cloneDefaults()); // reset the panel/props
+//     setResetKey((k) => k + 1);    // rewind time in p5
+//     setRunning(false);            // pause after reset (like other modules)
+//   };
+
+//   const sketch = useCallback((p5: any) => {
+//     // Local sketch state (NOT React state)
+//     let t = 0;                     // time accumulator for motion
+//     let tAlpha = 0;                // independent time for opacity pulsing
+//     let current: Settings = cloneDefaults();
+//     let isRunning = true;
+//     let lastResetKey = -1;
+
+//     // motion offsets
+//     let x = 0;
+//     let yOffset = 0;
+
+//     const palettes: Record<'rainbow'|'pastel', string[]> = {
+//       rainbow: [
+//         '#FF0000','#FF7F00','#FFFF00','#7FFF00','#00FF00','#00FF7F',
+//         '#00FFFF','#007FFF','#0000FF','#7F00FF','#FF00FF','#FF007F'
+//       ],
+//       pastel: [
+//         '#FFD1DC','#FFABAB','#FFC3A0','#FF677D','#D4A5A5',
+//         '#392F5A','#31A2AC','#61C0BF','#6B4226','#ACD8AA'
+//       ],
+//     };
+
+//     p5.setup = () => {
+//       p5.createCanvas(p5.windowWidth, p5.windowHeight);
+//       p5.noStroke();
+//       p5.frameRate(60);
+//     };
+
+//     // p5-wrapper will pass our props here
+//     p5.updateWithProps = (props: any) => {
+//       if (props && props.settings) current = props.settings;
+//       if (typeof props.running === 'boolean') isRunning = props.running;
+
+//       if (typeof props.resetKey === 'number' && props.resetKey !== lastResetKey) {
+//         // rewind time & reset offsets
+//         t = 0;
+//         tAlpha = 0;
+//         x = 0;
+//         yOffset = p5.height / 2;
+//         lastResetKey = props.resetKey;
+//       }
+//     };
+
+//     const move = () => {
+//       // freeze motion when paused
+//       if (!isRunning) return;
+
+//       switch (current.direction) {
+//         case 'static':
+//           // keep at center (don’t drift)
+//           yOffset = p5.height / 2;
+//           break;
+
+//         case 'up':
+//           yOffset -= current.speed;
+//           if (yOffset < -p5.height) yOffset += p5.height;
+//           break;
+
+//         case 'down':
+//           yOffset += current.speed;
+//           if (yOffset > p5.height) yOffset -= p5.height;
+//           break;
+
+//         case 'left':
+//           x -= current.speed;
+//           if (x < -p5.width) x += p5.width;
+//           break;
+
+//         case 'right':
+//           x += current.speed;
+//           if (x > p5.width) x -= p5.width;
+//           break;
+
+//         case 'oscillateUpDown':
+//           yOffset = p5.height / 2 + current.oscillationRange * p5.sin(t);
+//           t += current.speed / 100;
+//           break;
+
+//         case 'oscillateRightLeft':
+//           x = p5.width / 2 + current.oscillationRange * p5.sin(t);
+//           t += current.speed / 100;
+//           break;
+
+//         case 'circular': {
+//           const tt = t * current.rotationSpeed;
+//           x = p5.width  / 2 + current.rotationRadius * p5.cos(tt);
+//           yOffset = p5.height / 2 + current.rotationRadius * p5.sin(tt);
+//           t += current.speed / 100;
+//           break;
+//         }
+//       }
+
+//       // advance opacity time separately so pulse still works when motion is static
+//       tAlpha += 0.02 * (current.lineOpacitySpeed ?? 1);
+//     };
+
+//     p5.draw = () => {
+//       const w = p5.width;
+//       const h = p5.height;
+//       const centerX = w / 2;
+//       const centerY = h / 2;
+
+//       // ---- background with opacity (same style as Baseline using hexToRgba)
+//       const bgA = typeof current.bgOpacity === 'number' ? current.bgOpacity : 1;
+//       const bgRgba = hexToRgba(current.bgColor || '#000000', bgA);
+//       p5.clear();
+//       p5.background(p5.color(bgRgba));
+
+//       p5.strokeWeight(current.thickness);
+
+//       move(); // updates x/yOffset/t + tAlpha
+
+//       const usePalette = current.selectedPalette !== 'none';
+//       const palette = current.selectedPalette === 'rainbow'
+//         ? palettes.rainbow
+//         : palettes.pastel;
+
+//       // compute current line alpha (0..1)
+//       let lineAlpha = typeof current.lineOpacity === 'number' ? current.lineOpacity : 1;
+//       const mode = current.lineOpacityMode || 'constant';
+//       if (mode === 'pulse') {
+//         const pulse = (p5.sin(tAlpha) + 1) * 0.5; // 0..1
+//         lineAlpha = Math.max(0, Math.min(1, lineAlpha * pulse));
+//       }
+//       const lineAlpha255 = Math.round(255 * lineAlpha);
+
+//       for (let g = 0; g < (current.groups ?? 1); g++) {
+//         for (let i = 0; i < (current.numLines ?? 1); i++) {
+//           // set stroke per line (with alpha)
+//           let col = usePalette
+//             ? p5.color(palette[i % palette.length])
+//             : p5.color(current.lineColor || '#ffffff');
+//           col.setAlpha(lineAlpha255);
+//           p5.stroke(col);
+
+//           p5.noFill();
+//           p5.beginShape();
+
+//           for (let j = 0; j <= w; j++) {
+//             const k = (j + x + (current.phaseOffset ?? 0) * i) / (current.frequency || 1);
+
+//             // wave families
+//             let wave = 0;
+//             switch (current.waveType) {
+//               case 'sine':    wave = p5.sin(k) * current.amplitude; break;
+//               case 'tan':     wave = p5.tan(k) * (current.amplitude / 4); break;
+//               case 'cotan':   wave = (1 / p5.tan(k)) * (current.amplitude / 4); break;
+//               case 'sawtooth':wave = ((k / p5.PI) % 2 - 1) * current.amplitude; break;
+//               case 'square':  wave = (p5.sin(k) >= 0 ? 1 : -1) * (current.amplitude / 2); break;
+//               case 'triangle':wave = (2 * current.amplitude / p5.PI) * p5.asin(p5.sin(k)); break;
+//               default:        wave = p5.sin(k) * current.amplitude;
+//             }
+
+//             // NOTE: keep your original “-2 groups offset” comment/logic
+//             const baseY = yOffset + (g - 2) * (current.groupDistance ?? 0) + i * (current.distance ?? 0);
+
+//             // rotate around center by current.angle
+//             const cosA = Math.cos(current.angle || 0);
+//             const sinA = Math.sin(current.angle || 0);
+//             const rx = (j - centerX) * cosA - (wave) * sinA + centerX;
+//             const ry = (j - centerX) * sinA + (wave + baseY - centerY) * cosA + centerY;
+
+//             p5.vertex(rx, ry);
+//           }
+
+//           p5.endShape();
+//         }
+//       }
+//     };
+
+//     p5.windowResized = () => {
+//       p5.resizeCanvas(p5.windowWidth, p5.windowHeight);
+//     };
+//   }, []);
+
+//   return (
+//     <div className="relative">
+//       <ControlPanel
+//         settings={settings}
+//         setSettings={setSettings}
+//         startAnimation={startAnimation}
+//         stopAnimation={stopAnimation}
+//         resetAnimation={resetAnimation}
+//       />
+
+//       <ReactP5Wrapper
+//         sketch={sketch}
+//         settings={settings}   // <- the source of truth comes from TherapyPage
+//         running={running}     // <- start/stop without stale closures
+//         resetKey={resetKey}   // <- bump to rewind time
+//       />
+//     </div>
+//   );
+// };
+
+// export default MultifunctionAnimation;
+
+
+
+//  // src/components/Therapy/MultifunctionAnimation.tsx
+// import React, { useCallback, useState } from 'react';
+// import ControlPanel from './ControlPanel';
+// import { ReactP5Wrapper } from 'react-p5-wrapper';
+
+// export interface Settings {
+//   waveType: 'sine' | 'tan' | 'cotan' | 'sawtooth' | 'square' | 'triangle';
+//   direction:
+//     | 'static'
+//     | 'up'
+//     | 'down'
+//     | 'left'
+//     | 'right'
+//     | 'oscillateUpDown'
+//     | 'oscillateRightLeft'
+//     | 'circular';
+//   angle: number;            // radians
+//   amplitude: number;
+//   frequency: number;
+//   speed: number;
+//   thickness: number;
+//   phaseOffset: number;
+//   numLines: number;
+//   distance: number;
+//   bgColor: string;
+//   lineColor: string;
+//   selectedPalette: 'none' | 'rainbow' | 'pastel';
+//   rotationSpeed: number;    // for circular
+//   rotationRadius: number;   // for circular
+//   oscillationRange: number; // for oscillations
+//   groups: number;           // number of line groups
+//   groupDistance: number;    // distance between groups
+// }
+
+// const DEFAULTS: Settings = {
+//   waveType: 'sine',
+//   direction: 'static',
+//   angle: 0,
+//   amplitude: 10,
+//   frequency: 10,
+//   speed: 5,
+//   thickness: 1,
+//   phaseOffset: 0,
+//   numLines: 1,
+//   distance: 0,
+//   bgColor: '#ffffff',
+//   lineColor: '#FF0000',
+//   selectedPalette: 'none',
+//   rotationSpeed: 0.02,
+//   rotationRadius: 150,
+//   oscillationRange: 100,
+//   groups: 1,
+//   groupDistance: 100,
+// };
+
+// // Make a fresh copy for resets (avoid sharing object refs)
+// const cloneDefaults = (): Settings => ({ ...DEFAULTS });
+
+// type Props = {
+//   settings: Settings;
+//   setSettings: React.Dispatch<React.SetStateAction<Settings>>;
+// };
+
+// const MultifunctionAnimation: React.FC<Props> = ({ settings, setSettings }) => {
+//   const [running, setRunning] = useState(true);
+//   const [resetKey, setResetKey] = useState(0); // bump to rewind time in sketch
+
+//   const startAnimation = () => setRunning(true);
+//   const stopAnimation  = () => setRunning(false);
+//   const resetAnimation = () => {
+//     setSettings(cloneDefaults()); // reset the panel/props
+//     setResetKey((k) => k + 1);    // rewind time in p5
+//     setRunning(false);            // pause after reset (like other modules)
+//   };
+
+//   const sketch = useCallback((p5: any) => {
+//     // Local sketch state (NOT React state)
+//     let t = 0;                     // time accumulator
+//     let current: Settings = cloneDefaults();
+//     let isRunning = true;
+//     let lastResetKey = -1;
+
+//     // motion offsets
+//     let x = 0;
+//     let yOffset = 0;
+
+//     const palettes: Record<'rainbow'|'pastel', string[]> = {
+//       rainbow: [
+//         '#FF0000','#FF7F00','#FFFF00','#7FFF00','#00FF00','#00FF7F',
+//         '#00FFFF','#007FFF','#0000FF','#7F00FF','#FF00FF','#FF007F'
+//       ],
+//       pastel: [
+//         '#FFD1DC','#FFABAB','#FFC3A0','#FF677D','#D4A5A5',
+//         '#392F5A','#31A2AC','#61C0BF','#6B4226','#ACD8AA'
+//       ],
+//     };
+
+//     p5.setup = () => {
+//       p5.createCanvas(p5.windowWidth, p5.windowHeight);
+//       p5.noStroke();
+//       p5.frameRate(60);
+//     };
+
+//     // p5-wrapper will pass our props here
+//     p5.updateWithProps = (props: any) => {
+//       if (props && props.settings) current = props.settings;
+//       if (typeof props.running === 'boolean') isRunning = props.running;
+
+//       if (typeof props.resetKey === 'number' && props.resetKey !== lastResetKey) {
+//         // rewind time & reset offsets
+//         t = 0;
+//         x = 0;
+//         yOffset = p5.height / 2;
+//         lastResetKey = props.resetKey;
+//       }
+//     };
+
+//     const move = () => {
+//       // freeze motion when paused
+//       if (!isRunning) return;
+
+//       switch (current.direction) {
+//         case 'static':
+//           // keep at center (don’t drift)
+//           yOffset = p5.height / 2;
+//           break;
+
+//         case 'up':
+//           yOffset -= current.speed;
+//           if (yOffset < -p5.height) yOffset += p5.height;
+//           break;
+
+//         case 'down':
+//           yOffset += current.speed;
+//           if (yOffset > p5.height) yOffset -= p5.height;
+//           break;
+
+//         case 'left':
+//           x -= current.speed;
+//           if (x < -p5.width) x += p5.width;
+//           break;
+
+//         case 'right':
+//           x += current.speed;
+//           if (x > p5.width) x -= p5.width;
+//           break;
+
+//         case 'oscillateUpDown':
+//           yOffset = p5.height / 2 + current.oscillationRange * p5.sin(t);
+//           t += current.speed / 100;
+//           break;
+
+//         case 'oscillateRightLeft':
+//           x = p5.width / 2 + current.oscillationRange * p5.sin(t);
+//           t += current.speed / 100;
+//           break;
+
+//         case 'circular': {
+//           const tt = t * current.rotationSpeed;
+//           x = p5.width  / 2 + current.rotationRadius * p5.cos(tt);
+//           yOffset = p5.height / 2 + current.rotationRadius * p5.sin(tt);
+//           t += current.speed / 100;
+//           break;
+//         }
+//       }
+//     };
+
+//     p5.draw = () => {
+//       const w = p5.width;
+//       const h = p5.height;
+//       const centerX = w / 2;
+//       const centerY = h / 2;
+
+//       p5.clear();
+//       p5.background(p5.color(current.bgColor));
+//       p5.strokeWeight(current.thickness);
+
+//       move(); // updates x/yOffset/t based on current + isRunning
+
+//       const usePalette = current.selectedPalette !== 'none';
+//       const palette = current.selectedPalette === 'rainbow'
+//         ? palettes.rainbow
+//         : palettes.pastel;
+
+//       for (let g = 0; g < current.groups; g++) {
+//         for (let i = 0; i < current.numLines; i++) {
+//           // set stroke per line
+//           if (usePalette) {
+//             const col = palette[i % palette.length];
+//             p5.stroke(p5.color(col));
+//           } else {
+//             p5.stroke(p5.color(current.lineColor));
+//           }
+
+//           p5.noFill();
+//           p5.beginShape();
+
+//           for (let j = 0; j <= w; j++) {
+//             const k = (j + x + current.phaseOffset * i) / current.frequency;
+
+//             // wave families
+//             let wave = 0;
+//             switch (current.waveType) {
+//               case 'sine':    wave = p5.sin(k) * current.amplitude; break;
+//               case 'tan':     wave = p5.tan(k) * (current.amplitude / 4); break;
+//               case 'cotan':   wave = (1 / p5.tan(k)) * (current.amplitude / 4); break;
+//               case 'sawtooth':wave = ((k / p5.PI) % 2 - 1) * current.amplitude; break;
+//               case 'square':  wave = (p5.sin(k) >= 0 ? 1 : -1) * (current.amplitude / 2); break;
+//               case 'triangle':wave = (2 * current.amplitude / p5.PI) * p5.asin(p5.sin(k)); break;
+//             }
+// //add -2 sp ot wo;; start om tje ,odd;e pf the text box 
+//             const baseY = yOffset + (g -2)  * current.groupDistance + i * current.distance;
+
+//             // rotate around center by current.angle
+//             const cosA = Math.cos(current.angle);
+//             const sinA = Math.sin(current.angle);
+//             const rx = (j - centerX) * cosA - (wave) * sinA + centerX;
+//             const ry = (j - centerX) * sinA + (wave + baseY - centerY) * cosA + centerY;
+
+//             p5.vertex(rx, ry);
+//           }
+
+//           p5.endShape();
+//         }
+//       }
+//     };
+
+//     p5.windowResized = () => {
+//       p5.resizeCanvas(p5.windowWidth, p5.windowHeight);
+//     };
+//   }, []);
+
+//   return (
+//     <div className="relative">
+//       <ControlPanel
+//         settings={settings}
+//         setSettings={setSettings}
+//         startAnimation={startAnimation}
+//         stopAnimation={stopAnimation}
+//         resetAnimation={resetAnimation}
+//       />
+
+//       <ReactP5Wrapper
+//         sketch={sketch}
+//         settings={settings}   // <- the source of truth comes from TherapyPage
+//         running={running}     // <- start/stop without stale closures
+//         resetKey={resetKey}   // <- bump to rewind time
+//       />
+//     </div>
+//   );
+// };
+
+// export default MultifunctionAnimation;
 
 // // src/components/Therapy/MultifunctionAnimation.tsx
 

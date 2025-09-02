@@ -143,6 +143,12 @@ const DEFAULTS: Record<Tab, any> = {
       oscillationRange: 100,
       groups: 1,
       groupDistance: 100,
+        // <<< ADD defaults
+  bgOpacity: 1,
+  lineOpacity: 1,
+  lineOpacityMode: 'constant',
+  lineOpacitySpeed: 1,
+ 
   
   },
   shape: {
@@ -164,7 +170,14 @@ const DEFAULTS: Record<Tab, any> = {
     columnOffset: 0,
     rowDistance: 40,
     columnDistance: 40,
-  },
+
+      bgOpacity: 1,
+  bgOpacityMode: 'constant',
+  bgOpacitySpeed: 1,
+  shapeOpacity: 1,
+  shapeOpacityMode: 'constant',
+  shapeOpacitySpeed: 1,
+  }
 };
 
 const TherapyPage: React.FC = () => {
@@ -400,7 +413,11 @@ const TherapyPage: React.FC = () => {
   };
 
   return (
+
+    
     <div className="relative w-full">
+
+      
       <div className="flex justify-center text-sm text-gray-600 rounded p-2 mb-4 w-full">
         <DateTimeDisplay />
         <button onClick={() => setCurrentAnimation('baselinetyping')}
