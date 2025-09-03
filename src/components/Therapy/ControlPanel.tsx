@@ -41,6 +41,10 @@ export interface MultifunctionSettings {
   lineOpacity?: number;               // 0..1
   opacityMode?: 'constant' | 'pulse';
   opacitySpeed?: number;
+
+   // ...to adjust the hight of animation
+  yOffsetPx?: number;
+  fitHeight?: boolean;
 }
 
 interface ControlPanelProps {
@@ -109,6 +113,8 @@ const mergeLoaded = (
       : (curr.opacityMode ?? 'constant'),
   opacitySpeed:
     typeof loaded.opacitySpeed === 'number' ? loaded.opacitySpeed : (curr.opacitySpeed ?? 1),
+     yOffsetPx: typeof loaded.yOffsetPx === 'number' ? loaded.yOffsetPx : curr.yOffsetPx,
+  fitHeight: typeof loaded.fitHeight === 'boolean' ? loaded.fitHeight : curr.fitHeight,
 });
 
 const ControlPanel: React.FC<ControlPanelProps> = ({
@@ -244,7 +250,32 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
               {[...Array(36)].map((_, i) => <option key={i} value={i * 10}></option>)}
             </datalist>
           </div>
+<div className="control-group text-xs">
+  <label className="block mb-2 text-xs">Vertical Offset (px)</label>
+  <input
+    type="range"
+    min={-300}
+    max={300}
+    step={1}
+    value={settings.yOffsetPx ?? 0}
+    onChange={(e) => setSettings({ ...settings, yOffsetPx: parseInt(e.target.value, 10) })}
+    className="w-full"
+    list="yOffsetSteps"
+  />
+  <datalist id="yOffsetSteps">
+    {[-300,-200,-100,0,100,200,300].map(v => <option key={v} value={v}></option>)}
+  </datalist>
+</div>
 
+<div className="flex items-center gap-2 text-xs">
+  <input
+    id="fitHeight"
+    type="checkbox"
+    checked={!!settings.fitHeight}
+    onChange={(e) => setSettings({ ...settings, fitHeight: e.target.checked })}
+  />
+  <label htmlFor="fitHeight">Fit height (auto amplitude)</label>
+</div>
           {/* Amplitude */}
           <div className="control-group text-xs">
             <Slider

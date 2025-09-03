@@ -148,7 +148,8 @@ const DEFAULTS: Record<Tab, any> = {
   lineOpacity: 1,
   lineOpacityMode: 'constant',
   lineOpacitySpeed: 1,
- 
+   yOffsetPx: 0,
+  fitHeight: false,
   
   },
   shape: {
@@ -278,7 +279,7 @@ const TherapyPage: React.FC = () => {
       await uploadBytes(storageRef(storage, jsonPath), new Blob([jsonText], { type: 'application/json' }));
 
       // ---------- STORAGE: XLSX (multi-sheet) ----------
-      const wb = XLSX.utils.book_new();
+     /*  const wb = XLSX.utils.book_new();
 
       const flatRows = flattenToKeyValueRows({
         userId: fullRecord.userId,
@@ -349,7 +350,124 @@ const TherapyPage: React.FC = () => {
       if (wordOpsRows.length) {
         const wordOpsCsv = Papa.unparse(wordOpsRows);
         await uploadBytes(storageRef(storage, `${basePath}/${sessionId}.word_ops.csv`), new Blob([wordOpsCsv], { type: 'text/csv;charset=utf-8;' }));
-      }
+      } */
+// ---------- STORAGE: XLSX (multi-sheet, always all sheets) ----------
+const wb = XLSX.utils.book_new();
+
+// Build normalized row arrays up-front
+const flatRows = flattenToKeyValueRows({
+  userId: fullRecord.userId,
+  sessionId: fullRecord.sessionId,
+  animationTab: fullRecord.animationTab,
+  animationAtStart: fullRecord.animationAtStart,
+  animationAtSubmit: fullRecord.animationAtSubmit,
+  targetText: fullRecord.targetText,
+  typedText: fullRecord.typedText,
+  metrics: fullRecord.metrics,
+  ui: fullRecord.ui ?? {},
+  timestamp: fullRecord.timestamp,
+  localDateTime: fullRecord.localDateTime,
+  schemaVersion: fullRecord.schemaVersion,
+});
+
+const textRows = [
+  { name: 'targetText', value: fullRecord.targetText ?? '' },
+  { name: 'typedText',  value: fullRecord.typedText  ?? '' },
+];
+
+const keyRows = (fullRecord.keyData || []).map((k: any, i: number) => ({
+  index: i,
+  key: k.key,
+  pressTime: k.pressTime,
+  releaseTime: k.releaseTime ?? '',
+  holdTime: k.holdTime ?? '',
+  lagTime: k.lagTime,
+  totalLagTime: k.totalLagTime,
+}));
+
+const perKeyRowsArr = perKeyToRows(fullRecord.metrics?.perKey || {});
+const charOpsRows  = opsToRows(fullRecord.analysis?.char?.ops || []);
+const wordOpsRows  = opsToRows(fullRecord.analysis?.word?.ops || []);
+
+// helper: make a sheet even when rows are empty (header-only)
+const ensureSheet = (name: string, rows: any[], header: string[]) => {
+  const ws = rows.length
+    ? XLSX.utils.json_to_sheet(rows)
+    : XLSX.utils.aoa_to_sheet([header]);
+  XLSX.utils.book_append_sheet(wb, ws, name);
+};
+
+// A) Summary
+ensureSheet('Summary', flatRows, ['key', 'value']);
+
+// B) Texts (always has 2 rows)
+XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(textRows), 'Texts');
+
+// C) KeyEvents
+ensureSheet('KeyEvents', keyRows, [
+  'index', 'key', 'pressTime', 'releaseTime', 'holdTime', 'lagTime', 'totalLagTime'
+]);
+
+// D) PerKey  (headers match your perKeyToRows)
+ensureSheet('PerKey', perKeyRowsArr, ['key', 'count', 'meanHoldMs', 'meanLagMs']);
+
+// E) CharOps (headers match your opsToRows)
+ensureSheet('CharOps', charOpsRows, ['index', 'op', 'a', 'b', 'ai', 'bi']);
+
+// F) WordOps
+ensureSheet('WordOps', wordOpsRows, ['index', 'op', 'a', 'b', 'ai', 'bi']);
+
+// write workbook
+const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+const xlsxBlob = new Blob([wbout], {
+  type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+});
+const xlsxPath = `${basePath}/${sessionId}.xlsx`;
+await uploadBytes(storageRef(storage, xlsxPath), xlsxBlob);
+
+// ---------- STORAGE: CSVs (always write 5 files, header-only when empty) ----------
+const toCsv = (rows: any[], headers: string[]) => {
+  return rows.length
+    ? Papa.unparse(rows)
+    : Papa.unparse({ fields: headers, data: [] }); // header-only CSV
+};
+
+// A) flat/session summary
+const flatCsv = Papa.unparse(flatRows);
+await uploadBytes(
+  storageRef(storage, `${basePath}/${sessionId}.session_flat.csv`),
+  new Blob([flatCsv], { type: 'text/csv;charset=utf-8;' })
+);
+
+// B) key events
+const keyCsv = toCsv(keyRows, [
+  'index', 'key', 'pressTime', 'releaseTime', 'holdTime', 'lagTime', 'totalLagTime'
+]);
+await uploadBytes(
+  storageRef(storage, `${basePath}/${sessionId}.key_events.csv`),
+  new Blob([keyCsv], { type: 'text/csv;charset=utf-8;' })
+);
+
+// C) per-key stats
+const perKeyCsv = toCsv(perKeyRowsArr, ['key', 'count', 'meanHoldMs', 'meanLagMs']);
+await uploadBytes(
+  storageRef(storage, `${basePath}/${sessionId}.per_key.csv`),
+  new Blob([perKeyCsv], { type: 'text/csv;charset=utf-8;' })
+);
+
+// D) char-level ops
+const charOpsCsv = toCsv(charOpsRows, ['index', 'op', 'a', 'b', 'ai', 'bi']);
+await uploadBytes(
+  storageRef(storage, `${basePath}/${sessionId}.char_ops.csv`),
+  new Blob([charOpsCsv], { type: 'text/csv;charset=utf-8;' })
+);
+
+// E) word-level ops
+const wordOpsCsv = toCsv(wordOpsRows, ['index', 'op', 'a', 'b', 'ai', 'bi']);
+await uploadBytes(
+  storageRef(storage, `${basePath}/${sessionId}.word_ops.csv`),
+  new Blob([wordOpsCsv], { type: 'text/csv;charset=utf-8;' })
+);
 
       // ---------- FIRESTORE ----------
       const jsonSize = jsonText.length;
