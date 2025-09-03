@@ -374,7 +374,7 @@ Normalized Char Accuracy: ${pct(m.normalizedCharAccuracy)}`;
 
   return (
     <div className="relative w-full">
-      <div className="flex flex-row justify-between items-start w-full space-x-4">
+      <div className="flex flex-row justify-between items-start w-3/4 space-x-4">
         <div className="flex-1 text-xs">
           <textarea
             ref={textareaRef}
