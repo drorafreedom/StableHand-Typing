@@ -4,6 +4,8 @@
 import React from 'react';
 import parkinsonLogo from '../../assets/logos/parkinson-tremors.gif';
 import BrainLogo from '../../assets/logos/stock-vector.jpg';
+import '../../index.css';   // tailwind (base, components, utilities)
+import '../../App.css';     // ← your custom overrides should come last
 
 // Define props interface
 interface HeaderProps {
@@ -14,18 +16,31 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
   return (
     <header className="w-screen bg-gray-500 p-2 px-6 shadow-md flex items-center justify-between relative z-10">
       {/* Sidebar Toggle Button */}
-      <button
+  {/*     <button
         onClick={toggleSidebar}
         className="text-gray-200 hover:text-gray-400 focus:outline-none"
       >
         <img src={parkinsonLogo} alt="Caltech Logo" className="w-22 h-8 ml-4" />
       </button>
+ */}
+ <button
+  onClick={toggleSidebar}
+  aria-label="Open menu"
+  className=" p-0 m-0 bg-transparent border-0 outline-none"
+  
+>
+  <img
+    src={parkinsonLogo}
+    alt="Open sidebar"
+    className="block w-10 h-10 ml-2 object-contain bg-transparent rounded-none shadow-none ring-0 mix-blend-multiply"
+  />
+</button>
 
       {/* Center Title Section */}
-      <div className="flex-1 flex justify-center items-center space-x-2 relative">
+      <div className="flex-1 flex justify-center items-center space-x-8 relative">
         <span className="text-5xl font-bold text-white">Stable</span>
         <div className="relative flex justify-center items-center">
-          <div className="logo-wrapper">
+         <div className="mx-auto rounded-full overflow-hidden bg-white shadow-xl w-[4rem] h-[4rem]">
             <img 
               src={BrainLogo} 
               alt="StableHand Logo" 

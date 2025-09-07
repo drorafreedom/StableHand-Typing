@@ -1,31 +1,37 @@
-
 // src/pages/ContactUs.tsx
 import { useState } from 'react';
 import { db, auth } from '../../firebase/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { Frame3 } from '../common/Frame';
+// ==== Recipients (tweak here) ====
+const ADMIN_TO = 'drora@caltech.edu';
+const CC_TO = 'jburdick@caltech.edu'; // remove or comment out if not needed
 
-interface FormData {
-  name: string;
-  email: string;
-  message: string;
-}
- 
-// helpers (keep near your component)
+// ==== helpers (top-level) ====
 function escapeHtml(s: string) {
   return String(s ?? '')
     .replace(/&/g, '&amp;').replace(/</g, '&lt;')
     .replace(/>/g, '&gt;').replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
-// use stricter escaper for attributes (mailto:)
 function escapeAttr(s: string) {
   return escapeHtml(s).replace(/\s/g, '');
 }
-const ADMIN_TO = 'drora@caltech.edu'; //['drora@caltech.edu', 'jburdick@caltech.edu']; // recipients
-const FROM_EMAIL = 'drora@caltech.edu'; // must be verified in SendGrid
+
+interface FormData {
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+}
 
 export default function ContactUs() {
-  const [formData, setFormData] = useState<FormData>({ name: '', email: '', message: '' });
+  const [formData, setFormData] = useState<FormData>({
+    name: '',
+    email: '',
+    subject: '',
+    message: '',
+  });
   const [status, setStatus] = useState('');
   const [sending, setSending] = useState(false);
 
@@ -34,10 +40,23 @@ export default function ContactUs() {
     setFormData((p) => ({ ...p, [name]: value }));
   };
 
+  const validate = () => {
+    const { name, email, message } = formData;
+    if (!name.trim() || !email.trim() || !message.trim()) {
+      return 'Please complete Name, Email, and Message.';
+    }
+    const okEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    if (!okEmail) return 'Please enter a valid email address.';
+    return null;
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!formData.name || !formData.email || !formData.message) {
-      setStatus('Please complete all fields.');
+    if (sending) return;
+
+    const err = validate();
+    if (err) {
+      setStatus(err);
       return;
     }
 
@@ -47,107 +66,87 @@ export default function ContactUs() {
     try {
       const user = auth.currentUser;
 
-      // 1) Save to your existing collection (unchanged)
-      const msgRef = await addDoc(collection(db, 'messages'), {
-        name: formData.name,
-        email: formData.email,
+      // 1) Save to your archive (messages)
+      await addDoc(collection(db, 'messages'), {
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        subject: formData.subject.trim(),
         message: formData.message,
         userId: user ? user.uid : 'anonymous',
         timestamp: serverTimestamp(),
       });
 
-      // (optional) also save under the user if logged in—like your original
+      // 1b) Optional: also under the user
       if (user) {
         await addDoc(collection(db, `users/${user.uid}/messages`), {
-          name: formData.name,
-          email: formData.email,
+          name: formData.name.trim(),
+          email: formData.email.trim(),
+          subject: formData.subject.trim(),
           message: formData.message,
           timestamp: serverTimestamp(),
         });
       }
 
-      // 2) ***THIS is what triggers the email extension***
-      // Write a doc to TOP-LEVEL /mail with the exact shape it expects
-      const mailRef = await addDoc(collection(db, 'mail'), {
-        // to: ADMIN_TO,              // can be a string or an array of strings
-        // from: FROM_EMAIL,          // optional if set as default in extension; safe to include
+      // 2) Trigger the Firebase Email extension by writing to /mail
+      //    (We omit `from` so the extension uses your configured Default FROM = inspireliberty@gmail.com)
+      const subject =
+        formData.subject.trim() ||
+        `Stable Hand — Contact from ${formData.name.trim()} <${formData.email.trim()}>`;
 
-   /*      to: 'drora@caltech.edu',              // only you for now
-  from: 'inspireliberty@gmail.com',            // MUST be a verified sender in SendGrid
-  replyTo: formData.email,              // replies go to the visitor
+      await addDoc(collection(db, 'mail'), {
+        to: ADMIN_TO,
+        cc: CC_TO ? [CC_TO] : [],
+        replyTo: formData.email.trim(),
         message: {
-          subject: `Stable Hand — Contact: ${formData.name}${formData.email ? ` <${formData.email}>` : ''}`,
-          text: `Name: ${formData.name}\nEmail: ${formData.email}\n\n${formData.message}`,
-          // You can add 'html' later if you want rich formatting:
-          // html: `<p><b>Name:</b> ${escapeHtml(formData.name)}<br/><b>Email:</b> ${escapeHtml(formData.email)}</p><hr/><p style="white-space:pre-wrap">${escapeHtml(formData.message)}</p>`
-        }, */
-          to: 'drora@caltech.edu',                // who receives it
-  // Optional: set a nice display name. Must match your authenticated Gmail address.
-  // If you prefer to rely on the extension's Default FROM, you can omit this line.
-  from: 'StableHand Contact <inspireliberty@gmail.com>',
+          subject,
+          text:
+            `Name:    ${formData.name}\n` +
+            `Email:   ${formData.email}\n` +
+            (formData.subject.trim() ? `Subject: ${formData.subject}\n` : '') +
+            `\nMessage:\n${formData.message}`,
+          html: `
+            <div style="font:14px/1.4 -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial;">
+              <h2 style="margin:0 0 12px">New StableHand Contact</h2>
+              <table style="border-collapse:collapse">
+                <tr>
+                  <td style="padding:4px 8px;color:#555">Name</td>
+                  <td style="padding:4px 8px"><b>${escapeHtml(formData.name)}</b></td>
+                </tr>
+                <tr>
+                  <td style="padding:4px 8px;color:#555">Email</td>
+                  <td style="padding:4px 8px">
+                    <a href="mailto:${escapeAttr(formData.email)}">${escapeHtml(formData.email)}</a>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:4px 8px;color:#555">Subject</td>
+                  <td style="padding:4px 8px">${escapeHtml(formData.subject || '')}</td>
+                </tr>
+              </table>
+              <hr style="margin:12px 0;border:none;border-top:1px solid #eee" />
+              <div>
+                <div style="color:#555;margin-bottom:6px">Message</div>
+                <pre style="margin:0;white-space:pre-wrap;font:inherit">${escapeHtml(formData.message)}</pre>
+              </div>
+            </div>
+          `,
+        },
+        createdAt: serverTimestamp(),
+      });
 
-  // Replies go straight to the visitor:
-  replyTo: formData.email,
-
-  // The extension requires message.{subject, text or html}
-  message: {
-    subject:
-      formData.subject?.trim() ||
-      `Stable Hand — Contact from ${formData.name} <${formData.email}>`,
-
-    // Plaintext version (keep the \n so it’s not one long line)
-    text:
-      `Name:    ${formData.name}\n` +
-      `Email:   ${formData.email}\n` +
-      (formData.subject?.trim() ? `Subject: ${formData.subject}\n` : '') +
-      `\nMessage:\n${formData.message}`,
-
-    // Nicely formatted HTML version (optional but recommended)
-    html: `
-      <div style="font: 14px/1.4 -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial;">
-        <h2 style="margin:0 0 12px">New StableHand Contact</h2>
-        <table style="border-collapse:collapse">
-          <tr><td style="padding:4px 8px;color:#555">Name</td><td style="padding:4px 8px"><b>${escapeHtml(formData.name)}</b></td></tr>
-          <tr><td style="padding:4px 8px;color:#555">Email</td><td style="padding:4px 8px"><a href="mailto:${escapeAttr(formData.email)}">${escapeHtml(formData.email)}</a></td></tr>
-          ${formData.subject?.trim() ? `<tr><td style="padding:4px 8px;color:#555">Subject</td><td style="padding:4px 8px">${escapeHtml(formData.subject)}</td></tr>` : ''}
-        </table>
-        <hr style="margin:12px 0;border:none;border-top:1px solid #eee" />
-        <div><div style="color:#555;margin-bottom:6px">Message</div>
-          <pre style="margin:0;white-space:pre-wrap;font:inherit">${escapeHtml(formData.message)}</pre>
-        </div>
-      </div>
-    `,
-  },
-
-  // (Optional) keep structured metadata for yourself; the extension ignores extra fields.
-  meta: {
-    name: formData.name,
-    email: formData.email,
-    subject: formData.subject ?? '',
-  },
-
-  createdAt: serverTimestamp(),
-});
-
- 
-
-      console.info('Saved message:', msgRef.id, 'Queued mail:', mailRef.id);
       setStatus('Message sent! We will get back to you shortly.');
-      setFormData({ name: '', email: '', message: '' });
-    } catch (err) {
-      console.error('Error sending:', err);
+      setFormData({ name: '', email: '', subject: '', message: '' });
+    } catch (error) {
+      console.error('Error sending:', error);
       setStatus('Error sending message. Please try again later.');
     } finally {
       setSending(false);
     }
   };
 
-  // Only needed if you enable HTML in the mail payload above
-  const escapeHtml = (s: string) =>
-    String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100">
+    
+    <div className="flex items-center justify-center min-h-screen bg-gray-100 p-4">
       <div className="w-full max-w-lg p-8 bg-white shadow-md rounded-lg">
         <h2 className="text-2xl font-semibold text-center mb-6">Contact Us</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -168,9 +167,18 @@ export default function ContactUs() {
           </div>
 
           <div>
+            <label className="block mb-1 font-medium" htmlFor="subject">Subject</label>
+            <input
+              type="text" id="subject" name="subject" value={formData.subject} onChange={handleChange}
+              placeholder="How can we help?"
+              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+            />
+          </div>
+
+          <div>
             <label className="block mb-1 font-medium" htmlFor="message">Message</label>
             <textarea
-              id="message" name="message" rows={4} value={formData.message} onChange={handleChange}
+              id="message" name="message" rows={5} value={formData.message} onChange={handleChange}
               className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400" required
             />
           </div>
@@ -178,19 +186,229 @@ export default function ContactUs() {
           <button
             type="submit"
             disabled={sending}
-            className={`w-full text-white py-2 px-4 rounded-lg transition-colors ${sending ? 'bg-blue-300' : 'bg-blue-500 hover:bg-blue-600'}`}
+            className={`w-full text-white py-2 px-4 rounded-lg transition-colors ${sending ? 'bg-blue-300' : 'bg-blue-600 hover:bg-blue-700'}`}
           >
             {sending ? 'Sending…' : 'Send Message'}
           </button>
         </form>
 
-        {status && <p className="mt-4 text-center">{status}</p>}
+        {status && <p className="mt-4 text-center text-sm">{status}</p>}
+
+        {/* Hint text for you (optional to keep): the email will send FROM your extension's Default FROM
+            (inspireliberty@gmail.com) and CC Joel automatically. */}
       </div>
     </div>
   );
 }
 
 
+//-----------------------------------
+// // src/pages/ContactUs.tsx
+// import { useState } from 'react';
+// import { db, auth } from '../../firebase/firebase';
+// import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+
+// interface FormData {
+//   name: string;
+//   email: string;
+//   message: string;
+// }
+ 
+// // helpers (keep near your component)
+// function escapeHtml(s: string) {
+//   return String(s ?? '')
+//     .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+//     .replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+//     .replace(/'/g, '&#39;');
+// }
+// // use stricter escaper for attributes (mailto:)
+// function escapeAttr(s: string) {
+//   return escapeHtml(s).replace(/\s/g, '');
+// }
+// const ADMIN_TO = 'drora@caltech.edu'; //['drora@caltech.edu', 'jburdick@caltech.edu']; // recipients
+// const FROM_EMAIL = 'drora@caltech.edu'; // must be verified in SendGrid
+
+// export default function ContactUs() {
+//   const [formData, setFormData] = useState<FormData>({ name: '', email: '', message: '' });
+//   const [status, setStatus] = useState('');
+//   const [sending, setSending] = useState(false);
+
+//   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+//     const { name, value } = e.target;
+//     setFormData((p) => ({ ...p, [name]: value }));
+//   };
+
+//   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+//     e.preventDefault();
+//     if (!formData.name || !formData.email || !formData.message) {
+//       setStatus('Please complete all fields.');
+//       return;
+//     }
+
+//     setSending(true);
+//     setStatus('Sending…');
+
+//     try {
+//       const user = auth.currentUser;
+
+//       // 1) Save to your existing collection (unchanged)
+//       const msgRef = await addDoc(collection(db, 'messages'), {
+//         name: formData.name,
+//         email: formData.email,
+//         message: formData.message,
+//         userId: user ? user.uid : 'anonymous',
+//         timestamp: serverTimestamp(),
+//       });
+
+//       // (optional) also save under the user if logged in—like your original
+//       if (user) {
+//         await addDoc(collection(db, `users/${user.uid}/messages`), {
+//           name: formData.name,
+//           email: formData.email,
+//           message: formData.message,
+//           timestamp: serverTimestamp(),
+//         });
+//       }
+
+//       // 2) ***THIS is what triggers the email extension***
+//       // Write a doc to TOP-LEVEL /mail with the exact shape it expects
+//       const mailRef = await addDoc(collection(db, 'mail'), {
+//         // to: ADMIN_TO,              // can be a string or an array of strings
+//         // from: FROM_EMAIL,          // optional if set as default in extension; safe to include
+
+//    /*      to: 'drora@caltech.edu',              // only you for now
+//   from: 'inspireliberty@gmail.com',            // MUST be a verified sender in SendGrid
+//   replyTo: formData.email,              // replies go to the visitor
+//         message: {
+//           subject: `Stable Hand — Contact: ${formData.name}${formData.email ? ` <${formData.email}>` : ''}`,
+//           text: `Name: ${formData.name}\nEmail: ${formData.email}\n\n${formData.message}`,
+//           // You can add 'html' later if you want rich formatting:
+//           // html: `<p><b>Name:</b> ${escapeHtml(formData.name)}<br/><b>Email:</b> ${escapeHtml(formData.email)}</p><hr/><p style="white-space:pre-wrap">${escapeHtml(formData.message)}</p>`
+//         }, */
+//           to: 'drora@caltech.edu',                // who receives it
+//   // Optional: set a nice display name. Must match your authenticated Gmail address.
+//   // If you prefer to rely on the extension's Default FROM, you can omit this line.
+//   from: 'StableHand Contact <inspireliberty@gmail.com>',
+
+//   // Replies go straight to the visitor:
+//   replyTo: formData.email,
+
+//   // The extension requires message.{subject, text or html}
+//   /* message: {
+//     subject:
+//       formData.subject?.trim() ||
+//       `Stable Hand — Contact from ${formData.name} <${formData.email}>`,
+
+//     // Plaintext version (keep the \n so it’s not one long line)
+//     text:
+//       `Name:    ${formData.name}\n` +
+//       `Email:   ${formData.email}\n` +
+//       (formData.subject?.trim() ? `Subject: ${formData.subject}\n` : '') +
+//       `\nMessage:\n${formData.message}`, */
+
+//       message: {
+//   subject:
+//     formData.subject?.trim()
+//       ? formData.subject
+//       : `Stable Hand — Contact from ${formData.name} <${formData.email}>`,
+
+//   text:
+//     `Name: ${formData.name}\n` +
+//     `Email: ${formData.email}\n` +
+//     (formData.subject?.trim() ? `Subject: ${formData.subject}\n` : '') +
+//     `\nMessage:\n${formData.message}`,
+    
+ 
+
+//     // Nicely formatted HTML version (optional but recommended)
+//     html: `
+//       <div style="font: 14px/1.4 -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial;">
+//         <h2 style="margin:0 0 12px">New StableHand Contact</h2>
+//         <table style="border-collapse:collapse">
+//           <tr><td style="padding:4px 8px;color:#555">Name</td><td style="padding:4px 8px"><b>${escapeHtml(formData.name)}</b></td></tr>
+//           <tr><td style="padding:4px 8px;color:#555">Email</td><td style="padding:4px 8px"><a href="mailto:${escapeAttr(formData.email)}">${escapeHtml(formData.email)}</a></td></tr>
+//           ${formData.subject?.trim() ? `<tr><td style="padding:4px 8px;color:#555">Subject</td><td style="padding:4px 8px">${escapeHtml(formData.subject)}</td></tr>` : ''}
+//         </table>
+//         <hr style="margin:12px 0;border:none;border-top:1px solid #eee" />
+//         <div><div style="color:#555;margin-bottom:6px">Message</div>
+//           <pre style="margin:0;white-space:pre-wrap;font:inherit">${escapeHtml(formData.message)}</pre>
+//         </div>
+//       </div>
+//     `,
+//   },
+
+//   // (Optional) keep structured metadata for yourself; the extension ignores extra fields.
+//   meta: {
+//     name: formData.name,
+//     email: formData.email,
+//     subject: formData.subject ?? '',
+//   },
+
+//   createdAt: serverTimestamp(),
+// });
+
+ 
+
+//       console.info('Saved message:', msgRef.id, 'Queued mail:', mailRef.id);
+//       setStatus('Message sent! We will get back to you shortly.');
+//       setFormData({ name: '', email: '', message: '' });
+//     } catch (err) {
+//       console.error('Error sending:', err);
+//       setStatus('Error sending message. Please try again later.');
+//     } finally {
+//       setSending(false);
+//     }
+//   };
+
+//   // Only needed if you enable HTML in the mail payload above
+//   const escapeHtml = (s: string) =>
+//     String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+//   return (
+//     <div className="flex items-center justify-center min-h-screen bg-gray-100">
+//       <div className="w-full max-w-lg p-8 bg-white shadow-md rounded-lg">
+//         <h2 className="text-2xl font-semibold text-center mb-6">Contact Us</h2>
+//         <form onSubmit={handleSubmit} className="space-y-4">
+//           <div>
+//             <label className="block mb-1 font-medium" htmlFor="name">Name</label>
+//             <input
+//               type="text" id="name" name="name" value={formData.name} onChange={handleChange}
+//               className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400" required
+//             />
+//           </div>
+
+//           <div>
+//             <label className="block mb-1 font-medium" htmlFor="email">Email</label>
+//             <input
+//               type="email" id="email" name="email" value={formData.email} onChange={handleChange}
+//               className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400" required
+//             />
+//           </div>
+
+//           <div>
+//             <label className="block mb-1 font-medium" htmlFor="message">Message</label>
+//             <textarea
+//               id="message" name="message" rows={4} value={formData.message} onChange={handleChange}
+//               className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400" required
+//             />
+//           </div>
+
+//           <button
+//             type="submit"
+//             disabled={sending}
+//             className={`w-full text-white py-2 px-4 rounded-lg transition-colors ${sending ? 'bg-blue-300' : 'bg-blue-500 hover:bg-blue-600'}`}
+//           >
+//             {sending ? 'Sending…' : 'Send Message'}
+//           </button>
+//         </form>
+
+//         {status && <p className="mt-4 text-center">{status}</p>}
+//       </div>
+//     </div>
+//   );
+// }
+
+//-------------------------------
 
 // // src/pages/ContactUs.tsx
 // import { useState } from 'react';

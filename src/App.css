@@ -11,6 +11,16 @@
 
 
  */
+
+
+ /* Make sure nothing paints a white chip around the header toggle image */
+header img {
+  background: transparent !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
 html, body {
   height: 100%;
   width: 100%;

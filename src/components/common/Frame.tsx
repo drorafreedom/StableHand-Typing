@@ -76,29 +76,57 @@ const Frame2: React.FC<FrameProps> = ({ children }) => {
 }; */
 
 // Frame3 Component
-const Frame3: React.FC<FrameProps> = ({
+  const Frame3: React.FC<FrameProps> = ({
   children,
   bgColor = 'bg-gray-100',
-  paddingY = 'py-4',
+  paddingY = 'pt-8 pb-12',// 'py-8',  //,                          // <-- Tailwind sizes (default scale):
+// 4 = 1rem ≈ 16px
+// 8 = 2rem ≈ 32px
+// 24 = 6rem ≈ 96px
+// py-8 ⇒ top 32px and bottom 32px.
+// pt-4 pb-24 ⇒ top 16px and bottom 96px.
+//  pt-4 pb-24  extra empty space at the bottom so the footer wedge/flame can sit
   paddingX = 'px-8',
   marginX = 'mx-2',
-  border = 'border border-red-700',
+  border = 'border border-red-700',  //'border-t border-gray-200 border-b-0', // <-- no bottom border
   rounded = 'rounded-lg',
   shadow = 'shadow-md',
-  fullWidth = 'w-screen',
+  fullWidth = 'w-screen',  // 'w-full',                              // <-- avoid w-screen overflow
 }) => {
   return (
     <div
       className={`flex flex-col items-center justify-top min-h-screen ${fullWidth} ${bgColor} ${paddingY} ${paddingX} ${marginX} ${rounded} ${shadow} ${border}`}
       style={{
         position: 'relative', // or 'absolute', 'fixed' depending on your layout
-        zIndex: 2, // Higher z-index to ensure it's on top
+        zIndex: 0, // Higher z-index to ensure it's on top
       }}
     >
       {children}
     </div>
   );
 };
+ 
+
+/* // src/components/common/Frame.tsx
+const Frame3: React.FC<FrameProps> = ({
+  children,
+  bgColor = 'bg-gray-100',
+  paddingY = 'pt-4 pb-28',                          // <-- space above footer
+  paddingX = 'px-8',
+  marginX = 'mx-2',
+  border   = 'border-t border-gray-200 border-b-0', // <-- no bottom border
+  rounded  = 'rounded-lg',
+  shadow   = 'shadow-md',
+  fullWidth = 'w-full',                              // <-- avoid w-screen overflow
+}) => {
+  return (
+    <div
+      className={`relative z-0 flex flex-col items-center justify-top min-h-screen ${fullWidth} ${bgColor} ${paddingY} ${paddingX} ${marginX} ${rounded} ${shadow} ${border}`}
+    >
+      {children}
+    </div>
+  );
+}; */
 
 // Frame5 Component
 const Frame5: React.FC<FrameProps> = ({ children }) => {
