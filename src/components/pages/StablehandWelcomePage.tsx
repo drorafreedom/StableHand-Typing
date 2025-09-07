@@ -59,7 +59,7 @@ const StablehandWelcomePage: React.FC = () => {
           <Link to="/therapy" className="w-full bg-purple-500 hover:bg-purple-700 text-white p-2 rounded">Therapy</Link>
           {/* <Link to="/progress-notes" className="w-full bg-gray-500 hover:bg-gray-700 text-white p-2 rounded">Progress Notes</Link> */}
           <Link to="/feedbackandprogress-notes" className="w-full bg-orange-500 hover:bg-gray-700 text-white p-2 rounded">FeedBack & Progress Notes</Link>
-          <Link to="//therapyfeedback-notes" className="w-full bg-pink-500 hover:bg-gray-700 text-white p-2 rounded">Therapy FeedBack Notes</Link>
+          <Link to="/therapyfeedback-notes" className="w-full bg-pink-500 hover:bg-gray-700 text-white p-2 rounded">Therapy FeedBack Notes</Link>
   
                
         </div>
