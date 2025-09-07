@@ -26,7 +26,7 @@ const StablehandWelcomePage: React.FC = () => {
   return (
     <Frame3>
       <Frame>
-        <h1 className="text-4xl font-bold mb-6">Welcome to StableHand Clinical Trial Dashboard</h1>
+        <h1 className="text-4xl font-bold mb-6">Welcome to StableHand Dashboard</h1>
         {needsMfaEnrollment ? (
           <MfaEnrollment />
         ) : (
@@ -90,7 +90,7 @@ const StablehandWelcomePage = () => {
   return (
     <Frame3>
       <Frame>
-        <h1 className="text-4xl font-bold mb-6">Welcome to StableHand Clinical Trial Dashboard</h1>
+        <h1 className="text-4xl font-bold mb-6">Welcome to StableHand Trial Dashboard</h1>
         {needsMfaEnrollment ? (
           <MfaEnrollment />
         ) : (

@@ -7,7 +7,8 @@ const EndUserGuideText: React.FC = () => (
    
 
     <p>
-      Welcome to StableHand’s Clinical Trial Dashboard! This step‑by‑step guide will walk you through everything you need to know—from creating your account and logging in, to completing each module (Disclaimer, Background, Demographics, Interviews, Therapy, Progress Notes).
+      {/* Welcome to StableHand’s Clinical Trial Dashboard! This step‑by‑step guide will walk you through everything you need to know—from creating your account and logging in, to completing each module (Disclaimer, Background, Demographics, Interviews, Therapy, Progress Notes). */}
+    Welcome to StableHand’s Dashboard! This step‑by‑step guide will walk you through everything you need to know—from creating your account and logging in, to completing each module (Disclaimer, Background, Demographics, Interviews, Therapy, Progress Notes).
     </p>
 
     <h2>1. Create Your Account &amp; Verify Email</h2>
