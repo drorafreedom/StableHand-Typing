@@ -105,14 +105,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isVisible, toggleSidebar }) => {
               {menuItems.map((item) => (
                 <li
                   key={item.id}
-                  className={`mb-2 ${
+                  className={`mb-2 text-xs ${
                     visitedPages.includes(item.path || '') || location.pathname === item.path
                       ? 'text-white'
                       : 'text-gray-400'
                   }`}
                 >
                   {item.submenu ? (
-                    <div className="p-2 rounded hover:bg-gray-200">
+                    <div className="p-1 rounded hover:bg-gray-200">
                       {item.path && (
                         <Link to={item.path} className="block p-2 rounded hover:bg-gray-200">
                           {item.label}

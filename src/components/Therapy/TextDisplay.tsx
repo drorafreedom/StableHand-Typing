@@ -1,4 +1,428 @@
 // src/components/Therapy/TextDisplay.tsx
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { db, auth } from '../../firebase/firebase';
+import {
+  collection,
+  addDoc,
+  getDocs,
+  query,
+  orderBy,
+  serverTimestamp,
+} from 'firebase/firestore';
+
+interface TextDisplayProps {
+  displayText: string;
+  setDisplayText: (t: string) => void;
+  style?: React.CSSProperties;
+  buttonContainerStyle?: React.CSSProperties;
+}
+
+/** === Catalogs (same spirit as before) === */
+const classicOpeners: string[] = [
+  "It is a truth universally acknowledged, that a single man in possession of a good fortune, must be in want of a wife. — Jane Austen",
+  "All happy families are alike; each unhappy family is unhappy in its own way. — Leo Tolstoy",
+  "It was the best of times, it was the worst of times, it was the age of wisdom, it was the age of foolishness. — Charles Dickens",
+  "Call me Ishmael. — Herman Melville",
+  "It was a bright cold day in April, and the clocks were striking thirteen. — George Orwell",
+  "I am an invisible man. — Ralph Ellison",
+  "The sun shone, having no alternative, on the nothing new. — Samuel Beckett",
+  "If you really want to hear about it, the first thing you'll probably want to know is where I was born. — J.D. Salinger",
+  "It was a pleasure to burn. — Ray Bradbury",
+  "You don't know about me without you have read a book by the name of The Adventures of Tom Sawyer. — Mark Twain",
+  "When he was nearly thirteen, my brother Jem got his arm badly broken at the elbow. — Harper Lee",
+  "I had the story, bit by bit, from various people… — Edith Wharton",
+];
+
+const latinAphorisms: string[] = [
+  "Veni, vidi, vici. — Julius Caesar",
+  "Carpe diem. — Horace",
+  "Amor vincit omnia. — Virgil",
+  "Faber est suae quisque fortunae.",
+  "Alea iacta est. — Julius Caesar",
+  "In vino veritas.",
+  "Si vis pacem, para bellum.",
+  "Vivere est cogitare. — Cicero",
+  "Ad astra per aspera.",
+  "Dulce et decorum est pro patria mori. — Horace",
+  "Non ducor, duco.",
+  "Sapere aude.",
+  "Vox populi, vox Dei.",
+  "Panem et circenses. — Juvenal",
+  "Per aspera ad astra.",
+  "Veritas vos liberabit.",
+];
+
+const shortParagraphs: string[] = [
+  "The kettle clicked and the room settled into a gentle hiss. Keys rested near the open notebook, and the cursor blinked like a metronome.",
+  "She rotated the small wooden box in her hands, feeling the grooves made by a patient blade. It wasn’t the weight that mattered but the way it remembered every touch.",
+  "On the path, the eucalyptus leaves crackled in a language of their own. A runner passed, and the air closed behind him as if stitched by invisible thread.",
+];
+
+const longParagraphs: string[] = [
+  "When the screen goes quiet, the first thing you notice is how loud the small things are. A chair adjusts its posture. A pencil sighs back into the cup…",
+  "The city spends its mornings polishing edges you will never see. Trucks unload crates behind locked gates; a baker flours the counter in a pattern his hands understand…",
+];
+
+type CategoryId = 'classic' | 'latin' | 'short' | 'long' | 'custom';
+const CATALOG: Record<
+  Exclude<CategoryId, 'custom'>,
+  { label: string; items: string[] }
+> = {
+  classic: { label: 'Classic first lines', items: classicOpeners },
+  latin: { label: 'Latin aphorisms', items: latinAphorisms },
+  short: { label: 'Short paragraphs', items: shortParagraphs },
+  long: { label: 'Long paragraphs', items: longParagraphs },
+};
+
+type SavedText = { id: string; text: string; createdAt?: number | null };
+
+const LOCAL_KEY = 'stablehand_custom_texts_v1';
+
+const TextDisplay: React.FC<TextDisplayProps> = ({
+  displayText,
+  setDisplayText,
+  style,
+  buttonContainerStyle,
+}) => {
+  const [category, setCategory] = useState<CategoryId>('classic');
+
+  // custom text draft
+  const [customDraft, setCustomDraft] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState<SavedText[]>([]);
+  const [loadingSaved, setLoadingSaved] = useState(true);
+  const user = auth.currentUser;
+
+  const isCustom = category === 'custom';
+
+  /** === pick random from non-custom categories === */
+  const pickNew = useCallback(() => {
+    if (isCustom) return; // handled via "Use" below
+    const list = CATALOG[category as Exclude<CategoryId, 'custom'>].items;
+    if (!list.length) return;
+    const text = list[Math.floor(Math.random() * list.length)];
+    setDisplayText(text);
+  }, [category, isCustom, setDisplayText]);
+
+  /** === Load saved customs === */
+  const loadSaved = useCallback(async () => {
+    setLoadingSaved(true);
+    try {
+      if (user) {
+        const q = query(
+          collection(db, `users/${user.uid}/customTexts`),
+          orderBy('createdAt', 'desc')
+        );
+        const snap = await getDocs(q);
+        const rows: SavedText[] = snap.docs.map((d) => ({
+          id: d.id,
+          text: (d.data().text as string) ?? '',
+          createdAt: (d.data().createdAt as any)?.toMillis?.() ?? null,
+        }));
+        setSaved(rows);
+      } else {
+        const raw = localStorage.getItem(LOCAL_KEY);
+        const rows: SavedText[] = raw ? JSON.parse(raw) : [];
+        setSaved(rows);
+      }
+    } finally {
+      setLoadingSaved(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    loadSaved();
+  }, [loadSaved]);
+
+  /** === Save current customDraft === */
+  const saveCustom = useCallback(async () => {
+    const text = customDraft.trim();
+    if (!text) return;
+
+    setSaving(true);
+    try {
+      if (user) {
+        await addDoc(collection(db, `users/${user.uid}/customTexts`), {
+          text,
+          createdAt: serverTimestamp(),
+        });
+      } else {
+        // localStorage fallback
+        const raw = localStorage.getItem(LOCAL_KEY);
+        const rows: SavedText[] = raw ? JSON.parse(raw) : [];
+        const row: SavedText = {
+          id: `${Date.now()}`,
+          text,
+          createdAt: Date.now(),
+        };
+        const next = [row, ...rows].slice(0, 50); // keep it reasonable
+        localStorage.setItem(LOCAL_KEY, JSON.stringify(next));
+      }
+      setCustomDraft('');
+      await loadSaved();
+    } finally {
+      setSaving(false);
+    }
+  }, [customDraft, user, loadSaved]);
+
+  /** === Choose from saved library === */
+  const onPickSaved = (id: string) => {
+    const row = saved.find((s) => s.id === id);
+    if (row) setDisplayText(row.text);
+  };
+
+  const savedOptions = useMemo(
+    () =>
+      saved.map((s) => {
+        const preview =
+          s.text.length > 50 ? s.text.slice(0, 50).trim() + '…' : s.text;
+        const when = s.createdAt
+          ? new Date(s.createdAt).toLocaleString()
+          : '';
+        return { id: s.id, label: when ? `${preview} (${when})` : preview };
+      }),
+    [saved]
+  );
+
+  return (
+    <div
+      className="w-full max-w-3xl bg-white/90 border rounded-lg shadow p-3"
+      style={style}
+    >
+      <div className="flex flex-wrap gap-2 items-center" style={buttonContainerStyle}>
+        <label className="text-sm text-gray-600">Text source</label>
+
+        <select
+          value={category}
+          onChange={(e) => setCategory(e.target.value as CategoryId)}
+          className="border rounded px-2 py-1 text-sm"
+        >
+          {Object.entries(CATALOG).map(([id, cfg]) => (
+            <option key={id} value={id}>
+              {cfg.label}
+            </option>
+          ))}
+          <option value="custom">Custom (your own text)</option>
+        </select>
+
+        <button
+          type="button"
+          onClick={pickNew}
+          disabled={isCustom}
+          className={`ml-auto text-sm px-3 py-1.5 rounded ${
+            isCustom
+              ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+              : 'bg-blue-500 hover:bg-blue-600 text-white'
+          }`}
+          title={isCustom ? 'Use the box below for custom text' : 'Pick a new passage'}
+        >
+          New
+        </button>
+      </div>
+
+      {/* Display area */}
+      <div className="mt-3 whitespace-pre-wrap text-center text-[15px] leading-relaxed text-gray-800">
+        {displayText || 'Choose a source and press “New”, or paste your own text below.'}
+      </div>
+
+      {/* Custom area */}
+      {isCustom && (
+        <div className="mt-4 border-t pt-3">
+          {/* not signed in note */}
+          {!user && (
+            <div className="mb-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+              Not signed in — your saved texts will be kept on this device only.
+            </div>
+          )}
+
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Paste any text you wish to copy:
+          </label>
+          <textarea
+            value={customDraft}
+            onChange={(e) => setCustomDraft(e.target.value)}
+            rows={4}
+            placeholder="Paste or type your paragraph here…"
+            className="w-full border rounded p-2 text-sm"
+          />
+
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setDisplayText(customDraft)}
+              disabled={!customDraft.trim()}
+              className={`px-3 py-1.5 rounded text-sm ${
+                customDraft.trim()
+                  ? 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                  : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+              }`}
+            >
+              Use this text
+            </button>
+
+            <button
+              type="button"
+              onClick={saveCustom}
+              disabled={!customDraft.trim() || saving}
+              className={`px-3 py-1.5 rounded text-sm ${
+                customDraft.trim() && !saving
+                  ? 'bg-indigo-500 hover:bg-indigo-600 text-white'
+                  : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+              }`}
+            >
+              {saving ? 'Saving…' : 'Save to my library'}
+            </button>
+
+            <div className="ml-auto flex items-center gap-2">
+              <label className="text-sm text-gray-600">My saved texts</label>
+              <select
+                onChange={(e) => onPickSaved(e.target.value)}
+                disabled={loadingSaved || saved.length === 0}
+                className="border rounded px-2 py-1 text-sm min-w-[16rem]"
+                defaultValue=""
+              >
+                <option value="" disabled>
+                  {loadingSaved
+                    ? 'Loading…'
+                    : saved.length
+                    ? 'Pick a saved text…'
+                    : 'No saved texts yet'}
+                </option>
+                {savedOptions.map((opt) => (
+                  <option key={opt.id} value={opt.id}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default TextDisplay;
+
+
+// // src/components/Therapy/TextDisplay.tsx
+// //drop menu for 4 options 
+// import React, { useCallback, useState } from 'react';
+
+// interface TextDisplayProps {
+//   displayText: string;
+//   setDisplayText: (t: string) => void; 
+//   style?: React.CSSProperties;
+//   buttonContainerStyle?: React.CSSProperties;
+// }
+
+// /** Your existing lists (kept + extended) */
+// const classicOpeners: string[] = [
+//   "It is a truth universally acknowledged, that a single man in possession of a good fortune, must be in want of a wife. — Jane Austen",
+//   "All happy families are alike; each unhappy family is unhappy in its own way. — Leo Tolstoy",
+//   "It was the best of times, it was the worst of times, it was the age of wisdom, it was the age of foolishness. — Charles Dickens",
+//   "Call me Ishmael. — Herman Melville",
+//   "It was a bright cold day in April, and the clocks were striking thirteen. — George Orwell",
+//   "I am an invisible man. — Ralph Ellison",
+//   "The sun shone, having no alternative, on the nothing new. — Samuel Beckett",
+//   "If you really want to hear about it, the first thing you'll probably want to know is where I was born. — J.D. Salinger",
+//   "It was a pleasure to burn. — Ray Bradbury",
+//   "You don't know about me without you have read a book by the name of The Adventures of Tom Sawyer. — Mark Twain",
+//   "When he was nearly thirteen, my brother Jem got his arm badly broken at the elbow. — Harper Lee",
+//   "I had the story, bit by bit, from various people, and, as generally happens in such cases, each time it was a different story. — Edith Wharton",
+// ];
+
+// const latinAphorisms: string[] = [
+//   "Veni, vidi, vici. — Julius Caesar",
+//   "Carpe diem. — Horace",
+//   "Amor vincit omnia. — Virgil",
+//   "Faber est suae quisque fortunae.",
+//   "Alea iacta est. — Julius Caesar",
+//   "In vino veritas.",
+//   "Si vis pacem, para bellum.",
+//   "Vivere est cogitare. — Cicero",
+//   "Ad astra per aspera.",
+//   "Dulce et decorum est pro patria mori. — Horace",
+//   "Non ducor, duco.",
+//   "Sapere aude.",
+//   "Vox populi, vox Dei.",
+//   "Panem et circenses. — Juvenal",
+//   "Per aspera ad astra.",
+//   "Veritas vos liberabit.",
+// ];
+
+// /** Optional: short / long paragraphs (calm, readable) */
+// const shortParagraphs: string[] = [
+//   "The kettle clicked and the room settled into a gentle hiss. Keys rested near the open notebook, and the cursor blinked like a metronome. Outside, traffic passed in soft waves, a steady rhythm under a pale, unhurried sky.",
+//   "She rotated the small wooden box in her hands, feeling the grooves made by a patient blade. It wasn’t the weight that mattered but the way it remembered every touch—like the table remembers a cup set down a thousand mornings.",
+//   "On the path, the eucalyptus leaves crackled in a language of their own. A runner passed, and the air closed behind him as if stitched by invisible thread. The day continued, careful and exact, like a clock that never scolds.",
+// ];
+
+// const longParagraphs: string[] = [
+//   "When the screen goes quiet, the first thing you notice is how loud the small things are. A chair adjusts its posture. A pencil sighs back into the cup. Down the hall, a door opens with the softness of fabric, not wood. In that thin space between one task and the next, the world seems to enlarge by a few degrees. You can feel the floor beneath your feet, the surface of it not perfectly smooth, and the way the light reaches only as far as it is invited.",
+//   "The city spends its mornings polishing edges you will never see. Trucks unload crates behind locked gates; a baker flours the counter in a pattern his hands understand better than his head. By the time you arrive, the storefront is composed and certain, but the small rehearsals continue in the background. A bell taps the doorframe. Coffee breathes steam. Somewhere a receipt curls and browns near a light that runs too warm.",
+// ];
+
+// type CategoryId = 'classic' | 'latin' | 'short' | 'long';
+// const CATALOG: Record<CategoryId, { label: string; items: string[] }> = {
+//   classic: { label: 'Classic first lines', items: classicOpeners },
+//   latin:   { label: 'Latin aphorisms',     items: latinAphorisms },
+//   short:   { label: 'Short paragraphs',    items: shortParagraphs },
+//   long:    { label: 'Long paragraphs',     items: longParagraphs },
+// };
+
+// const TextDisplay: React.FC<TextDisplayProps> = ({
+//   displayText,
+//   setDisplayText,
+//   style,
+//   buttonContainerStyle,
+// }) => {
+//   const [category, setCategory] = useState<CategoryId>('classic');
+
+//   const pickNew = useCallback(() => {
+//     const list = CATALOG[category].items;
+//     const text = list[Math.floor(Math.random() * list.length)];
+//     setDisplayText(text);
+//   }, [category, setDisplayText]);
+
+//   return (
+//     <div
+//       className="w-full max-w-3xl bg-white/90 border rounded-lg shadow p-3"
+//       style={style}
+//     >
+//       <div className="flex gap-2 items-center" style={buttonContainerStyle}>
+//         <label className="text-sm text-gray-600">Text source</label>
+//         <select
+//           value={category}
+//           onChange={(e) => setCategory(e.target.value as CategoryId)}
+//           className="border rounded px-2 py-1 text-sm"
+//         >
+//           {Object.entries(CATALOG).map(([id, cfg]) => (
+//             <option key={id} value={id}>{cfg.label}</option>
+//           ))}
+//         </select>
+
+//         <button
+//           type="button"
+//           onClick={pickNew}
+//           className="ml-auto bg-blue-500 hover:bg-blue-600 text-white text-sm px-3 py-1.5 rounded"
+//         >
+//           New
+//         </button>
+//       </div>
+
+//       <div className="mt-3 whitespace-pre-wrap text-center text-[15px] leading-relaxed text-gray-800">
+//         {displayText || 'Choose a source and press “New”.'}
+//       </div>
+//     </div>
+//   );
+// };
+
+// export default TextDisplay;
+
+
+
+/* // src/components/Therapy/TextDisplay.tsx
 import React from 'react';
 import buttonStyle from './buttonStyle';
 
@@ -115,7 +539,7 @@ const TextDisplay: React.FC<TextDisplayProps> = ({
 };
 
 export default TextDisplay;
-
+ */
 
 
 

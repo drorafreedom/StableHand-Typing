@@ -1,4 +1,5 @@
 // src/components/Therapy/TextInput.tsx
+// included reset all and reset typing only buttons  
 import React, { useState, useEffect, useRef } from 'react';
 import { Collapse } from 'react-collapse';
 import buttonStyle from './buttonStyle';
@@ -69,6 +70,8 @@ export interface KeystrokeSavePayload {
 }
 
 interface TextInputProps {
+  rollNewText?: () => void;  // optional
+
   placeholder: string;
   displayText: string;
   setDisplayText: React.Dispatch<React.SetStateAction<string>>;
@@ -82,6 +85,7 @@ const TextInput: React.FC<TextInputProps> = ({
   setDisplayText,
   saveKeystrokeData,
   onTypingStart,
+    rollNewText,                 // <— THIS must be here
 }) => {
   const [inputValue, setInputValue] = useState('');
   const [keyData, setKeyData] = useState<KeyData[]>([]);
@@ -362,7 +366,52 @@ Normalized Char Accuracy: ${pct(m.normalizedCharAccuracy)}`;
 
   };
 
-  const handleReset = () => {
+// dropdown open/close
+const [isResetMenuOpen, setIsResetMenuOpen] = useState(false);
+
+// reset helpers (unique names to avoid clashes)
+const doResetTyping = () => {
+  setInputValue('');
+  setKeyData([]);
+  setBackspaceCount(0);
+  setSessionStart(null);
+  typingStartedRef.current = false;
+  lastPressRef.current = null;
+  lastReleaseRef.current = null;
+  textareaRef.current?.focus();
+};
+
+const doResetAll = () => {
+  doResetTyping();
+  setDisplayText('');   // also clears the target passage
+};
+
+const doResetAndNew = () => {
+  doResetAll();
+  rollNewText?.();      // only runs if parent provided it
+};
+
+
+/* 
+  //reset both typing and text 
+const handleReset = () => {
+  setInputValue('');
+  setKeyData([]);
+  setBackspaceCount(0);
+  setSessionStart(null);
+  typingStartedRef.current = false;
+  lastPressRef.current = null;
+  lastReleaseRef.current = null;
+
+  // NEW: also clear the displayed paragraph
+  setDisplayText('');
+
+  // optional: put cursor back in the box
+  textareaRef.current?.focus();
+}; */
+
+/*   //reset only text old style
+const handleReset = () => {
     setInputValue('');
     setKeyData([]);
     setBackspaceCount(0);
@@ -370,7 +419,7 @@ Normalized Char Accuracy: ${pct(m.normalizedCharAccuracy)}`;
     typingStartedRef.current = false;
     lastPressRef.current = null;
     lastReleaseRef.current = null;
-  };
+  }; */
 
   return (
     <div className="relative w-full">
@@ -464,16 +513,1064 @@ Normalized Char Accuracy: ${pct(m.normalizedCharAccuracy)}`;
       </Collapse>
 
       <div className="mt-3">
-        <button onClick={handleSubmit} style={buttonStyle}>Submit</button>
-        <button onClick={handleReset} style={{ ...buttonStyle, marginLeft: '0.5rem' }}>
+        {/* <button onClick={handleSubmit} style={buttonStyle}>Submit</button> */}
+  {/*       <button onClick={handleReset} style={{ ...buttonStyle, marginLeft: '0.5rem' }}>
           Reset
+        </button> */}
+<div className="mt-3 flex items-center gap-2 relative">
+  <button onClick={handleSubmit} style={buttonStyle}>Submit</button>
+
+  {/* Reset split-button */}
+  <div
+    className="relative inline-block"
+    tabIndex={0}
+    onBlur={(e) => {
+      if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsResetMenuOpen(false);
+    }}
+  >
+    <button
+      type="button"
+      onClick={() => { doResetTyping(); setIsResetMenuOpen(false); }}
+      className="bg-green-200 hover:bg-green-400 text-gray-800 border px-3 py-2 rounded-l"
+    >
+      Reset
+    </button>
+    <button
+      type="button"
+      onClick={() => setIsResetMenuOpen((o) => !o)}
+      className="bg-gray-100 hover:bg-gray-200 text-gray-800 border border-l-0 px-2 py-2 rounded-r"
+      aria-haspopup="menu"
+      aria-expanded={isResetMenuOpen}
+    >
+      ▾
+    </button>
+
+    {isResetMenuOpen && (
+      <div role="menu" className="absolute right-0 z-50 mt-1 w-60 rounded-md border bg-white shadow-lg">
+        <button role="menuitem" onClick={() => { doResetTyping(); setIsResetMenuOpen(false); }} className="w-full text-left px-3 py-2 hover:bg-gray-50">
+          Reset typing only
         </button>
+        <button role="menuitem" onClick={() => { doResetAll(); setIsResetMenuOpen(false); }} className="w-full text-left px-3 py-2 hover:bg-gray-50">
+          Reset typing + target text
+        </button>
+        {rollNewText && (
+          <button role="menuitem" onClick={() => { doResetAndNew(); setIsResetMenuOpen(false); }} className="w-full text-left px-3 py-2 hover:bg-gray-50">
+            Reset & show new passage
+          </button>
+        )}
+      </div>
+    )}
+  </div>
+</div>
+
+
       </div>
     </div>
   );
 };
 
 export default TextInput;
+
+
+
+// // src/components/Therapy/TextInput.tsx
+// // included reset all and reset typing only buttons  
+// import React, { useState, useEffect, useRef } from 'react';
+// import { Collapse } from 'react-collapse';
+// import buttonStyle from './buttonStyle';
+ 
+// const pct = (x: number) => `${Math.round((x ?? 0) * 100)}%`;
+// const s1  = (x: number) => (Math.round((x ?? 0) * 10) / 10).toString(); // one decimal
+// export interface KeyData {
+//   key: string;           // e.g. "a", "Backspace", " "
+//   code: string;          // e.g. "KeyA", "Space", "ArrowLeft"
+//   pressTime: number;
+//   releaseTime: number | null;
+//   holdTime: number | null;
+//   lagTime: number;       // since previous release
+//   totalLagTime: number;  // since previous press
+//   altKey?: boolean;
+//   ctrlKey?: boolean;
+//   metaKey?: boolean;
+//   shiftKey?: boolean;
+// }
+
+// export interface KeystrokeSavePayload {
+//   typedText: string;
+//   targetText: string;
+//   keyData: KeyData[];
+//   analysis: {
+//     char: {
+//       ops: Array<{ op: 'match'|'ins'|'del'|'sub'; a?: string; b?: string; ai: number; bi: number }>;
+//       counts: { matches: number; insertions: number; deletions: number; substitutions: number };
+//     };
+//     word: {
+//       ops: Array<{ op: 'match'|'ins'|'del'|'sub'; a?: string; b?: string; ai: number; bi: number }>;
+//       counts: { matches: number; insertions: number; deletions: number; substitutions: number };
+//     };
+//     normalized: {
+//       typed: string;
+//       target: string;
+//       charDistance: number;
+//       wordErrors: number;
+//     };
+//     confusionPairs: Record<string, number>;
+//   };
+//   metrics: {
+//     startMs: number;
+//     endMs: number;
+//     durationMs: number;
+//     totalKeys: number;
+//     backspaceCount: number;
+//     rawWpm5: number;
+//     charWpm: number;
+//     wordWpm: number;
+//     netWpm5: number;
+//     charAccuracy: number;
+//     wordAccuracy: number;
+//     normalizedCharAccuracy: number;
+//     holdMs: { mean: number; median: number; p95: number };
+//     interKeyMs: { mean: number; median: number; p95: number };
+//     perKey: Record<string, { count: number; meanHoldMs: number; meanLagMs: number }>;
+//   };
+//   // include the text UI so you can save it too
+//   ui: {
+//     font: string;
+//     fontSize: number;
+//     isBold: boolean;
+//     textColor: string;
+//     backgroundColor: string;   // hex like "#RRGGBB"
+//     backgroundOpacity: number; // 0..1
+//   };
+// }
+
+// interface TextInputProps {
+//   placeholder: string;
+//   displayText: string;
+//   setDisplayText: React.Dispatch<React.SetStateAction<string>>;
+//   saveKeystrokeData: (payload: KeystrokeSavePayload) => void;
+//   onTypingStart?: () => void; // used by TherapyPage to snapshot animation settings
+// }
+
+// const TextInput: React.FC<TextInputProps> = ({
+//   placeholder,
+//   displayText,
+//   setDisplayText,
+//   saveKeystrokeData,
+//   onTypingStart,
+// }) => {
+//   const [inputValue, setInputValue] = useState('');
+//   const [keyData, setKeyData] = useState<KeyData[]>([]);
+//   const [font, setFont] = useState('Arial');
+//   const [fontSize, setFontSize] = useState(16);
+//   const [isBold, setIsBold] = useState(false);
+//   const [textColor, setTextColor] = useState('#000000');
+//   const [backgroundColor, setBackgroundColor] = useState('#FFFFFF');
+//   const [backgroundOpacity, setBackgroundOpacity] = useState(1);
+//   const [isPanelOpen, setIsPanelOpen] = useState(true);
+
+//   const [sessionStart, setSessionStart] = useState<number | null>(null);
+//   const [backspaceCount, setBackspaceCount] = useState(0);
+
+//   const keyDataRef = useRef<KeyData[]>([]);
+//   const lastPressRef = useRef<number | null>(null);
+//   const lastReleaseRef = useRef<number | null>(null);
+//   const typingStartedRef = useRef(false);
+//   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+//   useEffect(() => { keyDataRef.current = keyData; }, [keyData]);
+
+//   // ==== helpers ====
+//   const normalizeWhitespace = (s: string) => s.replace(/\s+/g, ' ').trim();
+//   const tokenizeWords = (s: string) => (s.trim().length ? s.trim().split(/\s+/) : []);
+
+//   const levenshteinWithOps = (a: string[], b: string[]) => {
+//     const m = a.length, n = b.length;
+//     const dp = Array.from({ length: m + 1 }, () => new Array<number>(n + 1).fill(0));
+//     for (let i = 0; i <= m; i++) dp[i][0] = i;
+//     for (let j = 0; j <= n; j++) dp[0][j] = j;
+//     for (let i = 1; i <= m; i++) {
+//       for (let j = 1; j <= n; j++) {
+//         const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+//         dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
+//       }
+//     }
+//     const ops: Array<{ op: 'match'|'ins'|'del'|'sub'; a?: string; b?: string; ai: number; bi: number }> = [];
+//     let i = m, j = n;
+//     while (i > 0 || j > 0) {
+//       if (i > 0 && j > 0 && dp[i][j] === dp[i - 1][j - 1] && a[i - 1] === b[j - 1]) {
+//         ops.push({ op: 'match', a: a[i - 1], b: b[j - 1], ai: i - 1, bi: j - 1 });
+//         i--; j--;
+//       } else if (i > 0 && j > 0 && dp[i][j] === dp[i - 1][j - 1] + 1) {
+//         ops.push({ op: 'sub', a: a[i - 1], b: b[j - 1], ai: i - 1, bi: j - 1 });
+//         i--; j--;
+//       } else if (i > 0 && dp[i][j] === dp[i - 1][j] + 1) {
+//         ops.push({ op: 'del', a: a[i - 1], ai: i - 1, bi: j });
+//         i--;
+//       } else {
+//         ops.push({ op: 'ins', b: b[j - 1], ai: i, bi: j - 1 });
+//         j--;
+//       }
+//     }
+//     ops.reverse();
+//     const counts = {
+//       matches: ops.filter(o => o.op === 'match').length,
+//       insertions: ops.filter(o => o.op === 'ins').length,
+//       deletions: ops.filter(o => o.op === 'del').length,
+//       substitutions: ops.filter(o => o.op === 'sub').length,
+//     };
+//     return { ops, counts, distance: dp[m][n] };
+//   };
+
+//   const mean = (arr: number[]) => (arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0);
+//   const median = (arr: number[]) => {
+//     if (!arr.length) return 0;
+//     const s = [...arr].sort((a,b)=>a-b);
+//     const m = Math.floor(s.length/2);
+//     return s.length % 2 ? s[m] : (s[m-1]+s[m])/2;
+//   };
+//   const percentile = (arr: number[], p: number) => {
+//     if (!arr.length) return 0;
+//     const s = [...arr].sort((a,b)=>a-b);
+//     const idx = Math.min(s.length-1, Math.max(0, Math.ceil((p/100)*s.length)-1));
+//     return s[idx];
+//   };
+
+//   // ==== key listeners (capture ALL keys while textarea focused) ====
+//   const handleKeyDown = (e: KeyboardEvent) => {
+//     // only record if our textarea has focus
+//     if (document.activeElement !== textareaRef.current) return;
+
+//     const pressTime = Date.now();
+
+//     // first visible char triggers typing-start (once)
+//     if (!typingStartedRef.current && e.key.length === 1) {
+//       typingStartedRef.current = true;
+//       onTypingStart?.();
+//     }
+
+//     if (sessionStart === null) setSessionStart(pressTime);
+
+//     if (e.key === 'Backspace') {
+//       setBackspaceCount(c => c + 1);
+//     }
+
+//     const lagTime = lastReleaseRef.current !== null ? pressTime - lastReleaseRef.current : 0;
+//     const totalLagTime = lastPressRef.current !== null ? pressTime - lastPressRef.current : 0;
+
+//     setKeyData(prev => ([
+//       ...prev,
+//       {
+//         key: e.key,
+//         code: e.code,
+//         pressTime,
+//         releaseTime: null,
+//         holdTime: null,
+//         lagTime,
+//         totalLagTime,
+//         altKey: e.altKey,
+//         ctrlKey: e.ctrlKey,
+//         metaKey: e.metaKey,
+//         shiftKey: e.shiftKey,
+//       }
+//     ]));
+
+//     lastPressRef.current = pressTime;
+//   };
+
+//   const handleKeyUp = (e: KeyboardEvent) => {
+//     if (document.activeElement !== textareaRef.current) return;
+
+//     const releaseTime = Date.now();
+
+//     // update the last unreleased event that matches BOTH key & code
+//     setKeyData(prev => {
+//       const next = [...prev];
+//       for (let i = next.length - 1; i >= 0; i--) {
+//         const k = next[i];
+//         if (k.releaseTime === null && k.key === e.key && k.code === e.code) {
+//           next[i] = { ...k, releaseTime, holdTime: releaseTime - k.pressTime };
+//           break;
+//         }
+//       }
+//       return next;
+//     });
+
+//     lastReleaseRef.current = releaseTime;
+//   };
+
+//   useEffect(() => {
+//     const down = (ev: KeyboardEvent) => handleKeyDown(ev);
+//     const up   = (ev: KeyboardEvent) => handleKeyUp(ev);
+//     document.addEventListener('keydown', down);
+//     document.addEventListener('keyup', up);
+//     return () => {
+//       document.removeEventListener('keydown', down);
+//       document.removeEventListener('keyup', up);
+//     };
+//   }, []); // once
+
+//   // ==== submit ====
+//   const handleSubmit = () => {
+//     // duration first press → last release
+//     const presses = keyData.filter(k => typeof k.pressTime === 'number');
+//     const releases = keyData.filter(k => typeof k.releaseTime === 'number' && k.releaseTime !== null);
+//     const firstPress = presses.length ? Math.min(...presses.map(k => k.pressTime)) : (sessionStart ?? Date.now());
+//     const lastRelease = releases.length ? Math.max(...releases.map(k => k.releaseTime as number)) : Date.now();
+//     const durationMs = Math.max(0, lastRelease - firstPress);
+//     const minutes = durationMs / 60000 || 1e-9;
+
+//     // alignments (use RAW strings here; normalized also saved below)
+//     const typedChars = Array.from(inputValue);
+//     const targetChars = Array.from(displayText);
+//     const charAln = levenshteinWithOps(typedChars, targetChars);
+
+//     const typedWords = tokenizeWords(inputValue);
+//     const targetWords = tokenizeWords(displayText);
+//     const wordAln = levenshteinWithOps(typedWords, targetWords);
+
+//     // normalized for “double-space domino” avoidance
+//     const typedNorm = normalizeWhitespace(inputValue);
+//     const targetNorm = normalizeWhitespace(displayText);
+//     const charNorm = levenshteinWithOps(Array.from(typedNorm), Array.from(targetNorm));
+//     const wordErrsNorm = levenshteinWithOps(tokenizeWords(typedNorm), tokenizeWords(targetNorm)).distance;
+
+//     // confusion pairs from char substitutions
+//     const confusion: Record<string, number> = {};
+//     for (const o of charAln.ops) {
+//       if (o.op === 'sub' && o.a && o.b) {
+//         const key = `${o.a}->${o.b}`;
+//         confusion[key] = (confusion[key] || 0) + 1;
+//       }
+//     }
+
+//     // speeds
+//     const rawWpm5 = (inputValue.length / 5) / minutes;
+//     const charWpm = (inputValue.length) / minutes;
+//     const wordWpm = (typedWords.length) / minutes;
+//     const netWpm5 = Math.max(0, rawWpm5 - (wordAln.counts.substitutions + wordAln.counts.insertions + wordAln.counts.deletions) / minutes);
+
+//     // accuracies
+//     const charAcc = Math.max(0, (charAln.counts.matches) / Math.max(targetChars.length, 1));
+//     const wordAcc = Math.max(0, (wordAln.counts.matches) / Math.max(targetWords.length, 1));
+//     const normAcc = Math.max(0, (Array.from(targetNorm).length - charNorm.distance) / Math.max(Array.from(targetNorm).length, 1));
+
+//     // timing stats
+//     const holds = keyData.map(k => (k.holdTime ?? 0)).filter(v => v > 0);
+//     const lags  = keyData.map(k => (k.lagTime ?? 0)).filter(v => v >= 0);
+
+//     const perKey: Record<string, { count: number; meanHoldMs: number; meanLagMs: number }> = {};
+//     const holdSum: Record<string, number> = {};
+//     const lagSum:  Record<string, number> = {};
+//     keyData.forEach(k => {
+//       const label = `${k.code}`; // use code to disambiguate (e.g., LeftShift vs RightShift)
+//       perKey[label] = perKey[label] || { count: 0, meanHoldMs: 0, meanLagMs: 0 };
+//       perKey[label].count += 1;
+//       holdSum[label] = (holdSum[label] || 0) + (k.holdTime ?? 0);
+//       lagSum[label]  = (lagSum[label]  || 0) + (k.lagTime ?? 0);
+//     });
+//     Object.keys(perKey).forEach(ch => {
+//       perKey[ch].meanHoldMs = perKey[ch].count ? holdSum[ch] / perKey[ch].count : 0;
+//       perKey[ch].meanLagMs  = perKey[ch].count ? lagSum[ch]  / perKey[ch].count  : 0;
+//     });
+
+//     const payload: KeystrokeSavePayload = {
+//       typedText: inputValue,          // RAW full text (incl. double spaces)
+//       targetText: displayText,
+//       keyData,                        // ALL keys (letters, space, arrows, backspace, enter, tab…)
+//       analysis: {
+//         char: { ops: charAln.ops, counts: charAln.counts },
+//         word: { ops: wordAln.ops, counts: wordAln.counts },
+//         normalized: {
+//           typed: typedNorm,
+//           target: targetNorm,
+//           charDistance: charNorm.distance,
+//           wordErrors: wordErrsNorm,
+//         },
+//         confusionPairs: confusion,
+//       },
+//       metrics: {
+//         startMs: firstPress,
+//         endMs: lastRelease,
+//         durationMs,
+//         totalKeys: keyData.length,
+//         backspaceCount,
+//         rawWpm5,
+//         charWpm,
+//         wordWpm,
+//         netWpm5,
+//         charAccuracy: charAcc,
+//         wordAccuracy: wordAcc,
+//         normalizedCharAccuracy: normAcc,
+//         holdMs: { mean: mean(holds), median: median(holds), p95: percentile(holds, 95) },
+//         interKeyMs:{ mean: mean(lags),  median: median(lags),  p95: percentile(lags, 95)  },
+//         perKey,
+//       },
+//       ui: {
+//         font,
+//         fontSize,
+//         isBold,
+//         textColor,
+//         backgroundColor,
+//         backgroundOpacity,
+//       },
+//     };
+
+
+
+//     saveKeystrokeData(payload);
+    
+// // Ask if they want a quick performance summary
+// if (window.confirm('Would you like to see a quick performance summary?')) {
+//   const m = payload.metrics;
+//   const secs = Math.max(0, Math.round(m.durationMs / 100) / 10); // 0.1s precision
+
+//   const summary =
+//     `Time: ${secs}s
+// Raw WPM (5-char): ${s1(m.rawWpm5)}
+// Net WPM (5-char): ${s1(m.netWpm5)}
+// Char Accuracy: ${pct(m.charAccuracy)}
+// Word Accuracy: ${pct(m.wordAccuracy)}
+// Normalized Char Accuracy: ${pct(m.normalizedCharAccuracy)}`;
+
+//   window.alert(summary);
+// }
+
+//   };
+
+//   //both options seperately 
+// const resetTypingOnly = () => {
+//   setInputValue('');
+//   setKeyData([]);
+//   setBackspaceCount(0);
+//   setSessionStart(null);
+//   typingStartedRef.current = false;
+//   lastPressRef.current = null;
+//   lastReleaseRef.current = null;
+//   textareaRef.current?.focus();
+// };
+
+// const resetAll = () => {
+//   resetTypingOnly();
+//   setDisplayText('');   // also clears the target text
+// };
+
+
+// /* 
+//   //reset both typing and text 
+// const handleReset = () => {
+//   setInputValue('');
+//   setKeyData([]);
+//   setBackspaceCount(0);
+//   setSessionStart(null);
+//   typingStartedRef.current = false;
+//   lastPressRef.current = null;
+//   lastReleaseRef.current = null;
+
+//   // NEW: also clear the displayed paragraph
+//   setDisplayText('');
+
+//   // optional: put cursor back in the box
+//   textareaRef.current?.focus();
+// }; */
+
+// /*   //reset only text old style
+// const handleReset = () => {
+//     setInputValue('');
+//     setKeyData([]);
+//     setBackspaceCount(0);
+//     setSessionStart(null);
+//     typingStartedRef.current = false;
+//     lastPressRef.current = null;
+//     lastReleaseRef.current = null;
+//   }; */
+
+//   return (
+//     <div className="relative w-full">
+//       <div className="flex flex-row justify-between items-start w-3/4 space-x-4">
+//         <div className="flex-1 text-xs">
+//           <textarea
+//             ref={textareaRef}
+//             value={inputValue}
+//             placeholder={placeholder}
+//             onChange={(e)=>setInputValue(e.target.value)}
+//             style={{
+//               width: '100%',
+//               height: '300px',
+//               fontFamily: font,
+//               fontSize: `${fontSize}px`,
+//               fontWeight: isBold ? 'bold' : 'normal',
+//               color: textColor,
+//               backgroundColor: `rgba(${parseInt(backgroundColor.slice(1, 3), 16)}, ${parseInt(
+//                 backgroundColor.slice(3, 5), 16
+//               )}, ${parseInt(backgroundColor.slice(5, 7), 16)}, ${backgroundOpacity})`,
+//               border: '1px solid #ccc',
+//               outline: 'none',
+//               padding: '10px',
+//               borderRadius: '4px',
+//               resize: 'vertical',
+//               overflowY: 'scroll',
+//             }}
+//           />
+//         </div>
+//       </div>
+
+//       <button
+//         onClick={() => setIsPanelOpen(!isPanelOpen)}
+//         className="mt-3 text-xs bg-gray-100 p-2 border rounded"
+//       >
+//         {isPanelOpen ? 'Hide Text Controls' : 'Show Text Controls'}
+//       </button>
+
+//       <Collapse isOpened={isPanelOpen}>
+//         <div className="mt-2 grid grid-cols-2 gap-3 max-w-sm text-xs bg-white/70 p-3 border rounded shadow">
+//           <div>
+//             <label className="block mb-1">Font</label>
+//             <select value={font} onChange={(e) => setFont(e.target.value)} className="border p-2 rounded w-full">
+//               <option value="Arial">Arial</option>
+//               <option value="Verdana">Verdana</option>
+//               <option value="Times New Roman">Times New Roman</option>
+//               <option value="Courier New">Courier New</option>
+//               <option value="Georgia">Georgia</option>
+//             </select>
+//           </div>
+
+//           <div>
+//             <label className="block mb-1">Font Size</label>
+//             <select value={fontSize} onChange={(e) => setFontSize(parseInt(e.target.value))} className="border p-2 rounded w-full">
+//               {[...Array(31)].map((_, i) => (
+//                 <option key={i} value={10 + i}>
+//                   {10 + i}
+//                 </option>
+//               ))}
+//             </select>
+//           </div>
+
+//           <label className="flex items-center gap-2">
+//             <span>Bold</span>
+//             <input type="checkbox" checked={isBold} onChange={(e) => setIsBold(e.target.checked)} />
+//           </label>
+
+//           <div>
+//             <label className="block mb-1">Text Color</label>
+//             <input type="color" value={textColor} onChange={(e) => setTextColor(e.target.value)} className="w-full h-8" />
+//           </div>
+
+//           <div>
+//             <label className="block mb-1">Background Color</label>
+//             <input type="color" value={backgroundColor} onChange={(e) => setBackgroundColor(e.target.value)} className="w-full h-8" />
+//           </div>
+
+//           <div>
+//             <label className="block mb-1">Background Opacity</label>
+//             <input
+//               type="range"
+//               min="0"
+//               max="1"
+//               step="0.01"
+//               value={backgroundOpacity}
+//               onChange={(e) => setBackgroundOpacity(parseFloat(e.target.value))}
+//               className="w-full"
+//             />
+//           </div>
+//         </div>
+//       </Collapse>
+
+//       <div className="mt-3">
+//         <button onClick={handleSubmit} style={buttonStyle}>Submit</button>
+//   {/*       <button onClick={handleReset} style={{ ...buttonStyle, marginLeft: '0.5rem' }}>
+//           Reset
+//         </button> */}
+
+//         <button onClick={resetTypingOnly} style={buttonStyle}>Reset typing</button>
+// <button onClick={resetAll} style={{ ...buttonStyle, marginLeft: '0.5rem' }}>
+//   Reset all
+// </button>
+
+//       </div>
+//     </div>
+//   );
+// };
+
+// export default TextInput;
+
+// // src/components/Therapy/TextInput.tsx
+// //last working with reset only the textg 
+// import React, { useState, useEffect, useRef } from 'react';
+// import { Collapse } from 'react-collapse';
+// import buttonStyle from './buttonStyle';
+ 
+// const pct = (x: number) => `${Math.round((x ?? 0) * 100)}%`;
+// const s1  = (x: number) => (Math.round((x ?? 0) * 10) / 10).toString(); // one decimal
+// export interface KeyData {
+//   key: string;           // e.g. "a", "Backspace", " "
+//   code: string;          // e.g. "KeyA", "Space", "ArrowLeft"
+//   pressTime: number;
+//   releaseTime: number | null;
+//   holdTime: number | null;
+//   lagTime: number;       // since previous release
+//   totalLagTime: number;  // since previous press
+//   altKey?: boolean;
+//   ctrlKey?: boolean;
+//   metaKey?: boolean;
+//   shiftKey?: boolean;
+// }
+
+// export interface KeystrokeSavePayload {
+//   typedText: string;
+//   targetText: string;
+//   keyData: KeyData[];
+//   analysis: {
+//     char: {
+//       ops: Array<{ op: 'match'|'ins'|'del'|'sub'; a?: string; b?: string; ai: number; bi: number }>;
+//       counts: { matches: number; insertions: number; deletions: number; substitutions: number };
+//     };
+//     word: {
+//       ops: Array<{ op: 'match'|'ins'|'del'|'sub'; a?: string; b?: string; ai: number; bi: number }>;
+//       counts: { matches: number; insertions: number; deletions: number; substitutions: number };
+//     };
+//     normalized: {
+//       typed: string;
+//       target: string;
+//       charDistance: number;
+//       wordErrors: number;
+//     };
+//     confusionPairs: Record<string, number>;
+//   };
+//   metrics: {
+//     startMs: number;
+//     endMs: number;
+//     durationMs: number;
+//     totalKeys: number;
+//     backspaceCount: number;
+//     rawWpm5: number;
+//     charWpm: number;
+//     wordWpm: number;
+//     netWpm5: number;
+//     charAccuracy: number;
+//     wordAccuracy: number;
+//     normalizedCharAccuracy: number;
+//     holdMs: { mean: number; median: number; p95: number };
+//     interKeyMs: { mean: number; median: number; p95: number };
+//     perKey: Record<string, { count: number; meanHoldMs: number; meanLagMs: number }>;
+//   };
+//   // include the text UI so you can save it too
+//   ui: {
+//     font: string;
+//     fontSize: number;
+//     isBold: boolean;
+//     textColor: string;
+//     backgroundColor: string;   // hex like "#RRGGBB"
+//     backgroundOpacity: number; // 0..1
+//   };
+// }
+
+// interface TextInputProps {
+//   placeholder: string;
+//   displayText: string;
+//   setDisplayText: React.Dispatch<React.SetStateAction<string>>;
+//   saveKeystrokeData: (payload: KeystrokeSavePayload) => void;
+//   onTypingStart?: () => void; // used by TherapyPage to snapshot animation settings
+// }
+
+// const TextInput: React.FC<TextInputProps> = ({
+//   placeholder,
+//   displayText,
+//   setDisplayText,
+//   saveKeystrokeData,
+//   onTypingStart,
+// }) => {
+//   const [inputValue, setInputValue] = useState('');
+//   const [keyData, setKeyData] = useState<KeyData[]>([]);
+//   const [font, setFont] = useState('Arial');
+//   const [fontSize, setFontSize] = useState(16);
+//   const [isBold, setIsBold] = useState(false);
+//   const [textColor, setTextColor] = useState('#000000');
+//   const [backgroundColor, setBackgroundColor] = useState('#FFFFFF');
+//   const [backgroundOpacity, setBackgroundOpacity] = useState(1);
+//   const [isPanelOpen, setIsPanelOpen] = useState(true);
+
+//   const [sessionStart, setSessionStart] = useState<number | null>(null);
+//   const [backspaceCount, setBackspaceCount] = useState(0);
+
+//   const keyDataRef = useRef<KeyData[]>([]);
+//   const lastPressRef = useRef<number | null>(null);
+//   const lastReleaseRef = useRef<number | null>(null);
+//   const typingStartedRef = useRef(false);
+//   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+//   useEffect(() => { keyDataRef.current = keyData; }, [keyData]);
+
+//   // ==== helpers ====
+//   const normalizeWhitespace = (s: string) => s.replace(/\s+/g, ' ').trim();
+//   const tokenizeWords = (s: string) => (s.trim().length ? s.trim().split(/\s+/) : []);
+
+//   const levenshteinWithOps = (a: string[], b: string[]) => {
+//     const m = a.length, n = b.length;
+//     const dp = Array.from({ length: m + 1 }, () => new Array<number>(n + 1).fill(0));
+//     for (let i = 0; i <= m; i++) dp[i][0] = i;
+//     for (let j = 0; j <= n; j++) dp[0][j] = j;
+//     for (let i = 1; i <= m; i++) {
+//       for (let j = 1; j <= n; j++) {
+//         const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+//         dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
+//       }
+//     }
+//     const ops: Array<{ op: 'match'|'ins'|'del'|'sub'; a?: string; b?: string; ai: number; bi: number }> = [];
+//     let i = m, j = n;
+//     while (i > 0 || j > 0) {
+//       if (i > 0 && j > 0 && dp[i][j] === dp[i - 1][j - 1] && a[i - 1] === b[j - 1]) {
+//         ops.push({ op: 'match', a: a[i - 1], b: b[j - 1], ai: i - 1, bi: j - 1 });
+//         i--; j--;
+//       } else if (i > 0 && j > 0 && dp[i][j] === dp[i - 1][j - 1] + 1) {
+//         ops.push({ op: 'sub', a: a[i - 1], b: b[j - 1], ai: i - 1, bi: j - 1 });
+//         i--; j--;
+//       } else if (i > 0 && dp[i][j] === dp[i - 1][j] + 1) {
+//         ops.push({ op: 'del', a: a[i - 1], ai: i - 1, bi: j });
+//         i--;
+//       } else {
+//         ops.push({ op: 'ins', b: b[j - 1], ai: i, bi: j - 1 });
+//         j--;
+//       }
+//     }
+//     ops.reverse();
+//     const counts = {
+//       matches: ops.filter(o => o.op === 'match').length,
+//       insertions: ops.filter(o => o.op === 'ins').length,
+//       deletions: ops.filter(o => o.op === 'del').length,
+//       substitutions: ops.filter(o => o.op === 'sub').length,
+//     };
+//     return { ops, counts, distance: dp[m][n] };
+//   };
+
+//   const mean = (arr: number[]) => (arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0);
+//   const median = (arr: number[]) => {
+//     if (!arr.length) return 0;
+//     const s = [...arr].sort((a,b)=>a-b);
+//     const m = Math.floor(s.length/2);
+//     return s.length % 2 ? s[m] : (s[m-1]+s[m])/2;
+//   };
+//   const percentile = (arr: number[], p: number) => {
+//     if (!arr.length) return 0;
+//     const s = [...arr].sort((a,b)=>a-b);
+//     const idx = Math.min(s.length-1, Math.max(0, Math.ceil((p/100)*s.length)-1));
+//     return s[idx];
+//   };
+
+//   // ==== key listeners (capture ALL keys while textarea focused) ====
+//   const handleKeyDown = (e: KeyboardEvent) => {
+//     // only record if our textarea has focus
+//     if (document.activeElement !== textareaRef.current) return;
+
+//     const pressTime = Date.now();
+
+//     // first visible char triggers typing-start (once)
+//     if (!typingStartedRef.current && e.key.length === 1) {
+//       typingStartedRef.current = true;
+//       onTypingStart?.();
+//     }
+
+//     if (sessionStart === null) setSessionStart(pressTime);
+
+//     if (e.key === 'Backspace') {
+//       setBackspaceCount(c => c + 1);
+//     }
+
+//     const lagTime = lastReleaseRef.current !== null ? pressTime - lastReleaseRef.current : 0;
+//     const totalLagTime = lastPressRef.current !== null ? pressTime - lastPressRef.current : 0;
+
+//     setKeyData(prev => ([
+//       ...prev,
+//       {
+//         key: e.key,
+//         code: e.code,
+//         pressTime,
+//         releaseTime: null,
+//         holdTime: null,
+//         lagTime,
+//         totalLagTime,
+//         altKey: e.altKey,
+//         ctrlKey: e.ctrlKey,
+//         metaKey: e.metaKey,
+//         shiftKey: e.shiftKey,
+//       }
+//     ]));
+
+//     lastPressRef.current = pressTime;
+//   };
+
+//   const handleKeyUp = (e: KeyboardEvent) => {
+//     if (document.activeElement !== textareaRef.current) return;
+
+//     const releaseTime = Date.now();
+
+//     // update the last unreleased event that matches BOTH key & code
+//     setKeyData(prev => {
+//       const next = [...prev];
+//       for (let i = next.length - 1; i >= 0; i--) {
+//         const k = next[i];
+//         if (k.releaseTime === null && k.key === e.key && k.code === e.code) {
+//           next[i] = { ...k, releaseTime, holdTime: releaseTime - k.pressTime };
+//           break;
+//         }
+//       }
+//       return next;
+//     });
+
+//     lastReleaseRef.current = releaseTime;
+//   };
+
+//   useEffect(() => {
+//     const down = (ev: KeyboardEvent) => handleKeyDown(ev);
+//     const up   = (ev: KeyboardEvent) => handleKeyUp(ev);
+//     document.addEventListener('keydown', down);
+//     document.addEventListener('keyup', up);
+//     return () => {
+//       document.removeEventListener('keydown', down);
+//       document.removeEventListener('keyup', up);
+//     };
+//   }, []); // once
+
+//   // ==== submit ====
+//   const handleSubmit = () => {
+//     // duration first press → last release
+//     const presses = keyData.filter(k => typeof k.pressTime === 'number');
+//     const releases = keyData.filter(k => typeof k.releaseTime === 'number' && k.releaseTime !== null);
+//     const firstPress = presses.length ? Math.min(...presses.map(k => k.pressTime)) : (sessionStart ?? Date.now());
+//     const lastRelease = releases.length ? Math.max(...releases.map(k => k.releaseTime as number)) : Date.now();
+//     const durationMs = Math.max(0, lastRelease - firstPress);
+//     const minutes = durationMs / 60000 || 1e-9;
+
+//     // alignments (use RAW strings here; normalized also saved below)
+//     const typedChars = Array.from(inputValue);
+//     const targetChars = Array.from(displayText);
+//     const charAln = levenshteinWithOps(typedChars, targetChars);
+
+//     const typedWords = tokenizeWords(inputValue);
+//     const targetWords = tokenizeWords(displayText);
+//     const wordAln = levenshteinWithOps(typedWords, targetWords);
+
+//     // normalized for “double-space domino” avoidance
+//     const typedNorm = normalizeWhitespace(inputValue);
+//     const targetNorm = normalizeWhitespace(displayText);
+//     const charNorm = levenshteinWithOps(Array.from(typedNorm), Array.from(targetNorm));
+//     const wordErrsNorm = levenshteinWithOps(tokenizeWords(typedNorm), tokenizeWords(targetNorm)).distance;
+
+//     // confusion pairs from char substitutions
+//     const confusion: Record<string, number> = {};
+//     for (const o of charAln.ops) {
+//       if (o.op === 'sub' && o.a && o.b) {
+//         const key = `${o.a}->${o.b}`;
+//         confusion[key] = (confusion[key] || 0) + 1;
+//       }
+//     }
+
+//     // speeds
+//     const rawWpm5 = (inputValue.length / 5) / minutes;
+//     const charWpm = (inputValue.length) / minutes;
+//     const wordWpm = (typedWords.length) / minutes;
+//     const netWpm5 = Math.max(0, rawWpm5 - (wordAln.counts.substitutions + wordAln.counts.insertions + wordAln.counts.deletions) / minutes);
+
+//     // accuracies
+//     const charAcc = Math.max(0, (charAln.counts.matches) / Math.max(targetChars.length, 1));
+//     const wordAcc = Math.max(0, (wordAln.counts.matches) / Math.max(targetWords.length, 1));
+//     const normAcc = Math.max(0, (Array.from(targetNorm).length - charNorm.distance) / Math.max(Array.from(targetNorm).length, 1));
+
+//     // timing stats
+//     const holds = keyData.map(k => (k.holdTime ?? 0)).filter(v => v > 0);
+//     const lags  = keyData.map(k => (k.lagTime ?? 0)).filter(v => v >= 0);
+
+//     const perKey: Record<string, { count: number; meanHoldMs: number; meanLagMs: number }> = {};
+//     const holdSum: Record<string, number> = {};
+//     const lagSum:  Record<string, number> = {};
+//     keyData.forEach(k => {
+//       const label = `${k.code}`; // use code to disambiguate (e.g., LeftShift vs RightShift)
+//       perKey[label] = perKey[label] || { count: 0, meanHoldMs: 0, meanLagMs: 0 };
+//       perKey[label].count += 1;
+//       holdSum[label] = (holdSum[label] || 0) + (k.holdTime ?? 0);
+//       lagSum[label]  = (lagSum[label]  || 0) + (k.lagTime ?? 0);
+//     });
+//     Object.keys(perKey).forEach(ch => {
+//       perKey[ch].meanHoldMs = perKey[ch].count ? holdSum[ch] / perKey[ch].count : 0;
+//       perKey[ch].meanLagMs  = perKey[ch].count ? lagSum[ch]  / perKey[ch].count  : 0;
+//     });
+
+//     const payload: KeystrokeSavePayload = {
+//       typedText: inputValue,          // RAW full text (incl. double spaces)
+//       targetText: displayText,
+//       keyData,                        // ALL keys (letters, space, arrows, backspace, enter, tab…)
+//       analysis: {
+//         char: { ops: charAln.ops, counts: charAln.counts },
+//         word: { ops: wordAln.ops, counts: wordAln.counts },
+//         normalized: {
+//           typed: typedNorm,
+//           target: targetNorm,
+//           charDistance: charNorm.distance,
+//           wordErrors: wordErrsNorm,
+//         },
+//         confusionPairs: confusion,
+//       },
+//       metrics: {
+//         startMs: firstPress,
+//         endMs: lastRelease,
+//         durationMs,
+//         totalKeys: keyData.length,
+//         backspaceCount,
+//         rawWpm5,
+//         charWpm,
+//         wordWpm,
+//         netWpm5,
+//         charAccuracy: charAcc,
+//         wordAccuracy: wordAcc,
+//         normalizedCharAccuracy: normAcc,
+//         holdMs: { mean: mean(holds), median: median(holds), p95: percentile(holds, 95) },
+//         interKeyMs:{ mean: mean(lags),  median: median(lags),  p95: percentile(lags, 95)  },
+//         perKey,
+//       },
+//       ui: {
+//         font,
+//         fontSize,
+//         isBold,
+//         textColor,
+//         backgroundColor,
+//         backgroundOpacity,
+//       },
+//     };
+
+
+
+//     saveKeystrokeData(payload);
+    
+// // Ask if they want a quick performance summary
+// if (window.confirm('Would you like to see a quick performance summary?')) {
+//   const m = payload.metrics;
+//   const secs = Math.max(0, Math.round(m.durationMs / 100) / 10); // 0.1s precision
+
+//   const summary =
+//     `Time: ${secs}s
+// Raw WPM (5-char): ${s1(m.rawWpm5)}
+// Net WPM (5-char): ${s1(m.netWpm5)}
+// Char Accuracy: ${pct(m.charAccuracy)}
+// Word Accuracy: ${pct(m.wordAccuracy)}
+// Normalized Char Accuracy: ${pct(m.normalizedCharAccuracy)}`;
+
+//   window.alert(summary);
+// }
+
+//   };
+
+//   const handleReset = () => {
+//     setInputValue('');
+//     setKeyData([]);
+//     setBackspaceCount(0);
+//     setSessionStart(null);
+//     typingStartedRef.current = false;
+//     lastPressRef.current = null;
+//     lastReleaseRef.current = null;
+//   };
+
+//   return (
+//     <div className="relative w-full">
+//       <div className="flex flex-row justify-between items-start w-3/4 space-x-4">
+//         <div className="flex-1 text-xs">
+//           <textarea
+//             ref={textareaRef}
+//             value={inputValue}
+//             placeholder={placeholder}
+//             onChange={(e)=>setInputValue(e.target.value)}
+//             style={{
+//               width: '100%',
+//               height: '300px',
+//               fontFamily: font,
+//               fontSize: `${fontSize}px`,
+//               fontWeight: isBold ? 'bold' : 'normal',
+//               color: textColor,
+//               backgroundColor: `rgba(${parseInt(backgroundColor.slice(1, 3), 16)}, ${parseInt(
+//                 backgroundColor.slice(3, 5), 16
+//               )}, ${parseInt(backgroundColor.slice(5, 7), 16)}, ${backgroundOpacity})`,
+//               border: '1px solid #ccc',
+//               outline: 'none',
+//               padding: '10px',
+//               borderRadius: '4px',
+//               resize: 'vertical',
+//               overflowY: 'scroll',
+//             }}
+//           />
+//         </div>
+//       </div>
+
+//       <button
+//         onClick={() => setIsPanelOpen(!isPanelOpen)}
+//         className="mt-3 text-xs bg-gray-100 p-2 border rounded"
+//       >
+//         {isPanelOpen ? 'Hide Text Controls' : 'Show Text Controls'}
+//       </button>
+
+//       <Collapse isOpened={isPanelOpen}>
+//         <div className="mt-2 grid grid-cols-2 gap-3 max-w-sm text-xs bg-white/70 p-3 border rounded shadow">
+//           <div>
+//             <label className="block mb-1">Font</label>
+//             <select value={font} onChange={(e) => setFont(e.target.value)} className="border p-2 rounded w-full">
+//               <option value="Arial">Arial</option>
+//               <option value="Verdana">Verdana</option>
+//               <option value="Times New Roman">Times New Roman</option>
+//               <option value="Courier New">Courier New</option>
+//               <option value="Georgia">Georgia</option>
+//             </select>
+//           </div>
+
+//           <div>
+//             <label className="block mb-1">Font Size</label>
+//             <select value={fontSize} onChange={(e) => setFontSize(parseInt(e.target.value))} className="border p-2 rounded w-full">
+//               {[...Array(31)].map((_, i) => (
+//                 <option key={i} value={10 + i}>
+//                   {10 + i}
+//                 </option>
+//               ))}
+//             </select>
+//           </div>
+
+//           <label className="flex items-center gap-2">
+//             <span>Bold</span>
+//             <input type="checkbox" checked={isBold} onChange={(e) => setIsBold(e.target.checked)} />
+//           </label>
+
+//           <div>
+//             <label className="block mb-1">Text Color</label>
+//             <input type="color" value={textColor} onChange={(e) => setTextColor(e.target.value)} className="w-full h-8" />
+//           </div>
+
+//           <div>
+//             <label className="block mb-1">Background Color</label>
+//             <input type="color" value={backgroundColor} onChange={(e) => setBackgroundColor(e.target.value)} className="w-full h-8" />
+//           </div>
+
+//           <div>
+//             <label className="block mb-1">Background Opacity</label>
+//             <input
+//               type="range"
+//               min="0"
+//               max="1"
+//               step="0.01"
+//               value={backgroundOpacity}
+//               onChange={(e) => setBackgroundOpacity(parseFloat(e.target.value))}
+//               className="w-full"
+//             />
+//           </div>
+//         </div>
+//       </Collapse>
+
+//       <div className="mt-3">
+//         <button onClick={handleSubmit} style={buttonStyle}>Submit</button>
+//         <button onClick={handleReset} style={{ ...buttonStyle, marginLeft: '0.5rem' }}>
+//           Reset
+//         </button>
+//       </div>
+//     </div>
+//   );
+// };
+
+// export default TextInput;
 
 
 
