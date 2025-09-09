@@ -1,25 +1,23 @@
 // src/components/Therapy/TextInput.tsx
-// included reset all and reset typing only buttons  
+// included reset all and reset typing only buttons
 import React, { useState, useEffect, useRef } from 'react';
 import { Collapse } from 'react-collapse';
 import buttonStyle from './buttonStyle';
- // accept meta
+
+// accept meta
 import type { TextMeta, TextCategory } from '../../data/text';
 
- 
-
-
-
 const pct = (x: number) => `${Math.round((x ?? 0) * 100)}%`;
-const s1  = (x: number) => (Math.round((x ?? 0) * 10) / 10).toString(); // one decimal
+const s1 = (x: number) => (Math.round((x ?? 0) * 10) / 10).toString(); // one decimal
+
 export interface KeyData {
-  key: string;           // e.g. "a", "Backspace", " "
-  code: string;          // e.g. "KeyA", "Space", "ArrowLeft"
+  key: string;
+  code: string;
   pressTime: number;
   releaseTime: number | null;
   holdTime: number | null;
-  lagTime: number;       // since previous release
-  totalLagTime: number;  // since previous press
+  lagTime: number;
+  totalLagTime: number;
   altKey?: boolean;
   ctrlKey?: boolean;
   metaKey?: boolean;
@@ -30,13 +28,37 @@ export interface KeystrokeSavePayload {
   typedText: string;
   targetText: string;
   keyData: KeyData[];
+
+  // keep both (as you requested)
+  textMeta?: TextMeta;
+  textContext?: {
+    category: TextCategory;
+    label: string;
+    index: number | null;
+    presetId: string | null;
+    targetTextSnapshot: string;
+  };
+  tags?: { category: TextCategory };
+
   analysis: {
     char: {
-      ops: Array<{ op: 'match'|'ins'|'del'|'sub'; a?: string; b?: string; ai: number; bi: number }>;
+      ops: Array<{
+        op: 'match' | 'ins' | 'del' | 'sub';
+        a?: string;
+        b?: string;
+        ai: number;
+        bi: number;
+      }>;
       counts: { matches: number; insertions: number; deletions: number; substitutions: number };
     };
     word: {
-      ops: Array<{ op: 'match'|'ins'|'del'|'sub'; a?: string; b?: string; ai: number; bi: number }>;
+      ops: Array<{
+        op: 'match' | 'ins' | 'del' | 'sub';
+        a?: string;
+        b?: string;
+        ai: number;
+        bi: number;
+      }>;
       counts: { matches: number; insertions: number; deletions: number; substitutions: number };
     };
     normalized: {
@@ -64,26 +86,25 @@ export interface KeystrokeSavePayload {
     interKeyMs: { mean: number; median: number; p95: number };
     perKey: Record<string, { count: number; meanHoldMs: number; meanLagMs: number }>;
   };
-  // include the text UI so you can save it too
   ui: {
     font: string;
     fontSize: number;
     isBold: boolean;
     textColor: string;
-    backgroundColor: string;   // hex like "#RRGGBB"
+    backgroundColor: string; // hex like "#RRGGBB"
     backgroundOpacity: number; // 0..1
   };
 }
 
 interface TextInputProps {
-  rollNewText?: () => void;  // optional
+  rollNewText?: () => void; // optional
 
   placeholder: string;
   displayText: string;
   setDisplayText: React.Dispatch<React.SetStateAction<string>>;
   saveKeystrokeData: (payload: KeystrokeSavePayload) => void;
-  onTypingStart?: () => void; // used by TherapyPage to snapshot animation settings
-   textMeta?: TextMeta; // 
+  onTypingStart?: () => void;
+  textMeta?: TextMeta;
 }
 
 const TextInput: React.FC<TextInputProps> = ({
@@ -92,8 +113,8 @@ const TextInput: React.FC<TextInputProps> = ({
   setDisplayText,
   saveKeystrokeData,
   onTypingStart,
-    rollNewText,                 // <— THIS must be here
-    textMeta,
+  rollNewText,
+  textMeta,
 }) => {
   const [inputValue, setInputValue] = useState('');
   const [keyData, setKeyData] = useState<KeyData[]>([]);
@@ -114,14 +135,17 @@ const TextInput: React.FC<TextInputProps> = ({
   const typingStartedRef = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
-  useEffect(() => { keyDataRef.current = keyData; }, [keyData]);
+  useEffect(() => {
+    keyDataRef.current = keyData;
+  }, [keyData]);
 
-  // ==== helpers ====
+  // helpers
   const normalizeWhitespace = (s: string) => s.replace(/\s+/g, ' ').trim();
   const tokenizeWords = (s: string) => (s.trim().length ? s.trim().split(/\s+/) : []);
 
   const levenshteinWithOps = (a: string[], b: string[]) => {
-    const m = a.length, n = b.length;
+    const m = a.length,
+      n = b.length;
     const dp = Array.from({ length: m + 1 }, () => new Array<number>(n + 1).fill(0));
     for (let i = 0; i <= m; i++) dp[i][0] = i;
     for (let j = 0; j <= n; j++) dp[0][j] = j;
@@ -131,15 +155,24 @@ const TextInput: React.FC<TextInputProps> = ({
         dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
       }
     }
-    const ops: Array<{ op: 'match'|'ins'|'del'|'sub'; a?: string; b?: string; ai: number; bi: number }> = [];
-    let i = m, j = n;
+    const ops: Array<{
+      op: 'match' | 'ins' | 'del' | 'sub';
+      a?: string;
+      b?: string;
+      ai: number;
+      bi: number;
+    }> = [];
+    let i = m,
+      j = n;
     while (i > 0 || j > 0) {
       if (i > 0 && j > 0 && dp[i][j] === dp[i - 1][j - 1] && a[i - 1] === b[j - 1]) {
         ops.push({ op: 'match', a: a[i - 1], b: b[j - 1], ai: i - 1, bi: j - 1 });
-        i--; j--;
+        i--;
+        j--;
       } else if (i > 0 && j > 0 && dp[i][j] === dp[i - 1][j - 1] + 1) {
         ops.push({ op: 'sub', a: a[i - 1], b: b[j - 1], ai: i - 1, bi: j - 1 });
-        i--; j--;
+        i--;
+        j--;
       } else if (i > 0 && dp[i][j] === dp[i - 1][j] + 1) {
         ops.push({ op: 'del', a: a[i - 1], ai: i - 1, bi: j });
         i--;
@@ -150,36 +183,34 @@ const TextInput: React.FC<TextInputProps> = ({
     }
     ops.reverse();
     const counts = {
-      matches: ops.filter(o => o.op === 'match').length,
-      insertions: ops.filter(o => o.op === 'ins').length,
-      deletions: ops.filter(o => o.op === 'del').length,
-      substitutions: ops.filter(o => o.op === 'sub').length,
+      matches: ops.filter((o) => o.op === 'match').length,
+      insertions: ops.filter((o) => o.op === 'ins').length,
+      deletions: ops.filter((o) => o.op === 'del').length,
+      substitutions: ops.filter((o) => o.op === 'sub').length,
     };
     return { ops, counts, distance: dp[m][n] };
   };
 
-  const mean = (arr: number[]) => (arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0);
+  const mean = (arr: number[]) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0);
   const median = (arr: number[]) => {
     if (!arr.length) return 0;
-    const s = [...arr].sort((a,b)=>a-b);
-    const m = Math.floor(s.length/2);
-    return s.length % 2 ? s[m] : (s[m-1]+s[m])/2;
+    const s = [...arr].sort((a, b) => a - b);
+    const m = Math.floor(s.length / 2);
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
   };
   const percentile = (arr: number[], p: number) => {
     if (!arr.length) return 0;
-    const s = [...arr].sort((a,b)=>a-b);
-    const idx = Math.min(s.length-1, Math.max(0, Math.ceil((p/100)*s.length)-1));
+    const s = [...arr].sort((a, b) => a - b);
+    const idx = Math.min(s.length - 1, Math.max(0, Math.ceil((p / 100) * s.length) - 1));
     return s[idx];
   };
 
-  // ==== key listeners (capture ALL keys while textarea focused) ====
+  // key listeners
   const handleKeyDown = (e: KeyboardEvent) => {
-    // only record if our textarea has focus
     if (document.activeElement !== textareaRef.current) return;
 
     const pressTime = Date.now();
 
-    // first visible char triggers typing-start (once)
     if (!typingStartedRef.current && e.key.length === 1) {
       typingStartedRef.current = true;
       onTypingStart?.();
@@ -188,13 +219,13 @@ const TextInput: React.FC<TextInputProps> = ({
     if (sessionStart === null) setSessionStart(pressTime);
 
     if (e.key === 'Backspace') {
-      setBackspaceCount(c => c + 1);
+      setBackspaceCount((c) => c + 1);
     }
 
     const lagTime = lastReleaseRef.current !== null ? pressTime - lastReleaseRef.current : 0;
     const totalLagTime = lastPressRef.current !== null ? pressTime - lastPressRef.current : 0;
 
-    setKeyData(prev => ([
+    setKeyData((prev) => [
       ...prev,
       {
         key: e.key,
@@ -208,8 +239,8 @@ const TextInput: React.FC<TextInputProps> = ({
         ctrlKey: e.ctrlKey,
         metaKey: e.metaKey,
         shiftKey: e.shiftKey,
-      }
-    ]));
+      },
+    ]);
 
     lastPressRef.current = pressTime;
   };
@@ -219,8 +250,7 @@ const TextInput: React.FC<TextInputProps> = ({
 
     const releaseTime = Date.now();
 
-    // update the last unreleased event that matches BOTH key & code
-    setKeyData(prev => {
+    setKeyData((prev) => {
       const next = [...prev];
       for (let i = next.length - 1; i >= 0; i--) {
         const k = next[i];
@@ -237,7 +267,7 @@ const TextInput: React.FC<TextInputProps> = ({
 
   useEffect(() => {
     const down = (ev: KeyboardEvent) => handleKeyDown(ev);
-    const up   = (ev: KeyboardEvent) => handleKeyUp(ev);
+    const up = (ev: KeyboardEvent) => handleKeyUp(ev);
     document.addEventListener('keydown', down);
     document.addEventListener('keyup', up);
     return () => {
@@ -246,25 +276,25 @@ const TextInput: React.FC<TextInputProps> = ({
     };
   }, []); // once
 
-  // ==== submit ====
+  // submit
   const handleSubmit = () => {
-
-        const meta: TextMeta = textMeta ?? {
+    // ensure we always have a meta object
+    const meta: TextMeta = textMeta ?? {
       category: 'classic' as TextCategory,
       label: 'Classic first lines',
       index: null,
       presetId: null,
     };
-    
+
     // duration first press → last release
-    const presses = keyData.filter(k => typeof k.pressTime === 'number');
-    const releases = keyData.filter(k => typeof k.releaseTime === 'number' && k.releaseTime !== null);
-    const firstPress = presses.length ? Math.min(...presses.map(k => k.pressTime)) : (sessionStart ?? Date.now());
-    const lastRelease = releases.length ? Math.max(...releases.map(k => k.releaseTime as number)) : Date.now();
+    const presses = keyData.filter((k) => typeof k.pressTime === 'number');
+    const releases = keyData.filter((k) => typeof k.releaseTime === 'number' && k.releaseTime !== null);
+    const firstPress = presses.length ? Math.min(...presses.map((k) => k.pressTime)) : sessionStart ?? Date.now();
+    const lastRelease = releases.length ? Math.max(...releases.map((k) => k.releaseTime as number)) : Date.now();
     const durationMs = Math.max(0, lastRelease - firstPress);
     const minutes = durationMs / 60000 || 1e-9;
 
-    // alignments (use RAW strings here; normalized also saved below)
+    // alignments
     const typedChars = Array.from(inputValue);
     const targetChars = Array.from(displayText);
     const charAln = levenshteinWithOps(typedChars, targetChars);
@@ -273,13 +303,13 @@ const TextInput: React.FC<TextInputProps> = ({
     const targetWords = tokenizeWords(displayText);
     const wordAln = levenshteinWithOps(typedWords, targetWords);
 
-    // normalized for “double-space domino” avoidance
+    // normalized
     const typedNorm = normalizeWhitespace(inputValue);
     const targetNorm = normalizeWhitespace(displayText);
     const charNorm = levenshteinWithOps(Array.from(typedNorm), Array.from(targetNorm));
     const wordErrsNorm = levenshteinWithOps(tokenizeWords(typedNorm), tokenizeWords(targetNorm)).distance;
 
-    // confusion pairs from char substitutions
+    // confusion
     const confusion: Record<string, number> = {};
     for (const o of charAln.ops) {
       if (o.op === 'sub' && o.a && o.b) {
@@ -289,39 +319,54 @@ const TextInput: React.FC<TextInputProps> = ({
     }
 
     // speeds
-    const rawWpm5 = (inputValue.length / 5) / minutes;
-    const charWpm = (inputValue.length) / minutes;
-    const wordWpm = (typedWords.length) / minutes;
-    const netWpm5 = Math.max(0, rawWpm5 - (wordAln.counts.substitutions + wordAln.counts.insertions + wordAln.counts.deletions) / minutes);
+    const rawWpm5 = inputValue.length / 5 / minutes;
+    const charWpm = inputValue.length / minutes;
+    const wordWpm = typedWords.length / minutes;
+    const netWpm5 = Math.max(
+      0,
+      rawWpm5 - (wordAln.counts.substitutions + wordAln.counts.insertions + wordAln.counts.deletions) / minutes
+    );
 
     // accuracies
-    const charAcc = Math.max(0, (charAln.counts.matches) / Math.max(targetChars.length, 1));
-    const wordAcc = Math.max(0, (wordAln.counts.matches) / Math.max(targetWords.length, 1));
+    const charAcc = Math.max(0, charAln.counts.matches / Math.max(targetChars.length, 1));
+    const wordAcc = Math.max(0, wordAln.counts.matches / Math.max(targetWords.length, 1));
     const normAcc = Math.max(0, (Array.from(targetNorm).length - charNorm.distance) / Math.max(Array.from(targetNorm).length, 1));
 
     // timing stats
-    const holds = keyData.map(k => (k.holdTime ?? 0)).filter(v => v > 0);
-    const lags  = keyData.map(k => (k.lagTime ?? 0)).filter(v => v >= 0);
+    const holds = keyData.map((k) => k.holdTime ?? 0).filter((v) => v > 0);
+    const lags = keyData.map((k) => k.lagTime ?? 0).filter((v) => v >= 0);
 
     const perKey: Record<string, { count: number; meanHoldMs: number; meanLagMs: number }> = {};
     const holdSum: Record<string, number> = {};
-    const lagSum:  Record<string, number> = {};
-    keyData.forEach(k => {
-      const label = `${k.code}`; // use code to disambiguate (e.g., LeftShift vs RightShift)
+    const lagSum: Record<string, number> = {};
+    keyData.forEach((k) => {
+      const label = `${k.code}`;
       perKey[label] = perKey[label] || { count: 0, meanHoldMs: 0, meanLagMs: 0 };
       perKey[label].count += 1;
       holdSum[label] = (holdSum[label] || 0) + (k.holdTime ?? 0);
-      lagSum[label]  = (lagSum[label]  || 0) + (k.lagTime ?? 0);
+      lagSum[label] = (lagSum[label] || 0) + (k.lagTime ?? 0);
     });
-    Object.keys(perKey).forEach(ch => {
+    Object.keys(perKey).forEach((ch) => {
       perKey[ch].meanHoldMs = perKey[ch].count ? holdSum[ch] / perKey[ch].count : 0;
-      perKey[ch].meanLagMs  = perKey[ch].count ? lagSum[ch]  / perKey[ch].count  : 0;
+      perKey[ch].meanLagMs = perKey[ch].count ? lagSum[ch] / perKey[ch].count : 0;
     });
 
     const payload: KeystrokeSavePayload = {
-      typedText: inputValue,          // RAW full text (incl. double spaces)
+      typedText: inputValue,
       targetText: displayText,
-      keyData,                        // ALL keys (letters, space, arrows, backspace, enter, tab…)
+      keyData,
+
+      // keep both for clarity in downstream analysis
+      textMeta: meta,
+      textContext: {
+        category: meta.category,
+        label: meta.label,
+        index: meta.index ?? null,
+        presetId: meta.presetId ?? null,
+        targetTextSnapshot: displayText,
+      },
+      tags: { category: meta.category },
+
       analysis: {
         char: { ops: charAln.ops, counts: charAln.counts },
         word: { ops: wordAln.ops, counts: wordAln.counts },
@@ -347,7 +392,7 @@ const TextInput: React.FC<TextInputProps> = ({
         wordAccuracy: wordAcc,
         normalizedCharAccuracy: normAcc,
         holdMs: { mean: mean(holds), median: median(holds), p95: percentile(holds, 95) },
-        interKeyMs:{ mean: mean(lags),  median: median(lags),  p95: percentile(lags, 95)  },
+        interKeyMs: { mean: mean(lags), median: median(lags), p95: percentile(lags, 95) },
         perKey,
       },
       ui: {
@@ -358,90 +403,28 @@ const TextInput: React.FC<TextInputProps> = ({
         backgroundColor,
         backgroundOpacity,
       },
-      // inside handleSubmit, add this to the payload you already save:
- 
-  textContext: {
-    category: (textMeta?.category ?? 'classic') as TextCategory,
-    label: textMeta?.label ?? '',
-    index: textMeta?.index ?? null,
-    presetId: textMeta?.presetId ?? null,
-    targetTextSnapshot: displayText,  // freeze exactly what was shown
-  },
-   // optional flat tag
-      tags: { category: meta.category },
-};
-   
-
-
+    };
 
     saveKeystrokeData(payload);
 
-    
-    
-// Ask if they want a quick performance summary
-if (window.confirm('Would you like to see a quick performance summary?')) {
-  const m = payload.metrics;
-  const secs = Math.max(0, Math.round(m.durationMs / 100) / 10); // 0.1s precision
-
-  const summary =
-    `Time: ${secs}s
+    if (window.confirm('Would you like to see a quick performance summary?')) {
+      const m = payload.metrics;
+      const secs = Math.max(0, Math.round(m.durationMs / 100) / 10);
+      const summary = `Time: ${secs}s
 Raw WPM (5-char): ${s1(m.rawWpm5)}
 Net WPM (5-char): ${s1(m.netWpm5)}
 Char Accuracy: ${pct(m.charAccuracy)}
 Word Accuracy: ${pct(m.wordAccuracy)}
 Normalized Char Accuracy: ${pct(m.normalizedCharAccuracy)}`;
-
-  window.alert(summary);
-}
-
+      window.alert(summary);
+    }
   };
 
-// dropdown open/close
-const [isResetMenuOpen, setIsResetMenuOpen] = useState(false);
+  // dropdown open/close
+  const [isResetMenuOpen, setIsResetMenuOpen] = useState(false);
 
-// reset helpers (unique names to avoid clashes)
-const doResetTyping = () => {
-  setInputValue('');
-  setKeyData([]);
-  setBackspaceCount(0);
-  setSessionStart(null);
-  typingStartedRef.current = false;
-  lastPressRef.current = null;
-  lastReleaseRef.current = null;
-  textareaRef.current?.focus();
-};
-
-const doResetAll = () => {
-  doResetTyping();
-  setDisplayText('');   // also clears the target passage
-};
-
-const doResetAndNew = () => {
-  doResetAll();
-  rollNewText?.();      // only runs if parent provided it
-};
-
-
-/* 
-  //reset both typing and text 
-const handleReset = () => {
-  setInputValue('');
-  setKeyData([]);
-  setBackspaceCount(0);
-  setSessionStart(null);
-  typingStartedRef.current = false;
-  lastPressRef.current = null;
-  lastReleaseRef.current = null;
-
-  // NEW: also clear the displayed paragraph
-  setDisplayText('');
-
-  // optional: put cursor back in the box
-  textareaRef.current?.focus();
-}; */
-
-/*   //reset only text old style
-const handleReset = () => {
+  // reset helpers
+  const doResetTyping = () => {
     setInputValue('');
     setKeyData([]);
     setBackspaceCount(0);
@@ -449,7 +432,18 @@ const handleReset = () => {
     typingStartedRef.current = false;
     lastPressRef.current = null;
     lastReleaseRef.current = null;
-  }; */
+    textareaRef.current?.focus();
+  };
+
+  const doResetAll = () => {
+    doResetTyping();
+    setDisplayText('');
+  };
+
+  const doResetAndNew = () => {
+    doResetAll();
+    rollNewText?.();
+  };
 
   return (
     <div className="relative w-full">
@@ -459,7 +453,7 @@ const handleReset = () => {
             ref={textareaRef}
             value={inputValue}
             placeholder={placeholder}
-            onChange={(e)=>setInputValue(e.target.value)}
+            onChange={(e) => setInputValue(e.target.value)}
             style={{
               width: '100%',
               height: '300px',
@@ -481,10 +475,7 @@ const handleReset = () => {
         </div>
       </div>
 
-      <button
-        onClick={() => setIsPanelOpen(!isPanelOpen)}
-        className="mt-3 text-xs bg-gray-100 p-2 border rounded"
-      >
+      <button onClick={() => setIsPanelOpen(!isPanelOpen)} className="mt-3 text-xs bg-gray-100 p-2 border rounded">
         {isPanelOpen ? 'Hide Text Controls' : 'Show Text Controls'}
       </button>
 
@@ -543,57 +534,77 @@ const handleReset = () => {
       </Collapse>
 
       <div className="mt-3">
-        {/* <button onClick={handleSubmit} style={buttonStyle}>Submit</button> */}
-  {/*       <button onClick={handleReset} style={{ ...buttonStyle, marginLeft: '0.5rem' }}>
-          Reset
-        </button> */}
-<div className="mt-3 flex items-center gap-2 relative">
-  <button onClick={handleSubmit} style={buttonStyle}>Submit</button>
-
-  {/* Reset split-button */}
-  <div
-    className="relative inline-block"
-    tabIndex={0}
-    onBlur={(e) => {
-      if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsResetMenuOpen(false);
-    }}
-  >
-    <button
-      type="button"
-      onClick={() => { doResetTyping(); setIsResetMenuOpen(false); }}
-      className="bg-green-200 hover:bg-green-400 text-gray-800 border px-3 py-2 rounded-l"
-    >
-      Reset
-    </button>
-    <button
-      type="button"
-      onClick={() => setIsResetMenuOpen((o) => !o)}
-      className="bg-gray-100 hover:bg-gray-200 text-gray-800 border border-l-0 px-2 py-2 rounded-r"
-      aria-haspopup="menu"
-      aria-expanded={isResetMenuOpen}
-    >
-      ▾
-    </button>
-
-    {isResetMenuOpen && (
-      <div role="menu" className="absolute right-0 z-50 mt-1 w-60 rounded-md border bg-white shadow-lg">
-        <button role="menuitem" onClick={() => { doResetTyping(); setIsResetMenuOpen(false); }} className="w-full text-left px-3 py-2 hover:bg-gray-50">
-          Reset typing only
-        </button>
-        <button role="menuitem" onClick={() => { doResetAll(); setIsResetMenuOpen(false); }} className="w-full text-left px-3 py-2 hover:bg-gray-50">
-          Reset typing + target text
-        </button>
-        {rollNewText && (
-          <button role="menuitem" onClick={() => { doResetAndNew(); setIsResetMenuOpen(false); }} className="w-full text-left px-3 py-2 hover:bg-gray-50">
-            Reset & show new passage
+        <div className="mt-3 flex items-center gap-2 relative">
+          <button onClick={handleSubmit} style={buttonStyle}>
+            Submit
           </button>
-        )}
-      </div>
-    )}
-  </div>
-</div>
 
+          {/* Reset split-button */}
+          <div
+            className="relative inline-block"
+            tabIndex={0}
+            onBlur={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsResetMenuOpen(false);
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                doResetTyping();
+                setIsResetMenuOpen(false);
+              }}
+              className="bg-green-200 hover:bg-green-400 text-gray-800 border px-3 py-2 rounded-l"
+            >
+              Reset
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsResetMenuOpen((o) => !o)}
+              className="bg-gray-100 hover:bg-gray-200 text-gray-800 border border-l-0 px-2 py-2 rounded-r"
+              aria-haspopup="menu"
+              aria-expanded={isResetMenuOpen}
+            >
+              ▾
+            </button>
 
+            {isResetMenuOpen && (
+              <div role="menu" className="absolute right-0 z-50 mt-1 w-60 rounded-md border bg-white shadow-lg">
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    doResetTyping();
+                    setIsResetMenuOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-2 hover:bg-gray-50"
+                >
+                  Reset typing only
+                </button>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    doResetAll();
+                    setIsResetMenuOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-2 hover:bg-gray-50"
+                >
+                  Reset typing + target text
+                </button>
+                {rollNewText && (
+                  <button
+                    role="menuitem"
+                    onClick={() => {
+                      doResetAndNew();
+                      setIsResetMenuOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-2 hover:bg-gray-50"
+                  >
+                    Reset & show new passage
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
