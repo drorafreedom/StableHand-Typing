@@ -17,6 +17,7 @@ import { ref as storageRef, uploadBytes } from 'firebase/storage';
 import { ref as rtdbRef, set as rtdbSet, serverTimestamp } from 'firebase/database';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
+import type { TextMeta, TextCategory } from '../../data/text';
 
 type Tab = 'multifunction' | 'baselinetyping' | 'shape' | 'color';
 interface Message { message: string; type: 'success' | 'error'; }
@@ -182,7 +183,23 @@ const DEFAULTS: Record<Tab, any> = {
 };
 
 const TherapyPage: React.FC = () => {
+  
   const { currentUser } = useAuth();
+  
+  // ✅ Hooks must be inside the component function body
+  // state
+    const [displayText, setDisplayText] = useState('');
+const [textMeta, setTextMeta] = useState<TextMeta>({
+  category: 'classic',
+  label: 'Classic first lines',
+  index: null,
+  presetId: null,
+});
+
+  
+
+  
+
 
   // 1) tab + synchronous ref to avoid race on first key
   const [currentAnimation, _setCurrentAnimation] = useState<Tab>('multifunction');
@@ -234,7 +251,7 @@ const TherapyPage: React.FC = () => {
     });
   }, []);
 
-  const [displayText, setDisplayText] = useState<string>('');
+  //const [displayText, setDisplayText] = useState<string>('');
 
   // ---------- SAVE (unchanged structure) ----------
   const saveKeystrokeData = async (payload: KeystrokeSavePayload) => {
@@ -590,9 +607,12 @@ await uploadBytes(
             setDisplayText={setDisplayText}
             saveKeystrokeData={saveKeystrokeData}
             onTypingStart={handleTypingStart}
+             textMeta={textMeta}                           // <-- PASS IT IN
           />
           <div className="w-full max-w-9xl mt-4">
-            <TextDisplay displayText={displayText} setDisplayText={setDisplayText} />
+            <TextDisplay displayText={displayText} setDisplayText={setDisplayText} 
+              onTextChosen={(meta) => setTextMeta(meta)} />  
+              {/* // <-- gets meta from picker  */}
           </div>
           {message && (
             <div className="mt-3">

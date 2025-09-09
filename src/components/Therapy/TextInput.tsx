@@ -3,7 +3,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Collapse } from 'react-collapse';
 import buttonStyle from './buttonStyle';
+ // accept meta
+import type { TextMeta, TextCategory } from '../../data/text';
+
  
+
+
+
 const pct = (x: number) => `${Math.round((x ?? 0) * 100)}%`;
 const s1  = (x: number) => (Math.round((x ?? 0) * 10) / 10).toString(); // one decimal
 export interface KeyData {
@@ -77,6 +83,7 @@ interface TextInputProps {
   setDisplayText: React.Dispatch<React.SetStateAction<string>>;
   saveKeystrokeData: (payload: KeystrokeSavePayload) => void;
   onTypingStart?: () => void; // used by TherapyPage to snapshot animation settings
+   textMeta?: TextMeta; // 
 }
 
 const TextInput: React.FC<TextInputProps> = ({
@@ -86,6 +93,7 @@ const TextInput: React.FC<TextInputProps> = ({
   saveKeystrokeData,
   onTypingStart,
     rollNewText,                 // <— THIS must be here
+    textMeta,
 }) => {
   const [inputValue, setInputValue] = useState('');
   const [keyData, setKeyData] = useState<KeyData[]>([]);
@@ -240,6 +248,14 @@ const TextInput: React.FC<TextInputProps> = ({
 
   // ==== submit ====
   const handleSubmit = () => {
+
+        const meta: TextMeta = textMeta ?? {
+      category: 'classic' as TextCategory,
+      label: 'Classic first lines',
+      index: null,
+      presetId: null,
+    };
+    
     // duration first press → last release
     const presses = keyData.filter(k => typeof k.pressTime === 'number');
     const releases = keyData.filter(k => typeof k.releaseTime === 'number' && k.releaseTime !== null);
@@ -342,11 +358,25 @@ const TextInput: React.FC<TextInputProps> = ({
         backgroundColor,
         backgroundOpacity,
       },
-    };
+      // inside handleSubmit, add this to the payload you already save:
+ 
+  textContext: {
+    category: (textMeta?.category ?? 'classic') as TextCategory,
+    label: textMeta?.label ?? '',
+    index: textMeta?.index ?? null,
+    presetId: textMeta?.presetId ?? null,
+    targetTextSnapshot: displayText,  // freeze exactly what was shown
+  },
+   // optional flat tag
+      tags: { category: meta.category },
+};
+   
 
 
 
     saveKeystrokeData(payload);
+
+    
     
 // Ask if they want a quick performance summary
 if (window.confirm('Would you like to see a quick performance summary?')) {

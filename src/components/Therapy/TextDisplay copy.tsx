@@ -1,5 +1,4 @@
 // src/components/Therapy/TextDisplay.tsx
-//last working version
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { db, auth } from '../../firebase/firebase';
 import {
