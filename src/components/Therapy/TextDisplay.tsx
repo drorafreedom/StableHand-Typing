@@ -1,88 +1,57 @@
 // src/components/Therapy/TextDisplay.tsx
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { db, auth, storage } from '../../firebase/firebase';
+import { auth, db, storage } from '../../firebase/firebase';
 import {
-  collection, addDoc, getDocs, deleteDoc, doc, query, orderBy, serverTimestamp
+  collection, addDoc, getDocs, orderBy, query, serverTimestamp, deleteDoc, doc,
 } from 'firebase/firestore';
-import { ref, uploadString } from 'firebase/storage';
+import { ref, uploadString, deleteObject } from 'firebase/storage';
 
+import type { TextCategory, TextMeta, NonCustom } from '../../data/text';
 import {
-  CATALOG,
-  CATEGORY_OPTIONS,
-  type TextCategory,
-  type TextMeta,
-  type NonCustom,
-  pickRandom,
-  makeCustomMeta,
-  labelForCategory,
+  CATALOG, CATEGORY_OPTIONS, pickRandom, makeCustomMeta,
 } from '../../data/text';
 
 type SavedText = { id: string; text: string; createdAt?: number | null };
 
-const LOCAL_KEY = 'stablehand_custom_texts_v1';
-
 interface TextDisplayProps {
   displayText: string;
+  setDisplayText: (t: string) => void;
 
-  // Preferred new prop:
-  onChoose?: (text: string, meta: TextMeta) => void;
-
-  // Back-compat props:
-  setDisplayText?: (t: string) => void;
-  setMeta?: (m: TextMeta) => void;
-
-  style?: React.CSSProperties;
-  buttonContainerStyle?: React.CSSProperties;
+  /** optional: let parent (TherapyPage) receive meta updates for saving */
+  onMetaChange?: (m: TextMeta) => void;
 }
 
-function csvEscape(s: string) {
-  return `"${String(s ?? '').replace(/"/g, '""')}"`;
-}
-function toCsv(rows: SavedText[]) {
-  const header = ['id', 'createdAt', 'text'].join(',');
-  const lines = rows.map(r => [
-    r.id,
-    r.createdAt ?? '',
-    r.text
-  ].map(csvEscape).join(','));
-  return [header, ...lines].join('\n');
-}
+/* ---------- utils ---------- */
+const LOCAL_KEY = 'stablehand_custom_texts_v1';
+const csvEscape = (s: string) =>
+  `"${String(s).replace(/"/g, '""').replace(/\r?\n/g, '\\n')}"`;
 
 export default function TextDisplay({
   displayText,
-  onChoose,
   setDisplayText,
-  setMeta,
-  style,
-  buttonContainerStyle,
+  onMetaChange,
 }: TextDisplayProps) {
+  const user = auth.currentUser;
+
   const [category, setCategory] = useState<TextCategory>('classic');
+  const isCustom = category === 'custom';
+
+  // “custom” editing happens in the SAME box. This mirrors displayText when custom.
   const [customDraft, setCustomDraft] = useState('');
+
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState<SavedText[]>([]);
   const [loadingSaved, setLoadingSaved] = useState(true);
-  const [selectedSavedId, setSelectedSavedId] = useState<string>('');
+  const [selectedSavedId, setSelectedSavedId] = useState('');
 
-  const user = auth.currentUser;
-  const isCustom = category === 'custom';
+  /* ---------- storage paths ---------- */
+  const csvPath = user
+    ? `users/${user.uid}/custom-texts/customTexts.csv`
+    : null; // only for signed-in users
+  const textFilePath = (id: string) =>
+    `users/${user!.uid}/custom-texts/${id}.txt`;
 
-  // Unifies “choose text” for both prop styles
-  const choose = (text: string, meta: TextMeta) => {
-    if (onChoose) onChoose(text, meta);
-    else {
-      setDisplayText?.(text);
-      setMeta?.(meta);
-    }
-  };
-
-  /** == Random built-in passage == */
-  const handleNew = useCallback(() => {
-    if (isCustom) return;
-    const { text, meta } = pickRandom(category as NonCustom);
-    choose(text, meta);
-  }, [category, isCustom]);
-
-  /** == Load saved custom presets == */
+  /* ---------- load library ---------- */
   const loadSaved = useCallback(async () => {
     setLoadingSaved(true);
     try {
@@ -100,8 +69,7 @@ export default function TextDisplay({
         setSaved(rows);
       } else {
         const raw = localStorage.getItem(LOCAL_KEY);
-        const rows: SavedText[] = raw ? JSON.parse(raw) : [];
-        setSaved(rows);
+        setSaved(raw ? JSON.parse(raw) : []);
       }
     } finally {
       setLoadingSaved(false);
@@ -112,124 +80,150 @@ export default function TextDisplay({
     loadSaved();
   }, [loadSaved]);
 
-  /** == Sync current “saved” list to CSV ==
-   *  - If signed in: upload to Firebase Storage at users/{uid}/customTexts.csv
-   *  - If NOT signed in: download CSV to the user’s device
-   */
-  const syncCsv = useCallback(async (rows: SavedText[]) => {
-    const csv = toCsv(rows);
-    if (user) {
-      const path = `users/${user.uid}/customTexts.csv`;
-      await uploadString(ref(storage, path), csv, 'raw', { contentType: 'text/csv' as any });
-    } else {
-      const blob = new Blob([csv], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'customTexts.csv';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    }
-  }, [user]);
+  /* ---------- keep CSV in Cloud Storage ---------- */
+  const rebuildCsvFromFirestore = useCallback(async () => {
+    if (!user || !csvPath) return;
+    const qSnap = await getDocs(
+      query(collection(db, `users/${user.uid}/customTexts`), orderBy('createdAt', 'desc'))
+    );
+    const rows = qSnap.docs.map((d) => {
+      const data = d.data() as any;
+      const created = data.createdAt?.toDate?.() ?? new Date();
+      const iso = created.toISOString();
+      return `${csvEscape(d.id)},${csvEscape(iso)},${csvEscape(data.text ?? '')}`;
+    });
+    const csv = `id,createdAt,text\n${rows.join('\n')}`;
+    await uploadString(ref(storage, csvPath), csv, 'raw', {
+      contentType: 'text/csv',
+    });
+  }, [user, csvPath]);
 
-  /** == Save current customDraft as preset, then re-sync CSV == */
-  const saveCustom = useCallback(async () => {
-    const text = customDraft.trim();
-    if (!text) return;
+  /* ---------- category change: CLEAR the box ---------- */
+  useEffect(() => {
+    // wipe everything visible so UI never looks cluttered
+    setDisplayText('');
+    setCustomDraft('');
+    setSelectedSavedId('');
+    // let parent know which family we’re in (index is unknown until “New”)
+    onMetaChange?.(
+      isCustom ? makeCustomMeta(null) : { category, label: CATALOG[category as NonCustom].label, index: null, presetId: null }
+    );
+  }, [category]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    setSaving(true);
-    try {
-      if (user) {
-        await addDoc(collection(db, `users/${user.uid}/customTexts`), {
-          text,
-          createdAt: serverTimestamp(),
-        });
-      } else {
-        const raw = localStorage.getItem(LOCAL_KEY);
-        const rows: SavedText[] = raw ? JSON.parse(raw) : [];
-        const next: SavedText[] = [{ id: `${Date.now()}`, text, createdAt: Date.now() }, ...rows].slice(0, 200);
-        localStorage.setItem(LOCAL_KEY, JSON.stringify(next));
-      }
-      setCustomDraft('');
-      await loadSaved();
-
-      // refresh list and push CSV
-      const post = user
-        ? (await getDocs(query(collection(db, `users/${user.uid}/customTexts`), orderBy('createdAt', 'desc'))))
-            .docs.map(d => ({
-              id: d.id,
-              text: (d.data().text as string) ?? '',
-              createdAt: (d.data().createdAt as any)?.toMillis?.() ?? null,
-            }))
-        : JSON.parse(localStorage.getItem(LOCAL_KEY) || '[]');
-
-      await syncCsv(post);
-    } finally {
-      setSaving(false);
-    }
-  }, [customDraft, user, loadSaved, syncCsv]);
-
-  /** == Choose a saved preset == */
-  const useSaved = (id: string) => {
-    const row = saved.find((s) => s.id === id);
-    if (!row) return;
-    choose(row.text, { category: 'custom', label: labelForCategory('custom'), index: null, presetId: id });
+  /* ---------- pick new passage for non-custom ---------- */
+  const handleNew = () => {
+    if (isCustom) return;
+    const { text, meta } = pickRandom(category as NonCustom);
+    setDisplayText(text);
+    onMetaChange?.(meta);
   };
 
-  /** == Delete a saved preset, then re-sync CSV == */
-  const deleteSaved = useCallback(async (id: string) => {
-    if (!id) return;
-    if (user) {
-      await deleteDoc(doc(db, `users/${user.uid}/customTexts/${id}`));
-    } else {
-      const raw = localStorage.getItem(LOCAL_KEY);
-      const rows: SavedText[] = raw ? JSON.parse(raw) : [];
-      const next = rows.filter((r) => r.id !== id);
-      localStorage.setItem(LOCAL_KEY, JSON.stringify(next));
+  /* ---------- choose from saved library (custom) ---------- */
+  const onPickSaved = (id: string) => {
+    setSelectedSavedId(id);
+    const row = saved.find((s) => s.id === id);
+    if (row) {
+      setDisplayText(row.text);
+      setCustomDraft(row.text); // same box
+      onMetaChange?.(makeCustomMeta(id));
     }
-    await loadSaved();
-
-    const post = user
-      ? (await getDocs(query(collection(db, `users/${user.uid}/customTexts`), orderBy('createdAt', 'desc'))))
-          .docs.map(d => ({
-            id: d.id,
-            text: (d.data().text as string) ?? '',
-            createdAt: (d.data().createdAt as any)?.toMillis?.() ?? null,
-          }))
-      : JSON.parse(localStorage.getItem(LOCAL_KEY) || '[]');
-
-    await syncCsv(post);
-    setSelectedSavedId('');
-  }, [user, loadSaved, syncCsv]);
+  };
 
   const savedOptions = useMemo(
     () =>
       saved.map((s) => {
-        const preview = s.text.length > 60 ? s.text.slice(0, 60).trim() + '…' : s.text;
+        const preview = s.text.length > 50 ? s.text.slice(0, 50).trim() + '…' : s.text;
         const when = s.createdAt ? new Date(s.createdAt).toLocaleString() : '';
         return { id: s.id, label: when ? `${preview} (${when})` : preview };
       }),
     [saved]
   );
 
-  return (
-    <div className="w-full max-w-3xl bg-white/90 border rounded-lg shadow p-3" style={style}>
-      <div className="flex flex-wrap gap-2 items-center" style={buttonContainerStyle}>
-        <label className="text-sm font-semibold text-gray-700">Text source</label>
+  /* ---------- save custom to Firestore + Storage + CSV ---------- */
+  const saveCustom = async () => {
+    const txt = (isCustom ? customDraft : displayText).trim();
+    if (!txt) return;
+    setSaving(true);
+    try {
+      let newId = '';
+      if (user) {
+        const docRef = await addDoc(collection(db, `users/${user.uid}/customTexts`), {
+          text: txt,
+          createdAt: serverTimestamp(),
+        });
+        newId = docRef.id;
 
+        // 1) save a per-item .txt (useful for backups & deletion parity)
+        await uploadString(ref(storage, textFilePath(newId)), txt, 'raw', {
+          contentType: 'text/plain',
+        });
+
+        // 2) rebuild the CSV from Firestore (keeps it truthful after add/del)
+        await rebuildCsvFromFirestore();
+      } else {
+        // local fallback
+        const raw = localStorage.getItem(LOCAL_KEY);
+        const rows: SavedText[] = raw ? JSON.parse(raw) : [];
+        newId = `${Date.now()}`;
+        const next = [{ id: newId, text: txt, createdAt: Date.now() }, ...rows].slice(0, 50);
+        localStorage.setItem(LOCAL_KEY, JSON.stringify(next));
+      }
+
+      // reflect in UI
+      setDisplayText(txt);
+      setCustomDraft(txt);
+      onMetaChange?.(makeCustomMeta(newId || null));
+      await loadSaved();
+      setSelectedSavedId(newId);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /* ---------- delete selected custom (Firestore + Storage + CSV) ---------- */
+  const deleteSelected = async () => {
+    if (!selectedSavedId) return;
+    if (!window.confirm('Delete this saved text? This cannot be undone.')) return;
+
+    if (user) {
+      await deleteDoc(doc(db, `users/${user.uid}/customTexts/${selectedSavedId}`));
+      // try delete the per-item .txt; ignore if not found
+      try { await deleteObject(ref(storage, textFilePath(selectedSavedId))); } catch {}
+      await rebuildCsvFromFirestore();
+    } else {
+      const raw = localStorage.getItem(LOCAL_KEY);
+      const rows: SavedText[] = raw ? JSON.parse(raw) : [];
+      const next = rows.filter((r) => r.id !== selectedSavedId);
+      localStorage.setItem(LOCAL_KEY, JSON.stringify(next));
+    }
+
+    setSelectedSavedId('');
+    await loadSaved();
+    // if we were showing it, clear the box for clarity
+    if (isCustom) {
+      setDisplayText('');
+      setCustomDraft('');
+      onMetaChange?.(makeCustomMeta(null));
+    }
+  };
+
+  /* ---------- UI ---------- */
+  return (
+    <div className="w-full max-w-3xl bg-white/90 border rounded-lg shadow p-3">
+      {/* top row: picker + New */}
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="text-sm font-semibold text-gray-700">Text source</label>
         <select
           value={category}
           onChange={(e) => setCategory(e.target.value as TextCategory)}
-          className="bg-red-100 border rounded px-2 py-1 text-sm"
+          className="border rounded px-2 py-1 text-sm"
         >
-          {CATEGORY_OPTIONS.filter((o) => o.value !== 'custom').map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-          <option value="custom">Custom (your own text)</option>
+          {CATEGORY_OPTIONS
+            .filter((opt) => opt.value !== 'custom')
+            .map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          <option value="custom">Custom (your text)</option>
         </select>
 
         <button
@@ -237,97 +231,94 @@ export default function TextDisplay({
           onClick={handleNew}
           disabled={isCustom}
           className={`ml-auto text-sm px-3 py-1.5 rounded ${
-            isCustom ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600 text-white'
+            isCustom
+              ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+              : 'bg-blue-600 hover:bg-blue-700 text-white'
           }`}
-          title={isCustom ? 'Use the box below for custom text' : 'Pick a new passage'}
+          title={isCustom ? 'Choose or paste your text below' : 'Pick a new passage'}
         >
           New
         </button>
       </div>
 
-      {/* Display area */}
-      <div className="mt-3 whitespace-pre-wrap text-center text-[15px] leading-relaxed text-gray-800">
-        {displayText || 'Choose a source and press “New”, or paste your own text below.'}
+      {/* single box (same area for both modes) */}
+      <div className="mt-3">
+        <textarea
+          value={isCustom ? customDraft : displayText}
+          onChange={(e) => {
+            if (isCustom) {
+              setCustomDraft(e.target.value);
+              setDisplayText(e.target.value);            // same box
+              onMetaChange?.(makeCustomMeta(selectedSavedId || null));
+            }
+          }}
+          readOnly={!isCustom}
+          placeholder={
+            isCustom
+              ? 'Paste or type your paragraph here…'
+              : 'Choose a source and press “New”…'
+          }
+          rows={6}
+          className={`w-full border rounded p-3 text-[15px] leading-relaxed ${
+            isCustom ? 'bg-white' : 'bg-gray-50'
+          }`}
+        />
       </div>
 
-      {/* Custom area */}
+      {/* custom controls (same row, not a second big box) */}
       {isCustom && (
-        <div className="mt-4 border-t pt-3">
+        <div className="mt-2 flex flex-wrap items-center gap-2">
           {!user && (
-            <div className="mb-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
-              Not signed in — your saved texts will be kept on this device only. Export will download a CSV.
-            </div>
+            <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+              Not signed in — your saved texts are stored on this device only.
+            </span>
           )}
 
-          <label className="block text-sm font-medium text-gray-700 mb-1">Paste any text you wish to copy:</label>
-          <textarea
-            value={customDraft}
-            onChange={(e) => setCustomDraft(e.target.value)}
-            rows={4}
-            placeholder="Paste or type your paragraph here…"
-            className="w-full border rounded p-2 text-sm"
-          />
+          <button
+            type="button"
+            onClick={saveCustom}
+            disabled={!customDraft.trim() || saving}
+            className={`px-3 py-1.5 rounded text-sm ${
+              customDraft.trim() && !saving
+                ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+            }`}
+          >
+            {saving ? 'Saving…' : 'Save to my library'}
+          </button>
 
-          <div className="mt-2 flex flex-wrap gap-2">
+          <div className="ml-auto flex items-center gap-2">
+            <label className="text-sm text-gray-600">My saved texts</label>
+            <select
+              value={selectedSavedId}
+              onChange={(e) => onPickSaved(e.target.value)}
+              disabled={loadingSaved || saved.length === 0}
+              className="border rounded px-2 py-1 text-sm min-w-[18rem]"
+            >
+              <option value="" disabled>
+                {loadingSaved
+                  ? 'Loading…'
+                  : saved.length
+                  ? 'Pick a saved text…'
+                  : 'No saved texts yet'}
+              </option>
+              {savedOptions.map((opt) => (
+                <option key={opt.id} value={opt.id}>{opt.label}</option>
+              ))}
+            </select>
+
             <button
               type="button"
-              onClick={() => choose(customDraft, makeCustomMeta(null))}
-              disabled={!customDraft.trim()}
+              onClick={deleteSelected}
+              disabled={!selectedSavedId}
               className={`px-3 py-1.5 rounded text-sm ${
-                customDraft.trim() ? 'bg-emerald-500 hover:bg-emerald-600 text-white' : 'bg-gray-200 text-gray-500'
+                selectedSavedId
+                  ? 'bg-rose-600 hover:bg-rose-700 text-white'
+                  : 'bg-gray-200 text-gray-500 cursor-not-allowed'
               }`}
             >
-              Use this text
+              Delete
             </button>
-
-            <button
-              type="button"
-              onClick={saveCustom}
-              disabled={!customDraft.trim() || saving}
-              className={`px-3 py-1.5 rounded text-sm ${
-                customDraft.trim() && !saving ? 'bg-indigo-500 hover:bg-indigo-600 text-white' : 'bg-gray-200 text-gray-500'
-              }`}
-            >
-              {saving ? 'Saving…' : 'Save to my library'}
-            </button>
-
-           <div className="ml-auto flex flex-wrap items-center gap-2">
-  <label className="text-sm text-gray-600">My saved texts</label>
-  <select
-    value={selectedSavedId}
-    onChange={(e) => setSelectedSavedId(e.target.value)}
-    disabled={loadingSaved || saved.length === 0}
-    className="border rounded px-2 py-1 text-sm min-w-[20rem]"
-  >
-    <option value="" disabled>
-      {loadingSaved ? 'Loading…' : saved.length ? 'Pick a saved text…' : 'No saved texts yet'}
-    </option>
-    {savedOptions.map((opt) => (
-      <option key={opt.id} value={opt.id}>
-        {opt.label}
-      </option>
-    ))}
-  </select>
-
-  <button
-    type="button"
-    onClick={() => selectedSavedId && useSaved(selectedSavedId)}
-    disabled={!selectedSavedId}
-    className="px-2 py-1 text-xs border rounded hover:bg-gray-50"
-  >
-    Use
-  </button>
-
-  <button
-    type="button"
-    onClick={() => selectedSavedId && deleteSaved(selectedSavedId)}
-    disabled={!selectedSavedId}
-    className="px-2 py-1 text-xs border rounded hover:bg-red-50"
-  >
-    Delete
-  </button>
-</div>
-
           </div>
         </div>
       )}
@@ -337,7 +328,347 @@ export default function TextDisplay({
 
 
 
+// // src/components/Therapy/TextDisplay.tsx
+// // working version with  improted all texts paragraphs fro mtext.ts .all text disply under drop menu .submit and resst all or reset text inlput only.  also upload preset to both svc and fire store . dan save preset and delete 
+// import React, { useCallback, useEffect, useMemo, useState } from 'react';
+// import { db, auth, storage } from '../../firebase/firebase';
+// import {
+//   collection, addDoc, getDocs, deleteDoc, doc, query, orderBy, serverTimestamp
+// } from 'firebase/firestore';
+// import { ref, uploadString } from 'firebase/storage';
 
+// import {
+//   CATALOG,
+//   CATEGORY_OPTIONS,
+//   type TextCategory,
+//   type TextMeta,
+//   type NonCustom,
+//   pickRandom,
+//   makeCustomMeta,
+//   labelForCategory,
+// } from '../../data/text';
+
+// type SavedText = { id: string; text: string; createdAt?: number | null };
+
+// const LOCAL_KEY = 'stablehand_custom_texts_v1';
+
+// interface TextDisplayProps {
+//   displayText: string;
+
+//   // Preferred new prop:
+//   onChoose?: (text: string, meta: TextMeta) => void;
+
+//   // Back-compat props:
+//   setDisplayText?: (t: string) => void;
+//   setMeta?: (m: TextMeta) => void;
+
+//   style?: React.CSSProperties;
+//   buttonContainerStyle?: React.CSSProperties;
+// }
+
+// function csvEscape(s: string) {
+//   return `"${String(s ?? '').replace(/"/g, '""')}"`;
+// }
+// function toCsv(rows: SavedText[]) {
+//   const header = ['id', 'createdAt', 'text'].join(',');
+//   const lines = rows.map(r => [
+//     r.id,
+//     r.createdAt ?? '',
+//     r.text
+//   ].map(csvEscape).join(','));
+//   return [header, ...lines].join('\n');
+// }
+
+// export default function TextDisplay({
+//   displayText,
+//   onChoose,
+//   setDisplayText,
+//   setMeta,
+//   style,
+//   buttonContainerStyle,
+// }: TextDisplayProps) {
+//   const [category, setCategory] = useState<TextCategory>('classic');
+//   const [customDraft, setCustomDraft] = useState('');
+//   const [saving, setSaving] = useState(false);
+//   const [saved, setSaved] = useState<SavedText[]>([]);
+//   const [loadingSaved, setLoadingSaved] = useState(true);
+//   const [selectedSavedId, setSelectedSavedId] = useState<string>('');
+
+//   const user = auth.currentUser;
+//   const isCustom = category === 'custom';
+
+//   // Unifies “choose text” for both prop styles
+//   const choose = (text: string, meta: TextMeta) => {
+//     if (onChoose) onChoose(text, meta);
+//     else {
+//       setDisplayText?.(text);
+//       setMeta?.(meta);
+//     }
+//   };
+
+//   /** == Random built-in passage == */
+//   const handleNew = useCallback(() => {
+//     if (isCustom) return;
+//     const { text, meta } = pickRandom(category as NonCustom);
+//     choose(text, meta);
+//   }, [category, isCustom]);
+
+//   /** == Load saved custom presets == */
+//   const loadSaved = useCallback(async () => {
+//     setLoadingSaved(true);
+//     try {
+//       if (user) {
+//         const q = query(
+//           collection(db, `users/${user.uid}/customTexts`),
+//           orderBy('createdAt', 'desc')
+//         );
+//         const snap = await getDocs(q);
+//         const rows: SavedText[] = snap.docs.map((d) => ({
+//           id: d.id,
+//           text: (d.data().text as string) ?? '',
+//           createdAt: (d.data().createdAt as any)?.toMillis?.() ?? null,
+//         }));
+//         setSaved(rows);
+//       } else {
+//         const raw = localStorage.getItem(LOCAL_KEY);
+//         const rows: SavedText[] = raw ? JSON.parse(raw) : [];
+//         setSaved(rows);
+//       }
+//     } finally {
+//       setLoadingSaved(false);
+//     }
+//   }, [user]);
+
+//   useEffect(() => {
+//     loadSaved();
+//   }, [loadSaved]);
+
+//   /** == Sync current “saved” list to CSV ==
+//    *  - If signed in: upload to Firebase Storage at users/{uid}/customTexts.csv
+//    *  - If NOT signed in: download CSV to the user’s device
+//    */
+//   const syncCsv = useCallback(async (rows: SavedText[]) => {
+//     const csv = toCsv(rows);
+//     if (user) {
+//       const path = `users/${user.uid}/customTexts.csv`;
+//       await uploadString(ref(storage, path), csv, 'raw', { contentType: 'text/csv' as any });
+//     } else {
+//       const blob = new Blob([csv], { type: 'text/csv' });
+//       const url = URL.createObjectURL(blob);
+//       const a = document.createElement('a');
+//       a.href = url;
+//       a.download = 'customTexts.csv';
+//       document.body.appendChild(a);
+//       a.click();
+//       a.remove();
+//       URL.revokeObjectURL(url);
+//     }
+//   }, [user]);
+
+//   /** == Save current customDraft as preset, then re-sync CSV == */
+//   const saveCustom = useCallback(async () => {
+//     const text = customDraft.trim();
+//     if (!text) return;
+
+//     setSaving(true);
+//     try {
+//       if (user) {
+//         await addDoc(collection(db, `users/${user.uid}/customTexts`), {
+//           text,
+//           createdAt: serverTimestamp(),
+//         });
+//       } else {
+//         const raw = localStorage.getItem(LOCAL_KEY);
+//         const rows: SavedText[] = raw ? JSON.parse(raw) : [];
+//         const next: SavedText[] = [{ id: `${Date.now()}`, text, createdAt: Date.now() }, ...rows].slice(0, 200);
+//         localStorage.setItem(LOCAL_KEY, JSON.stringify(next));
+//       }
+//       setCustomDraft('');
+//       await loadSaved();
+
+//       // refresh list and push CSV
+//       const post = user
+//         ? (await getDocs(query(collection(db, `users/${user.uid}/customTexts`), orderBy('createdAt', 'desc'))))
+//             .docs.map(d => ({
+//               id: d.id,
+//               text: (d.data().text as string) ?? '',
+//               createdAt: (d.data().createdAt as any)?.toMillis?.() ?? null,
+//             }))
+//         : JSON.parse(localStorage.getItem(LOCAL_KEY) || '[]');
+
+//       await syncCsv(post);
+//     } finally {
+//       setSaving(false);
+//     }
+//   }, [customDraft, user, loadSaved, syncCsv]);
+
+//   /** == Choose a saved preset == */
+//   const useSaved = (id: string) => {
+//     const row = saved.find((s) => s.id === id);
+//     if (!row) return;
+//     choose(row.text, { category: 'custom', label: labelForCategory('custom'), index: null, presetId: id });
+//   };
+
+//   /** == Delete a saved preset, then re-sync CSV == */
+//   const deleteSaved = useCallback(async (id: string) => {
+//     if (!id) return;
+//     if (user) {
+//       await deleteDoc(doc(db, `users/${user.uid}/customTexts/${id}`));
+//     } else {
+//       const raw = localStorage.getItem(LOCAL_KEY);
+//       const rows: SavedText[] = raw ? JSON.parse(raw) : [];
+//       const next = rows.filter((r) => r.id !== id);
+//       localStorage.setItem(LOCAL_KEY, JSON.stringify(next));
+//     }
+//     await loadSaved();
+
+//     const post = user
+//       ? (await getDocs(query(collection(db, `users/${user.uid}/customTexts`), orderBy('createdAt', 'desc'))))
+//           .docs.map(d => ({
+//             id: d.id,
+//             text: (d.data().text as string) ?? '',
+//             createdAt: (d.data().createdAt as any)?.toMillis?.() ?? null,
+//           }))
+//       : JSON.parse(localStorage.getItem(LOCAL_KEY) || '[]');
+
+//     await syncCsv(post);
+//     setSelectedSavedId('');
+//   }, [user, loadSaved, syncCsv]);
+
+//   const savedOptions = useMemo(
+//     () =>
+//       saved.map((s) => {
+//         const preview = s.text.length > 60 ? s.text.slice(0, 60).trim() + '…' : s.text;
+//         const when = s.createdAt ? new Date(s.createdAt).toLocaleString() : '';
+//         return { id: s.id, label: when ? `${preview} (${when})` : preview };
+//       }),
+//     [saved]
+//   );
+
+//   return (
+//     <div className="w-full max-w-3xl bg-white/90 border rounded-lg shadow p-3" style={style}>
+//       <div className="flex flex-wrap gap-2 items-center" style={buttonContainerStyle}>
+//         <label className="text-sm font-semibold text-gray-700">Text source</label>
+
+//         <select
+//           value={category}
+//           onChange={(e) => setCategory(e.target.value as TextCategory)}
+//           className="bg-red-100 border rounded px-2 py-1 text-sm"
+//         >
+//           {CATEGORY_OPTIONS.filter((o) => o.value !== 'custom').map((opt) => (
+//             <option key={opt.value} value={opt.value}>
+//               {opt.label}
+//             </option>
+//           ))}
+//           <option value="custom">Custom (your own text)</option>
+//         </select>
+
+//         <button
+//           type="button"
+//           onClick={handleNew}
+//           disabled={isCustom}
+//           className={`ml-auto text-sm px-3 py-1.5 rounded ${
+//             isCustom ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600 text-white'
+//           }`}
+//           title={isCustom ? 'Use the box below for custom text' : 'Pick a new passage'}
+//         >
+//           New
+//         </button>
+//       </div>
+
+//       {/* Display area */}
+//       <div className="mt-3 whitespace-pre-wrap text-center text-[15px] leading-relaxed text-gray-800">
+//         {displayText || 'Choose a source and press “New”, or paste your own text below.'}
+//       </div>
+
+//       {/* Custom area */}
+//       {isCustom && (
+//         <div className="mt-4 border-t pt-3">
+//           {!user && (
+//             <div className="mb-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+//               Not signed in — your saved texts will be kept on this device only. Export will download a CSV.
+//             </div>
+//           )}
+
+//           <label className="block text-sm font-medium text-gray-700 mb-1">Paste any text you wish to copy:</label>
+//           <textarea
+//             value={customDraft}
+//             onChange={(e) => setCustomDraft(e.target.value)}
+//             rows={4}
+//             placeholder="Paste or type your paragraph here…"
+//             className="w-full border rounded p-2 text-sm"
+//           />
+
+//           <div className="mt-2 flex flex-wrap gap-2">
+//             <button
+//               type="button"
+//               onClick={() => choose(customDraft, makeCustomMeta(null))}
+//               disabled={!customDraft.trim()}
+//               className={`px-3 py-1.5 rounded text-sm ${
+//                 customDraft.trim() ? 'bg-emerald-500 hover:bg-emerald-600 text-white' : 'bg-gray-200 text-gray-500'
+//               }`}
+//             >
+//               Use this text
+//             </button>
+
+//             <button
+//               type="button"
+//               onClick={saveCustom}
+//               disabled={!customDraft.trim() || saving}
+//               className={`px-3 py-1.5 rounded text-sm ${
+//                 customDraft.trim() && !saving ? 'bg-indigo-500 hover:bg-indigo-600 text-white' : 'bg-gray-200 text-gray-500'
+//               }`}
+//             >
+//               {saving ? 'Saving…' : 'Save to my library'}
+//             </button>
+
+//            <div className="ml-auto flex flex-wrap items-center gap-2">
+//   <label className="text-sm text-gray-600">My saved texts</label>
+//   <select
+//     value={selectedSavedId}
+//     onChange={(e) => setSelectedSavedId(e.target.value)}
+//     disabled={loadingSaved || saved.length === 0}
+//     className="border rounded px-2 py-1 text-sm min-w-[20rem]"
+//   >
+//     <option value="" disabled>
+//       {loadingSaved ? 'Loading…' : saved.length ? 'Pick a saved text…' : 'No saved texts yet'}
+//     </option>
+//     {savedOptions.map((opt) => (
+//       <option key={opt.id} value={opt.id}>
+//         {opt.label}
+//       </option>
+//     ))}
+//   </select>
+
+//   <button
+//     type="button"
+//     onClick={() => selectedSavedId && useSaved(selectedSavedId)}
+//     disabled={!selectedSavedId}
+//     className="px-2 py-1 text-xs border rounded hover:bg-gray-50"
+//   >
+//     Use
+//   </button>
+
+//   <button
+//     type="button"
+//     onClick={() => selectedSavedId && deleteSaved(selectedSavedId)}
+//     disabled={!selectedSavedId}
+//     className="px-2 py-1 text-xs border rounded hover:bg-red-50"
+//   >
+//     Delete
+//   </button>
+// </div>
+
+//           </div>
+//         </div>
+//       )}
+//     </div>
+//   );
+// }
+
+
+
+//-----------------------------
 // // src/components/Therapy/TextDisplay.tsx
 // //last working version
 // import React, { useCallback, useEffect, useMemo, useState } from 'react';

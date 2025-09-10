@@ -54,7 +54,7 @@ import { firestore } from "firebase-admin"
   }
 }
 //*********************************** */
-*/
+
 //for firestore
 //rules_version = '2';
 

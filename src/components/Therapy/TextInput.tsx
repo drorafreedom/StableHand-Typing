@@ -1,5 +1,5 @@
 // src/components/Therapy/TextInput.tsx
-// included reset all and reset typing only buttons
+// included reset all and reset typing only buttons  and text input 
 import React, { useState, useEffect, useRef } from 'react';
 import { Collapse } from 'react-collapse';
 import buttonStyle from './buttonStyle';

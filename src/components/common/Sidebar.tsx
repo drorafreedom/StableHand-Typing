@@ -118,7 +118,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isVisible, toggleSidebar }) => {
                           {item.label}
                         </Link>
                       )}
-                      <ul className="ml-2 mt-2 bg-gray-500 rounded-lg border border-gray-300">
+                      <ul className=" bg-gray-500 rounded-lg border border-gray-300"> 
+                        {/* //ml-2 mt-2 -//omit it so now the boxed are in thecenter */} 
                         {item.submenu.map((subitem) => (
                           <li key={subitem.id} className="mb-2">
                             <Link
