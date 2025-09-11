@@ -50,7 +50,24 @@ export interface KeystrokeSavePayload {
     backgroundColor: string;
     backgroundOpacity: number;
   };
-}
+  // NEW (these already come from TextInput)
+  textMeta?: {
+   category: import('../../data/text').TextCategory;
+   label: string;
+   index: number | null;
+   presetId: string | null;
+ };
+  textContext?: {
+   category: import('../../data/text').TextCategory;
+   label: string;
+   index: number | null;
+    presetId: string | null;
+   targetTextSnapshot: string;
+  };
+ tags?: { category: import('../../data/text').TextCategory };
+ }
+
+ 
 
 // ------- utils (same as before) -------
 const isPlainObject = (v: any) =>
@@ -283,6 +300,11 @@ const [textMeta, setTextMeta] = useState<TextMeta>({
       metrics: payload.metrics ?? null,
       ui: payload.ui ?? undefined,
 
+          // NEW: persist the text meta/context/tags
+    textMeta: payload.textMeta ?? null,
+    textContext: payload.textContext ?? null,
+     tags: payload.tags ?? undefined,
+
       timestamp: ts.toISOString(),
       localDateTime: ts.toLocaleString(),
       schemaVersion: 1,
@@ -382,6 +404,10 @@ const flatRows = flattenToKeyValueRows({
   typedText: fullRecord.typedText,
   metrics: fullRecord.metrics,
   ui: fullRecord.ui ?? {},
+
+    textMeta: fullRecord.textMeta,
+   textContext: fullRecord.textContext,
+
   timestamp: fullRecord.timestamp,
   localDateTime: fullRecord.localDateTime,
   schemaVersion: fullRecord.schemaVersion,
@@ -499,7 +525,7 @@ await uploadBytes(
           wordOps: `${basePath}/${sessionId}.word_ops.csv`,
         },
       };
-
+//if jason is too big to be stored at least the important information is stored . 
       if (jsonSize < 900_000) {
         await addDoc(collection(db, `users/${uid}/keystroke-data`), { ...fullRecord, storagePaths });
       } else {
@@ -512,6 +538,8 @@ await uploadBytes(
           targetText: fullRecord.targetText,
           typedText: fullRecord.typedText,
           metrics: fullRecord.metrics,
+          textCategory: fullRecord.textMeta?.category ?? 'unknown',
+         textPresetId: fullRecord.textMeta?.presetId ?? null,
           approxKeyCount: (fullRecord.keyData || []).length,
           timestamp: fullRecord.timestamp,
           localDateTime: fullRecord.localDateTime,
@@ -529,6 +557,8 @@ await uploadBytes(
           targetLength: fullRecord.targetText?.length ?? 0,
           typedLength: fullRecord.typedText?.length ?? 0,
           wordCount: (fullRecord.typedText || '').trim().split(/\s+/).filter(Boolean).length,
+          textCategory: fullRecord.textMeta?.category ?? 'unknown',
+          textPresetId: fullRecord.textMeta?.presetId ?? null,
           createdAt: serverTimestamp(),
           clientTs: fullRecord.timestamp,
           storageJsonPath: jsonPath,
@@ -611,7 +641,8 @@ await uploadBytes(
           />
           <div className="w-full max-w-9xl mt-4">
             <TextDisplay displayText={displayText} setDisplayText={setDisplayText} 
-              onTextChosen={(meta) => setTextMeta(meta)} />  
+              // onTextChosen={(meta) => setTextMeta(meta)} />  
+                onMetaChange={(meta) => setTextMeta(meta)} />
               {/* // <-- gets meta from picker  */}
           </div>
           {message && (

@@ -1,4 +1,7 @@
+
+
 // src/components/Therapy/TextDisplay.tsx
+// last working version . all ok beside reset all in custom and meta save to csv and jason.
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { auth, db, storage } from '../../firebase/firebase';
 import {
@@ -109,6 +112,16 @@ export default function TextDisplay({
       isCustom ? makeCustomMeta(null) : { category, label: CATALOG[category as NonCustom].label, index: null, presetId: null }
     );
   }, [category]); // eslint-disable-line react-hooks/exhaustive-deps
+
+
+   /* ---------- NEW: if a sibling clears the target, clear custom draft too ---------- */
+ useEffect(() => {
+   if (isCustom && displayText === '') {
+     setCustomDraft('');
+     setSelectedSavedId('');
+    onMetaChange?.(makeCustomMeta(null));
+  }
+ }, [displayText, isCustom, onMetaChange]);
 
   /* ---------- pick new passage for non-custom ---------- */
   const handleNew = () => {
@@ -327,6 +340,336 @@ export default function TextDisplay({
 }
 
 
+// // src/components/Therapy/TextDisplay.tsx
+// // last working version . all ok beside reset all in custom and meta save to csv and jason.
+// import React, { useCallback, useEffect, useMemo, useState } from 'react';
+// import { auth, db, storage } from '../../firebase/firebase';
+// import {
+//   collection, addDoc, getDocs, orderBy, query, serverTimestamp, deleteDoc, doc,
+// } from 'firebase/firestore';
+// import { ref, uploadString, deleteObject } from 'firebase/storage';
+
+// import type { TextCategory, TextMeta, NonCustom } from '../../data/text';
+// import {
+//   CATALOG, CATEGORY_OPTIONS, pickRandom, makeCustomMeta,
+// } from '../../data/text';
+
+// type SavedText = { id: string; text: string; createdAt?: number | null };
+
+// interface TextDisplayProps {
+//   displayText: string;
+//   setDisplayText: (t: string) => void;
+
+//   /** optional: let parent (TherapyPage) receive meta updates for saving */
+//   onMetaChange?: (m: TextMeta) => void;
+// }
+
+// /* ---------- utils ---------- */
+// const LOCAL_KEY = 'stablehand_custom_texts_v1';
+// const csvEscape = (s: string) =>
+//   `"${String(s).replace(/"/g, '""').replace(/\r?\n/g, '\\n')}"`;
+
+// export default function TextDisplay({
+//   displayText,
+//   setDisplayText,
+//   onMetaChange,
+// }: TextDisplayProps) {
+//   const user = auth.currentUser;
+
+//   const [category, setCategory] = useState<TextCategory>('classic');
+//   const isCustom = category === 'custom';
+
+//   // “custom” editing happens in the SAME box. This mirrors displayText when custom.
+//   const [customDraft, setCustomDraft] = useState('');
+
+//   const [saving, setSaving] = useState(false);
+//   const [saved, setSaved] = useState<SavedText[]>([]);
+//   const [loadingSaved, setLoadingSaved] = useState(true);
+//   const [selectedSavedId, setSelectedSavedId] = useState('');
+
+//   /* ---------- storage paths ---------- */
+//   const csvPath = user
+//     ? `users/${user.uid}/custom-texts/customTexts.csv`
+//     : null; // only for signed-in users
+//   const textFilePath = (id: string) =>
+//     `users/${user!.uid}/custom-texts/${id}.txt`;
+
+//   /* ---------- load library ---------- */
+//   const loadSaved = useCallback(async () => {
+//     setLoadingSaved(true);
+//     try {
+//       if (user) {
+//         const q = query(
+//           collection(db, `users/${user.uid}/customTexts`),
+//           orderBy('createdAt', 'desc')
+//         );
+//         const snap = await getDocs(q);
+//         const rows: SavedText[] = snap.docs.map((d) => ({
+//           id: d.id,
+//           text: (d.data().text as string) ?? '',
+//           createdAt: (d.data().createdAt as any)?.toMillis?.() ?? null,
+//         }));
+//         setSaved(rows);
+//       } else {
+//         const raw = localStorage.getItem(LOCAL_KEY);
+//         setSaved(raw ? JSON.parse(raw) : []);
+//       }
+//     } finally {
+//       setLoadingSaved(false);
+//     }
+//   }, [user]);
+
+//   useEffect(() => {
+//     loadSaved();
+//   }, [loadSaved]);
+
+//   /* ---------- keep CSV in Cloud Storage ---------- */
+//   const rebuildCsvFromFirestore = useCallback(async () => {
+//     if (!user || !csvPath) return;
+//     const qSnap = await getDocs(
+//       query(collection(db, `users/${user.uid}/customTexts`), orderBy('createdAt', 'desc'))
+//     );
+//     const rows = qSnap.docs.map((d) => {
+//       const data = d.data() as any;
+//       const created = data.createdAt?.toDate?.() ?? new Date();
+//       const iso = created.toISOString();
+//       return `${csvEscape(d.id)},${csvEscape(iso)},${csvEscape(data.text ?? '')}`;
+//     });
+//     const csv = `id,createdAt,text\n${rows.join('\n')}`;
+//     await uploadString(ref(storage, csvPath), csv, 'raw', {
+//       contentType: 'text/csv',
+//     });
+//   }, [user, csvPath]);
+
+//   /* ---------- category change: CLEAR the box ---------- */
+//   useEffect(() => {
+//     // wipe everything visible so UI never looks cluttered
+//     setDisplayText('');
+//     setCustomDraft('');
+//     setSelectedSavedId('');
+//     // let parent know which family we’re in (index is unknown until “New”)
+//     onMetaChange?.(
+//       isCustom ? makeCustomMeta(null) : { category, label: CATALOG[category as NonCustom].label, index: null, presetId: null }
+//     );
+//   }, [category]); // eslint-disable-line react-hooks/exhaustive-deps
+
+//   /* ---------- pick new passage for non-custom ---------- */
+//   const handleNew = () => {
+//     if (isCustom) return;
+//     const { text, meta } = pickRandom(category as NonCustom);
+//     setDisplayText(text);
+//     onMetaChange?.(meta);
+//   };
+
+//   /* ---------- choose from saved library (custom) ---------- */
+//   const onPickSaved = (id: string) => {
+//     setSelectedSavedId(id);
+//     const row = saved.find((s) => s.id === id);
+//     if (row) {
+//       setDisplayText(row.text);
+//       setCustomDraft(row.text); // same box
+//       onMetaChange?.(makeCustomMeta(id));
+//     }
+//   };
+
+//   const savedOptions = useMemo(
+//     () =>
+//       saved.map((s) => {
+//         const preview = s.text.length > 50 ? s.text.slice(0, 50).trim() + '…' : s.text;
+//         const when = s.createdAt ? new Date(s.createdAt).toLocaleString() : '';
+//         return { id: s.id, label: when ? `${preview} (${when})` : preview };
+//       }),
+//     [saved]
+//   );
+
+//   /* ---------- save custom to Firestore + Storage + CSV ---------- */
+//   const saveCustom = async () => {
+//     const txt = (isCustom ? customDraft : displayText).trim();
+//     if (!txt) return;
+//     setSaving(true);
+//     try {
+//       let newId = '';
+//       if (user) {
+//         const docRef = await addDoc(collection(db, `users/${user.uid}/customTexts`), {
+//           text: txt,
+//           createdAt: serverTimestamp(),
+//         });
+//         newId = docRef.id;
+
+//         // 1) save a per-item .txt (useful for backups & deletion parity)
+//         await uploadString(ref(storage, textFilePath(newId)), txt, 'raw', {
+//           contentType: 'text/plain',
+//         });
+
+//         // 2) rebuild the CSV from Firestore (keeps it truthful after add/del)
+//         await rebuildCsvFromFirestore();
+//       } else {
+//         // local fallback
+//         const raw = localStorage.getItem(LOCAL_KEY);
+//         const rows: SavedText[] = raw ? JSON.parse(raw) : [];
+//         newId = `${Date.now()}`;
+//         const next = [{ id: newId, text: txt, createdAt: Date.now() }, ...rows].slice(0, 50);
+//         localStorage.setItem(LOCAL_KEY, JSON.stringify(next));
+//       }
+
+//       // reflect in UI
+//       setDisplayText(txt);
+//       setCustomDraft(txt);
+//       onMetaChange?.(makeCustomMeta(newId || null));
+//       await loadSaved();
+//       setSelectedSavedId(newId);
+//     } finally {
+//       setSaving(false);
+//     }
+//   };
+
+//   /* ---------- delete selected custom (Firestore + Storage + CSV) ---------- */
+//   const deleteSelected = async () => {
+//     if (!selectedSavedId) return;
+//     if (!window.confirm('Delete this saved text? This cannot be undone.')) return;
+
+//     if (user) {
+//       await deleteDoc(doc(db, `users/${user.uid}/customTexts/${selectedSavedId}`));
+//       // try delete the per-item .txt; ignore if not found
+//       try { await deleteObject(ref(storage, textFilePath(selectedSavedId))); } catch {}
+//       await rebuildCsvFromFirestore();
+//     } else {
+//       const raw = localStorage.getItem(LOCAL_KEY);
+//       const rows: SavedText[] = raw ? JSON.parse(raw) : [];
+//       const next = rows.filter((r) => r.id !== selectedSavedId);
+//       localStorage.setItem(LOCAL_KEY, JSON.stringify(next));
+//     }
+
+//     setSelectedSavedId('');
+//     await loadSaved();
+//     // if we were showing it, clear the box for clarity
+//     if (isCustom) {
+//       setDisplayText('');
+//       setCustomDraft('');
+//       onMetaChange?.(makeCustomMeta(null));
+//     }
+//   };
+
+//   /* ---------- UI ---------- */
+//   return (
+//     <div className="w-full max-w-3xl bg-white/90 border rounded-lg shadow p-3">
+//       {/* top row: picker + New */}
+//       <div className="flex flex-wrap items-center gap-2">
+//         <label className="text-sm font-semibold text-gray-700">Text source</label>
+//         <select
+//           value={category}
+//           onChange={(e) => setCategory(e.target.value as TextCategory)}
+//           className="border rounded px-2 py-1 text-sm"
+//         >
+//           {CATEGORY_OPTIONS
+//             .filter((opt) => opt.value !== 'custom')
+//             .map((opt) => (
+//               <option key={opt.value} value={opt.value}>{opt.label}</option>
+//             ))}
+//           <option value="custom">Custom (your text)</option>
+//         </select>
+
+//         <button
+//           type="button"
+//           onClick={handleNew}
+//           disabled={isCustom}
+//           className={`ml-auto text-sm px-3 py-1.5 rounded ${
+//             isCustom
+//               ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+//               : 'bg-blue-600 hover:bg-blue-700 text-white'
+//           }`}
+//           title={isCustom ? 'Choose or paste your text below' : 'Pick a new passage'}
+//         >
+//           New
+//         </button>
+//       </div>
+
+//       {/* single box (same area for both modes) */}
+//       <div className="mt-3">
+//         <textarea
+//           value={isCustom ? customDraft : displayText}
+//           onChange={(e) => {
+//             if (isCustom) {
+//               setCustomDraft(e.target.value);
+//               setDisplayText(e.target.value);            // same box
+//               onMetaChange?.(makeCustomMeta(selectedSavedId || null));
+//             }
+//           }}
+//           readOnly={!isCustom}
+//           placeholder={
+//             isCustom
+//               ? 'Paste or type your paragraph here…'
+//               : 'Choose a source and press “New”…'
+//           }
+//           rows={6}
+//           className={`w-full border rounded p-3 text-[15px] leading-relaxed ${
+//             isCustom ? 'bg-white' : 'bg-gray-50'
+//           }`}
+//         />
+//       </div>
+
+//       {/* custom controls (same row, not a second big box) */}
+//       {isCustom && (
+//         <div className="mt-2 flex flex-wrap items-center gap-2">
+//           {!user && (
+//             <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+//               Not signed in — your saved texts are stored on this device only.
+//             </span>
+//           )}
+
+//           <button
+//             type="button"
+//             onClick={saveCustom}
+//             disabled={!customDraft.trim() || saving}
+//             className={`px-3 py-1.5 rounded text-sm ${
+//               customDraft.trim() && !saving
+//                 ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
+//                 : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+//             }`}
+//           >
+//             {saving ? 'Saving…' : 'Save to my library'}
+//           </button>
+
+//           <div className="ml-auto flex items-center gap-2">
+//             <label className="text-sm text-gray-600">My saved texts</label>
+//             <select
+//               value={selectedSavedId}
+//               onChange={(e) => onPickSaved(e.target.value)}
+//               disabled={loadingSaved || saved.length === 0}
+//               className="border rounded px-2 py-1 text-sm min-w-[18rem]"
+//             >
+//               <option value="" disabled>
+//                 {loadingSaved
+//                   ? 'Loading…'
+//                   : saved.length
+//                   ? 'Pick a saved text…'
+//                   : 'No saved texts yet'}
+//               </option>
+//               {savedOptions.map((opt) => (
+//                 <option key={opt.id} value={opt.id}>{opt.label}</option>
+//               ))}
+//             </select>
+
+//             <button
+//               type="button"
+//               onClick={deleteSelected}
+//               disabled={!selectedSavedId}
+//               className={`px-3 py-1.5 rounded text-sm ${
+//                 selectedSavedId
+//                   ? 'bg-rose-600 hover:bg-rose-700 text-white'
+//                   : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+//               }`}
+//             >
+//               Delete
+//             </button>
+//           </div>
+//         </div>
+//       )}
+//     </div>
+//   );
+// }
+
+//--------------------------------------------------------
 
 // // src/components/Therapy/TextDisplay.tsx
 // // working version with  improted all texts paragraphs fro mtext.ts .all text disply under drop menu .submit and resst all or reset text inlput only.  also upload preset to both svc and fire store . dan save preset and delete 

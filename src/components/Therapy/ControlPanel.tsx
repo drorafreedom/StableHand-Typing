@@ -287,7 +287,13 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 
           {/* Frequency */}
           <div className="control-group text-xs">
-            <label className="block mb-2 text-xs">Frequency:</label>
+            <Slider
+              label="Frequency" min={1} max={300} step={1}
+              value={settings.frequency}
+              onChange={(NV) => setSettings((OV) => ({ ...OV, frequency: NV }))}
+            />
+          {/*   <label className="block mb-2 text-xs">Frequency:</label>
+
             <input
               type="range" min="1" max="300" step="1"
               value={settings.frequency}
@@ -296,7 +302,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
             />
             <datalist id="frequencySteps">
               {[...Array(30)].map((_, i) => <option key={i} value={i * 10}></option>)}
-            </datalist>
+            </datalist> */}
           </div>
 
           {/* Speed */}
