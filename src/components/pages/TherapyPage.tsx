@@ -303,7 +303,8 @@ const [textMeta, setTextMeta] = useState<TextMeta>({
           // NEW: persist the text meta/context/tags
     textMeta: payload.textMeta ?? null,
     textContext: payload.textContext ?? null,
-     tags: payload.tags ?? undefined,
+    //  tags: payload.tags ?? undefined,
+    tags: payload.tags ?? (payload.textMeta ? { category: payload.textMeta.category } : undefined),
 
       timestamp: ts.toISOString(),
       localDateTime: ts.toLocaleString(),
@@ -541,6 +542,8 @@ await uploadBytes(
           textCategory: fullRecord.textMeta?.category ?? 'unknown',
          textPresetId: fullRecord.textMeta?.presetId ?? null,
           approxKeyCount: (fullRecord.keyData || []).length,
+            textCategory: payload.textMeta?.category ?? 'unknown',
+  textPresetId: payload.textMeta?.presetId ?? null,
           timestamp: fullRecord.timestamp,
           localDateTime: fullRecord.localDateTime,
           schemaVersion: fullRecord.schemaVersion,
@@ -559,6 +562,8 @@ await uploadBytes(
           wordCount: (fullRecord.typedText || '').trim().split(/\s+/).filter(Boolean).length,
           textCategory: fullRecord.textMeta?.category ?? 'unknown',
           textPresetId: fullRecord.textMeta?.presetId ?? null,
+            textCategory: payload.textMeta?.category ?? 'unknown',
+  textPresetId: payload.textMeta?.presetId ?? null,
           createdAt: serverTimestamp(),
           clientTs: fullRecord.timestamp,
           storageJsonPath: jsonPath,

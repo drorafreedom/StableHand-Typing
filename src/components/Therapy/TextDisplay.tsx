@@ -115,13 +115,40 @@ export default function TextDisplay({
 
 
    /* ---------- NEW: if a sibling clears the target, clear custom draft too ---------- */
- useEffect(() => {
+/*  useEffect(() => {
    if (isCustom && displayText === '') {
      setCustomDraft('');
      setSelectedSavedId('');
     onMetaChange?.(makeCustomMeta(null));
   }
- }, [displayText, isCustom, onMetaChange]);
+ }, [displayText, isCustom, onMetaChange]); */
+
+ /* ---------- if a sibling clears the target, clear custom draft too ---------- */
+useEffect(() => {
+  // only act when we're in custom AND the parent cleared the target
+  if (!isCustom || displayText !== '') return;
+
+  // avoid pointless state writes (no re-render if nothing changes)
+  let changed = false;
+  setCustomDraft(prev => {
+    if (prev === '') return prev;   // no change
+    changed = true;
+    return '';
+  });
+  setSelectedSavedId(prev => {
+    if (prev === '') return prev;   // or whatever your "empty" sentinel is
+    changed = true;
+    return '';
+  });
+
+  // notify parent *once* only if we actually changed something
+  if (changed) {
+    onMetaChange?.(makeCustomMeta(null));
+  }
+  // IMPORTANT: we intentionally do NOT depend on onMetaChange to avoid loops
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [displayText, isCustom]);
+
 
   /* ---------- pick new passage for non-custom ---------- */
   const handleNew = () => {
