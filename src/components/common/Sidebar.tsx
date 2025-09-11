@@ -171,7 +171,22 @@ const Sidebar: React.FC<SidebarProps> = ({ isVisible, toggleSidebar }) => {
 
 export default Sidebar;
 
+//-----------------------------------some comeents for the future ------------
+// - <div className="p-4 flex flex-col justify-between h-full overflow-y-auto bg-gray-500 shadow-lg rounded-md border border-gray-300">
+// -   <div>
+// -     <ul className="space-y-1">...</ul>
+// -   </div>
+// + <div className="p-4 flex flex-col h-full overflow-hidden bg-gray-500 shadow-lg rounded-md border border-gray-300">
+// +   <div className="flex-1 min-h-0 overflow-y-auto">
+// +     <ul className="space-y-1">...</ul>
+// +   </div>
 
+// -   <div className="p-3 bg-gray-500 shadow-lg rounded-md border border-gray-300">
+// +   <div className="pt-2">
+//       {/* logos */}
+//      </div>
+
+//------------------------------------------------
 // // src/components/common/Sidebar.tsx  s 
 // // TS version
 // // last working nice setting shrinked with xs font
