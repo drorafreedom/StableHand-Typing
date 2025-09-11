@@ -24,7 +24,7 @@ interface SketchPropsWithSettings extends SketchProps {
   resetKey: number; // bump to reset time (does not change running)
 }
 
-const DEFAULT_SETTINGS: ColorAnimationSettings = {
+/* const DEFAULT_SETTINGS: ColorAnimationSettings = {
   colors: ['#FF0000', '#00FF00', '#0000FF', '#FFFF00'],
   animationStyle: 'sine',
   duration: 1,
@@ -33,8 +33,18 @@ const DEFAULT_SETTINGS: ColorAnimationSettings = {
   opacitySpeed: 1,
   direction: 'forward',
   linearAngle: 45,
+}; */
+const DEFAULT_SETTINGS: ColorAnimationSettings = {
+  // muted, desaturated tones (no harsh primaries)
+  colors: ['#94a3b8', '#a7c4bc', '#cbd5e1', '#fde68a'], // slate-400, dusty teal, slate-200, amber-200-ish
+  animationStyle: 'sine',
+  duration: 0.8,          // slightly slower feel
+  opacity: 0.35,          // much softer by default
+  opacityMode: 'constant',
+  opacitySpeed: 1,
+  direction: 'forward',
+  linearAngle: 45,
 };
-
 // handy deep clone for resets
 const cloneDefaults = (): ColorAnimationSettings => ({
   ...DEFAULT_SETTINGS,

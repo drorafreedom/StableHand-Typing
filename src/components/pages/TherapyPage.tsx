@@ -113,14 +113,17 @@ const opsToRows = (
 const DEFAULTS: Record<Tab, any> = {
   baselinetyping: { bgColor: '#ffffff', bgOpacity: 1 },
   color: {
-    colors: ['#FF0000', '#00FF00', '#0000FF', '#FFFF00'],
-    animationStyle: 'sine',
-    duration: 1,
-    opacity: 1,
-    opacityMode: 'constant',
-    opacitySpeed: 1,
-    direction: 'forward',
-    linearAngle: 45,
+   
+     // muted, desaturated tones (no harsh primaries)
+     colors: ['#94a3b8', '#a7c4bc', '#cbd5e1', '#fde68a'], // slate-400, dusty teal, slate-200, amber-200-ish
+     animationStyle: 'sine',
+     duration: 0.8,          // slightly slower feel
+     opacity: 0.35,          // much softer by default
+     opacityMode: 'constant',
+     opacitySpeed: 1,
+     direction: 'forward',
+     linearAngle: 45,
+   
   },
   multifunction: {
 /*     waveType: 'sine',
@@ -539,8 +542,7 @@ await uploadBytes(
           targetText: fullRecord.targetText,
           typedText: fullRecord.typedText,
           metrics: fullRecord.metrics,
-          textCategory: fullRecord.textMeta?.category ?? 'unknown',
-         textPresetId: fullRecord.textMeta?.presetId ?? null,
+         
           approxKeyCount: (fullRecord.keyData || []).length,
             textCategory: payload.textMeta?.category ?? 'unknown',
   textPresetId: payload.textMeta?.presetId ?? null,
