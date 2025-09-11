@@ -117,3 +117,4 @@ export function makeCustomMeta(presetId: string | null = null): TextMeta {
 export function labelForCategory(category: TextCategory): string {
   return CATEGORY_LABELS[category];
 }
+//export { CATALOG, CATEGORY_OPTIONS, pickRandom, makeCustomMeta, labelForCategory, type NonCustom };
