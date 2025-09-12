@@ -262,12 +262,14 @@ const MultifunctionAnimation: React.FC<Props> = ({ settings, setSettings }) => {
         resetAnimation={resetAnimation}
       />
 
-      <ReactP5Wrapper
+ 
+      {/* canvas pinned to the viewport, behind everything */}
+    <div className="fixed inset-0 -z-10 pointer-events-none"> <ReactP5Wrapper
         sketch={sketch}
         settings={settings}   // <- the source of truth comes from TherapyPage
         running={running}     // <- start/stop without stale closures
         resetKey={resetKey}   // <- bump to rewind time
-      />
+      />  </div>
     </div>
   );
 };

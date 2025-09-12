@@ -186,12 +186,15 @@ if (current.opacityMode === 'pulse') {
         resetAnimation={resetAnimation}
       />
 
+      {/* canvas pinned to the viewport, behind everything */}
+    <div className="fixed inset-0 -z-10 pointer-events-none">
       <ReactP5Wrapper
         sketch={sketch}
         settings={settings}
         running={running}
         resetKey={resetKey}
       />
+    </div>
     </div>
   );
 };

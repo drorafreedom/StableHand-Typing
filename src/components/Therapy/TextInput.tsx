@@ -123,7 +123,7 @@ const TextInput: React.FC<TextInputProps> = ({
   const [isBold, setIsBold] = useState(false);
   const [textColor, setTextColor] = useState('#000000');
   const [backgroundColor, setBackgroundColor] = useState('#FFFFFF');
-  const [backgroundOpacity, setBackgroundOpacity] = useState(1);
+  const [backgroundOpacity, setBackgroundOpacity] = useState(.3);
   const [isPanelOpen, setIsPanelOpen] = useState(true);
 
   const [sessionStart, setSessionStart] = useState<number | null>(null);

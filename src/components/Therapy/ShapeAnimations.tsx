@@ -378,6 +378,15 @@ const [settings, setSettings] = useState<Settings>(cloneDefaults());
         resetAnimation={resetAnimation}
       />
       <ReactP5Wrapper sketch={sketch} settings={settings} isAnimating={isAnimating} />
+      
+       {/* canvas pinned to the viewport, behind everything */}
+    <div className="fixed inset-0 -z-10 pointer-events-none">
+      <ReactP5Wrapper
+        sketch={sketch}
+        settings={settings}
+       isAnimating={isAnimating}
+      />
+    </div>
     </div>
   );
 };

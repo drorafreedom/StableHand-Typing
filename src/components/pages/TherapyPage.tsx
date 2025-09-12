@@ -581,13 +581,27 @@ await uploadBytes(
     }
   };
 
+
+// Mapping tabs, define base/active/inactive classes once and reuse:
+const tabBtnBase =
+  "h-8 px-3 text-[12px] font-medium rounded-xl border shadow-sm transition " +
+  "focus:outline-none focus:ring-2 ring-offset-1";
+
+const tabBtnInactive =
+  "bg-white/70 border-gray-300 text-gray-700 hover:bg-white";
+
+const tabBtnActive =
+  "bg-sky-500 border-sky-500 text-white hover:bg-sky-500 focus:ring-sky-300";
+
+
   return (
 
     
     <div className="relative w-full">
 
       
-      <div className="flex justify-center text-sm text-gray-600 rounded p-2 mb-4 w-full">
+      {/* <div className="flex justify-center text-xs text-gray-600 rounded p-2 mb-4 w-full"> */}
+      <div className="flex justify-center items-center gap-3 text-xs text-gray-700 mb-4 w-full">
         <DateTimeDisplay />
         <button onClick={() => setCurrentAnimation('baselinetyping')}
           className={`p-2 mx-2 ${currentAnimation === 'baselinetyping' ? 'bg-blue-500 text-white rounded' : 'bg-gray-200'}`}>

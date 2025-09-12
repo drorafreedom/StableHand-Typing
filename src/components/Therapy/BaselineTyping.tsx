@@ -35,13 +35,20 @@ const BaselineTyping: React.FC<Props> = ({ settings, setSettings }) => {
  //  }, [s.bgColor, clampedOpacity]);
 
   return (
-    <>
-      <ControlPanelBaselineTyping
-        settings={s}
-        setSettings={setSettings ?? (() => {}) as any} // no-op if parent didn’t pass one
-      />
-    </>
-  );
+  <>
+    {/* full-viewport background behind everything */}
+    <div
+      className="fixed inset-0 -z-10 pointer-events-none"
+      style={{ backgroundColor: hexToRgba(s.bgColor, s.bgOpacity) }}
+    />
+
+    <ControlPanelBaselineTyping
+      settings={s}
+      setSettings={setSettings ?? (() => {}) as any}
+    />
+  </>
+);
+
 };
 
 export default BaselineTyping;
