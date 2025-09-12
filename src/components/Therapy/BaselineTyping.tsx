@@ -9,20 +9,30 @@ interface Props {
   setSettings?: React.Dispatch<React.SetStateAction<BaselineTypingSettings>>;
 }
 
-const DEFAULTS: BaselineTypingSettings = { bgColor: '#ffffff', bgOpacity: 1 };
+export const DEFAULTS: BaselineTypingSettings = { bgColor: '#ffffff', bgOpacity: 1 };
 
+
+export const cloneDefaults = (): BaselineTypingSettings => ({ ...DEFAULTS });
 const BaselineTyping: React.FC<Props> = ({ settings, setSettings }) => {
   // fallbacks so we always have valid values
-  const s: BaselineTypingSettings = {
+  /* const s: BaselineTypingSettings = {
     bgColor: settings?.bgColor ?? DEFAULTS.bgColor,
     bgOpacity: typeof settings?.bgOpacity === 'number' ? settings!.bgOpacity : DEFAULTS.bgOpacity,
-  };
+  }; */
+    const s: BaselineTypingSettings = {
+     bgColor: settings?.bgColor ?? DEFAULTS.bgColor,
+    bgOpacity: settings?.bgOpacity ?? DEFAULTS.bgOpacity, // 0 is valid, so ?? is correct
+   };
+  // clamp just in case (optional)
+   const clampedOpacity = Math.max(0, Math.min(1, s.bgOpacity));
 
   useEffect(() => {
     const prev = document.body.style.backgroundColor;
     document.body.style.backgroundColor = hexToRgba(s.bgColor, s.bgOpacity);
+   //document.body.style.backgroundColor = hexToRgba(s.bgColor, clampedOpacity);
     return () => { document.body.style.backgroundColor = prev; };
-  }, [s.bgColor, s.bgOpacity]);
+   }, [s.bgColor, s.bgOpacity]);
+ //  }, [s.bgColor, clampedOpacity]);
 
   return (
     <>

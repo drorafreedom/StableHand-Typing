@@ -34,7 +34,8 @@ interface SketchPropsWithSettings extends SketchProps {
   direction: 'forward',
   linearAngle: 45,
 }; */
-const DEFAULT_SETTINGS: ColorAnimationSettings = {
+// const DEFAULT_SETTINGS: ColorAnimationSettings = {
+export const DEFAULT_SETTINGS: ColorAnimationSettings = {
   // muted, desaturated tones (no harsh primaries)
   colors: ['#94a3b8', '#a7c4bc', '#cbd5e1', '#fde68a'], // slate-400, dusty teal, slate-200, amber-200-ish
   animationStyle: 'sine',
@@ -46,7 +47,8 @@ const DEFAULT_SETTINGS: ColorAnimationSettings = {
   linearAngle: 45,
 };
 // handy deep clone for resets
-const cloneDefaults = (): ColorAnimationSettings => ({
+// const cloneDefaults = (): ColorAnimationSettings => ({
+export const cloneDefaults = (): ColorAnimationSettings => ({
   ...DEFAULT_SETTINGS,
   colors: [...DEFAULT_SETTINGS.colors],
 });

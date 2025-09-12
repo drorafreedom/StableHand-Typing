@@ -19,6 +19,29 @@ import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import type { TextMeta, TextCategory } from '../../data/text';
 
+import {
+  cloneDefaults as cloneColorDefaults,
+  DEFAULT_SETTINGS as COLOR_DEFAULT_SETTINGS,
+} from '../Therapy/ColorAnimation';
+
+import {
+  cloneDefaults as cloneMultifuncionDefaults,
+  DEFAULT_SETTINGS as MULTIFUNCTION_DEFAULT_SETTINGS,
+} from '../Therapy/MultifunctionAnimation';
+
+ import {
+  cloneDefaults as cloneShapesDefaults,
+  DEFAULT_SETTINGS as SHAPES_DEFAULT_SETTINGS,
+} from '../Therapy/ShapeAnimations';
+
+ import {
+  cloneDefaults as cloneBaselinetypingDefaults,
+  DEFAULTS as BASELINETYPING_DEFAULT_SETTINGS,
+} from '../Therapy/BaselineTyping';
+
+
+
+
 type Tab = 'multifunction' | 'baselinetyping' | 'shape' | 'color';
 interface Message { message: string; type: 'success' | 'error'; }
 interface Settings { [key: string]: any; }
@@ -111,40 +134,14 @@ const opsToRows = (
 
 // ------- per-tab defaults so settings never start as {} -------
 const DEFAULTS: Record<Tab, any> = {
-  baselinetyping: { bgColor: '#ffffff', bgOpacity: 1 },
-  color: {
-   
-     // muted, desaturated tones (no harsh primaries)
-     colors: ['#94a3b8', '#a7c4bc', '#cbd5e1', '#fde68a'], // slate-400, dusty teal, slate-200, amber-200-ish
-     animationStyle: 'sine',
-     duration: 0.8,          // slightly slower feel
-     opacity: 0.35,          // much softer by default
-     opacityMode: 'constant',
-     opacitySpeed: 1,
-     direction: 'forward',
-     linearAngle: 45,
-   
-  },
+  baselinetyping:  cloneBaselinetypingDefaults(),
+  color:           cloneColorDefaults(),
+  multifunction:   cloneMultifuncionDefaults(),
+  shapes:          cloneShapesDefaults(),
+ 
+ /* 
   multifunction: {
-/*     waveType: 'sine',
-    direction: 'static',
-    rotationSpeed: 0.2,
-    rotationRadius: 120,
-    oscillationRange: 120,
-    angle: 0,                // radians
-    amplitude: 120,
-    frequency: 60,
-    speed: 5,
-    thickness: 2,
-    phaseOffset: 0,
-    numLines: 20,
-    distance: 20,
-    groups: 1,
-    groupDistance: 0,
-    bgColor: '#000000',
-    lineColor: '#ffffff',
-    selectedPalette: 'none', */
-
+ 
      
       waveType: 'sine',
       direction: 'static',
@@ -172,8 +169,8 @@ const DEFAULTS: Record<Tab, any> = {
    yOffsetPx: 0,
   fitHeight: false,
   
-  },
-  shape: {
+  }, */
+ /*  shape: {
     shapeType: 'circle',
     direction: 'static',
     rotationSpeed: 0.2,
@@ -199,7 +196,7 @@ const DEFAULTS: Record<Tab, any> = {
   shapeOpacity: 1,
   shapeOpacityMode: 'constant',
   shapeOpacitySpeed: 1,
-  }
+  } */
 };
 
 const TherapyPage: React.FC = () => {

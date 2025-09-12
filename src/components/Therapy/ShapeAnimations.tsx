@@ -33,10 +33,10 @@ export interface Settings {
 }
 
 // --- module-level defaults so we can reference outside the component ---
-const DEFAULT_SETTINGS: Settings = {
+export const DEFAULT_SETTINGS: Settings = {
   shapeType: 'circle',
   numShapes: 10,
-  size: 50,
+  size: 30,
   direction: 'static',
   angle: 0,
   speed: 5,
@@ -61,13 +61,21 @@ const DEFAULT_SETTINGS: Settings = {
   shapeOpacitySpeed: 1,
 };
 
+export const cloneDefaults = (): Settings => ({ ...DEFAULT_SETTINGS });
+
+
 // --- expose a stable, read-only snapshot for TherapyPage ---
 let __shapeSettingsRef: Settings = DEFAULT_SETTINGS;
 export const getShapeSettings = (): Settings =>
   JSON.parse(JSON.stringify(__shapeSettingsRef));
 
 const ShapeAnimations: React.FC = () => {
-  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  // const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  // init
+const [settings, setSettings] = useState<Settings>(cloneDefaults());
+
+
+
   const [isAnimating, setIsAnimating] = useState<boolean>(true);
 
   // keep the exported getter in sync with the latest settings
@@ -355,7 +363,8 @@ const ShapeAnimations: React.FC = () => {
   const startAnimation = () => setIsAnimating(true);
   const stopAnimation = () => setIsAnimating(false);
   const resetAnimation = () => {
-    setSettings(DEFAULT_SETTINGS);
+   // setSettings(DEFAULT_SETTINGS);
+    setSettings(cloneDefaults());
     setIsAnimating(true);
   };
 

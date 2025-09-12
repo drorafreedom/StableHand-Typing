@@ -37,7 +37,7 @@ export interface Settings {
   fitHeight?: boolean;      // auto-scale amplitude to fill viewport
 }
 
-const DEFAULTS: Settings = {
+ export const DEFAULTS: Settings = {
   waveType: 'sine',
   direction: 'static',
   angle: 0,
@@ -63,7 +63,7 @@ const DEFAULTS: Settings = {
 };
 
 // Make a fresh copy for resets (avoid sharing object refs)
-const cloneDefaults = (): Settings => ({ ...DEFAULTS });
+export const cloneDefaults = (): Settings => ({ ...DEFAULTS });
 
 type Props = {
   settings: Settings;
