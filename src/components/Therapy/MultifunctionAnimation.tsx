@@ -55,10 +55,10 @@ export interface Settings {
   rotationRadius: 150,
   oscillationRange: 100,
   groups: 1,
-  groupDistance: 100,
+  groupDistance: 200,
 
   // NEW defaults
-  yOffsetPx: 0,
+  yOffsetPx:-100,
   fitHeight: false,
 };
 
@@ -73,6 +73,7 @@ type Props = {
 const MultifunctionAnimation: React.FC<Props> = ({ settings, setSettings }) => {
   const [running, setRunning] = useState(true);
   const [resetKey, setResetKey] = useState(0); // bump to rewind time in sketch
+
 
   const startAnimation = () => setRunning(true);
   const stopAnimation  = () => setRunning(false);
@@ -91,8 +92,8 @@ const MultifunctionAnimation: React.FC<Props> = ({ settings, setSettings }) => {
 
     // motion offsets
     let x = 0;
-    let yOffset = 0;
-
+    let yOffset = current.yOffsetPx ;//-100;
+//let yOffset = <DEFUALTS.yOffsetPx ;//-100;
     const palettes: Record<'rainbow'|'pastel', string[]> = {
       rainbow: [
         '#FF0000','#FF7F00','#FFFF00','#7FFF00','#00FF00','#00FF7F',
@@ -178,13 +179,53 @@ const MultifunctionAnimation: React.FC<Props> = ({ settings, setSettings }) => {
       const w = p5.width;
       const h = p5.height;
       const centerX = w / 2;
-      const centerY = h / 2;
+     // const centerY = h / 2;
+// baseline in the middle, plus your manual offset
+//const centerY = p5.height / 2 + (current.yOffsetPx ?? 0);
+ 
+ 
 
       p5.clear();
       p5.background(p5.color(current.bgColor));
       p5.strokeWeight(current.thickness);
 
       move(); // updates x/yOffset/t based on current + isRunning
+
+//--------------cnetering the lines  ----------------
+// const lines = Math.max(1, Math.floor(settings.numLines));
+// const dist  = Math.max(0, settings.distance ?? 0);
+ 
+
+//-----------------------------
+// ?? vs ||
+// x ?? 0 falls back only when x is null or undefined.
+// x || 0 falls back when x is falsy (0, '', false, NaN, null, undefined).
+// In your exact line the default is 0, so both behave the same for 0. But if you ever change the default to a non-zero value, || would incorrectly override a legitimate 0 offset; ?? wouldn’t.
+//-------------------
+
+ 
+
+//const h      = p5.height;
+const lines  = Math.max(1, Math.floor(current.numLines ?? 1));
+const dist   = Math.max(0, current.distance ?? 0);
+const centerY = h / 2 + (current.yOffsetPx ?? 0);
+
+const firstY = centerY - ((lines - 1) * dist) / 2;
+const lastY  = firstY + (lines - 1) * dist;   // ← use this
+
+const margin = 12;
+let amp = current.amplitude;
+
+if (current.fitHeight) {
+  const spaceTop    = firstY - margin;
+  const spaceBottom = h - lastY - margin;
+  const envelope    = Math.max(0, Math.min(spaceTop, spaceBottom));
+  amp = Math.max(1, envelope - ((current.thickness ?? 0) / 2));
+}
+
+// then draw each line with y0 = firstY + i*dist and amplitude `amp`
+
+
 
       const usePalette = current.selectedPalette !== 'none';
       const palette = current.selectedPalette === 'rainbow'
@@ -195,9 +236,10 @@ const MultifunctionAnimation: React.FC<Props> = ({ settings, setSettings }) => {
       const stackHeight =
         ((current.groups - 1) * (current.groupDistance || 0)) +
         ((current.numLines - 1) * (current.distance || 0));
-      const margin = 20;
+      //const margin = 20; renmae it to fit margin if need for the group 
       const autoAmp = Math.max(5, (h / 2) - (stackHeight / 2) - margin);
-      const amp = current.fitHeight ? autoAmp : current.amplitude;
+     // const amp = current.fitHeight ? autoAmp : current.amplitude;  renmae it to fit amp  if need diffenet for the group 
+
 
       for (let g = 0; g < current.groups; g++) {
         for (let i = 0; i < current.numLines; i++) {
@@ -263,8 +305,8 @@ const MultifunctionAnimation: React.FC<Props> = ({ settings, setSettings }) => {
       />
 
  
-      {/* canvas pinned to the viewport, behind everything */}
-    <div className="fixed inset-0 -z-10 pointer-events-none"> <ReactP5Wrapper
+      {/* canvas pinned to the viewport, behind everything   abslolute not fixed so the canvas moves with scrolling */}
+    <div className="absolute  inset-0 -z-10 pointer-events-none"> <ReactP5Wrapper
         sketch={sketch}
         settings={settings}   // <- the source of truth comes from TherapyPage
         running={running}     // <- start/stop without stale closures
