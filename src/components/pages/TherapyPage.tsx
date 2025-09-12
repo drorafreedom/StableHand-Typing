@@ -561,8 +561,8 @@ await uploadBytes(
           wordCount: (fullRecord.typedText || '').trim().split(/\s+/).filter(Boolean).length,
           textCategory: fullRecord.textMeta?.category ?? 'unknown',
           textPresetId: fullRecord.textMeta?.presetId ?? null,
-            textCategory: payload.textMeta?.category ?? 'unknown',
-  textPresetId: payload.textMeta?.presetId ?? null,
+  //           textCategory: payload.textMeta?.category ?? 'unknown',
+  // textPresetId: payload.textMeta?.presetId ?? null,
           createdAt: serverTimestamp(),
           clientTs: fullRecord.timestamp,
           storageJsonPath: jsonPath,
@@ -582,16 +582,7 @@ await uploadBytes(
   };
 
 
-// Mapping tabs, define base/active/inactive classes once and reuse:
-const tabBtnBase =
-  "h-8 px-3 text-[12px] font-medium rounded-xl border shadow-sm transition " +
-  "focus:outline-none focus:ring-2 ring-offset-1";
-
-const tabBtnInactive =
-  "bg-white/70 border-gray-300 text-gray-700 hover:bg-white";
-
-const tabBtnActive =
-  "bg-sky-500 border-sky-500 text-white hover:bg-sky-500 focus:ring-sky-300";
+ 
 
 
   return (
