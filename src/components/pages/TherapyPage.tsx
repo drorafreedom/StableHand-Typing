@@ -220,6 +220,7 @@ const [textMeta, setTextMeta] = useState<TextMeta>({
 
   // 1) tab + synchronous ref to avoid race on first key
   const [currentAnimation, _setCurrentAnimation] = useState<Tab>('multifunction');
+    //const [currentAnimation, _setCurrentAnimation] = useState<Tab>('baselinetyping');
   const currentTabRef = useRef<Tab>('multifunction');
   const setCurrentAnimation = (t: Tab) => { currentTabRef.current = t; _setCurrentAnimation(t); };
 
@@ -585,14 +586,95 @@ await uploadBytes(
  
 
 
+
+//mapping active animatin buttons
+ type Tab = 'baselinetyping' | 'multifunction' | 'shapes' | 'color';
+
+const tabs: { id: Tab; label: string; Comp: React.FC<any> }[] = [
+  { id: 'baselinetyping', label: 'Baseline Typing',        Comp: BaselineTyping },
+  { id: 'multifunction',  label: 'Multifunction Animation', Comp: MultifunctionAnimation },
+  { id: 'shapes',         label: 'Shape Animation',         Comp: ShapeAnimations },
+  { id: 'color',          label: 'Color Animation',         Comp: ColorAnimation },
+];
+
+
+
+
+const tabBtnBase =
+  "h-8 px-3 text-[12px] font-medium rounded-lg border shadow-sm transition " +
+  "focus:outline-none focus:ring-2 ring-offset-1";
+
+const tabBtnInactive =
+ "bg-white/80 border-slate-300 text-slate-700 hover:bg-white";
+ //"bg-white/70 border-gray-300 text-gray-700 hover:bg-white";
+const tabBtnActive =
+  //"bg-sky-600 border-sky-600 text-white hover:bg-sky-600 focus:ring-sky-300";
+"bg-sky-500 border-sky-500 text-white hover:bg-sky-500 focus:ring-sky-300";
+"bg-sky-500 border-sky-500 text-white hover:bg-sky-500 focus:ring-sky-300";
   return (
 
+    //  Tips:------------------
+   /* 
+
+If you need stronger contrast, bump 500 → 600.
+
+Keep inactive as bg-white/80 so the canvas subtly shows through.
+
+Want rounder pills? change rounded-lg → rounded-xl.
+
+Extra-compact: h-7 px-2.5 text-[11px].
+Common stops (approx hex):
+slate-50 #f8fafc
+slate-100 #f1f5f9
+slate-300 #cbd5e1 ← nice border
+slate-500 #64748b
+slate-700 #334155 ← good body text
+slate-900 #0f172a
+
+Examples:
+Text: text-slate-700
+Border: border-slate-300
+Background with translucency: bg-slate-100/80
+When to use:
+Prefer slate when you want a calm, professional neutral with a hint of blue (great for therapy UI).
+Use gray/zinc/neutral/stone if you want slightly different warmth/coolness.
+For your buttons/UI:
+Inactive: bg-white/80 border-slate-300 text-slate-700
+Body text: text-slate-700
+Subtle headings: text-slate-800
+     */
     
     <div className="relative w-full">
+{/* new mapping style  */}
 
-      
+
+       <div className="flex justify-center items-center gap-3 text-xs text-gray-700 mb-4 w-full">
+      <DateTimeDisplay />
+      {tabs.map(t => (
+        <button
+          key={t.id}
+          onClick={() => setCurrentAnimation(t.id)}
+          className={`${tabBtnBase} ${currentAnimation === t.id ? tabBtnActive : tabBtnInactive}`}
+        >
+          {t.label}
+        </button>
+      ))}
+    </div>
+
+    {/* render the active tab */}
+    {(() => {
+      const Active = tabs.find(t => t.id === currentAnimation)!.Comp;
+      return (
+        <Active
+          settings={settingsByTab[currentAnimation]}
+          setSettings={setSettingsForCurrentTab}
+        />
+      );
+    })()}
+    
+    {/* old style buttons */}
       {/* <div className="flex justify-center text-xs text-gray-600 rounded p-2 mb-4 w-full"> */}
-      <div className="flex justify-center items-center gap-3 text-xs text-gray-700 mb-4 w-full">
+    {/*   <div className="flex justify-center items-center gap-3 text-xs text-gray-700 mb-4 w-full">
         <DateTimeDisplay />
         <button onClick={() => setCurrentAnimation('baselinetyping')}
           className={`p-2 mx-2 ${currentAnimation === 'baselinetyping' ? 'bg-blue-500 text-white rounded' : 'bg-gray-200'}`}>
@@ -610,7 +692,7 @@ await uploadBytes(
           className={`p-2 mx-2 ${currentAnimation === 'color' ? 'bg-blue-500 text-white rounded' : 'bg-gray-200'}`}>
           Color Animation
         </button>
-      </div>
+     
 
       {currentAnimation === 'baselinetyping' && (
         <BaselineTyping
@@ -636,7 +718,10 @@ await uploadBytes(
           setSettings={setSettingsForCurrentTab}
         />
       )}
-
+ </div> */}
+ 
+ 
+ 
       <div className="relative w-full ml-52 mt-[22vh]">
         <div className="w-full max-w-9xl">
           <TextInput
@@ -668,7 +753,6 @@ await uploadBytes(
 };
 
 export default TherapyPage;
-
 
 
 // src/components/pages/TherapyPage.tsx
