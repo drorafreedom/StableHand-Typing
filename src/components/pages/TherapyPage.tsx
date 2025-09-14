@@ -11,7 +11,7 @@ import TextDisplay from '../Therapy/TextDisplay';
 import TextInput from '../Therapy/TextInput';
 
 import { useAuth } from '../../data/AuthContext';
-import { addDoc, collection } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp as fsServerTimestamp } from 'firebase/firestore';
 import { db, storage, rtdb } from '../../firebase/firebase';
 import { ref as storageRef, uploadBytes } from 'firebase/storage';
 import { ref as rtdbRef, set as rtdbSet, serverTimestamp } from 'firebase/database';
@@ -30,7 +30,7 @@ import {
 } from '../Therapy/MultifunctionAnimation';
 
  import {
-  cloneDefaults as cloneShapesDefaults,
+  cloneDefaults as cloneShapeDefaults,
   DEFAULT_SETTINGS as SHAPES_DEFAULT_SETTINGS,
 } from '../Therapy/ShapeAnimations';
 
@@ -65,6 +65,8 @@ export interface KeystrokeSavePayload {
   targetText: string;
   analysis: any;
   metrics: any;
+  event?: 'submit' | 'reset-typing' | 'reset-text+typing';
+   //rolledNew?: boolean; // ← if we want to option of clear and new not necessary
   ui?: {
     font: string;
     fontSize: number;
@@ -137,7 +139,7 @@ const DEFAULTS: Record<Tab, any> = {
   baselinetyping:  cloneBaselinetypingDefaults(),
   color:           cloneColorDefaults(),
   multifunction:   cloneMultifuncionDefaults(),
-  shapes:          cloneShapesDefaults(),
+  shapes:          cloneShapeDefaults(),
  
  /* 
   multifunction: {
@@ -272,8 +274,14 @@ const [textMeta, setTextMeta] = useState<TextMeta>({
   //const [displayText, setDisplayText] = useState<string>('');
 
   // ---------- SAVE (unchanged structure) ----------
+ 
   const saveKeystrokeData = async (payload: KeystrokeSavePayload) => {
-    const uid = currentUser?.uid;
+    
+    
+     const event = payload.event ?? 'reset-typing';
+const attemptType = event === 'submit' ? 'final' : 'practice';
+//const rolledNew = !!payload.rolledNew; // ← define it here
+const uid = currentUser?.uid;
     if (!uid) { setMessage({ message: 'You must be logged in to save (no UID).', type: 'error' }); return; }
 
     const ts = new Date();
@@ -306,7 +314,9 @@ const [textMeta, setTextMeta] = useState<TextMeta>({
     textContext: payload.textContext ?? null,
     //  tags: payload.tags ?? undefined,
     tags: payload.tags ?? (payload.textMeta ? { category: payload.textMeta.category } : undefined),
-
+  event,             // ← new
+  attemptType,       // ← new
+    //rolledNew, // for reset and new 
       timestamp: ts.toISOString(),
       localDateTime: ts.toLocaleString(),
       schemaVersion: 1,
@@ -314,7 +324,10 @@ const [textMeta, setTextMeta] = useState<TextMeta>({
 
     try {
       // ---------- STORAGE: JSON ----------
-      const basePath = `users/${uid}/keystroke-data/sessions/${sessionId}`;
+      
+      
+      //const basePath = `users/${uid}/keystroke-data/sessions/${sessionId}`;
+      const basePath = `users/${uid}/keystroke-data/${attemptType}/${sessionId}`; // 'final' or 'practice'
       const jsonPath = `${basePath}/${sessionId}.json`;
       const jsonText = JSON.stringify(fullRecord, null, 2);
       await uploadBytes(storageRef(storage, jsonPath), new Blob([jsonText], { type: 'application/json' }));
@@ -409,7 +422,12 @@ const flatRows = flattenToKeyValueRows({
 
     textMeta: fullRecord.textMeta,
    textContext: fullRecord.textContext,
-
+   //recording what type of data submit( final ) or reset type/ reset type + textg ( practice ) 
+  event,             // ← new
+  attemptType,       // ← new
+   // rolledNew,
+  
+  createdAt: serverTimestamp(),
   timestamp: fullRecord.timestamp,
   localDateTime: fullRecord.localDateTime,
   schemaVersion: fullRecord.schemaVersion,
@@ -467,7 +485,8 @@ const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
 const xlsxBlob = new Blob([wbout], {
   type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 });
-const xlsxPath = `${basePath}/${sessionId}.xlsx`;
+//const xlsxPath = `${basePath}/${sessionId}.xlsx`;
+const xlsxPath = `${basePath}/${sessionId}.session.xlsx`;
 await uploadBytes(storageRef(storage, xlsxPath), xlsxBlob);
 
 // ---------- STORAGE: CSVs (always write 5 files, header-only when empty) ----------
@@ -515,6 +534,7 @@ await uploadBytes(
 );
 
       // ---------- FIRESTORE ----------
+      
       const jsonSize = jsonText.length;
       const storagePaths = {
         json: jsonPath,
@@ -529,25 +549,38 @@ await uploadBytes(
       };
 //if jason is too big to be stored at least the important information is stored . 
       if (jsonSize < 900_000) {
-        await addDoc(collection(db, `users/${uid}/keystroke-data`), { ...fullRecord, storagePaths });
+        await addDoc(collection(db, `users/${uid}/keystroke-data`), {
+    ...fullRecord,          // full JSON
+    storagePaths,
+    // createdAt: serverTimestamp(), // 
+   createdAt: fsServerTimestamp(),
+  });
       } else {
         await addDoc(collection(db, `users/${uid}/keystroke-data`), {
-          userId: uid,
-          sessionId,
-          animationTab: fullRecord.animationTab,
-          animationAtStart: fullRecord.animationAtStart,
-          animationAtSubmit: fullRecord.animationAtSubmit,
-          targetText: fullRecord.targetText,
-          typedText: fullRecord.typedText,
-          metrics: fullRecord.metrics,
-         
-          approxKeyCount: (fullRecord.keyData || []).length,
-            textCategory: payload.textMeta?.category ?? 'unknown',
-  textPresetId: payload.textMeta?.presetId ?? null,
-          timestamp: fullRecord.timestamp,
-          localDateTime: fullRecord.localDateTime,
-          schemaVersion: fullRecord.schemaVersion,
-          storagePaths,
+      userId: uid,
+    sessionId,
+    animationTab: fullRecord.animationTab,
+    animationAtStart: fullRecord.animationAtStart,
+    animationAtSubmit: fullRecord.animationAtSubmit,
+    targetText: fullRecord.targetText,
+    typedText: fullRecord.typedText,
+    metrics: fullRecord.metrics,
+    approxKeyCount: (fullRecord.keyData || []).length,
+
+    // include ONCE:
+    textCategory: fullRecord.textMeta?.category ?? 'unknown',
+    textPresetId: fullRecord.textMeta?.presetId ?? null,
+
+    // attemptType: fullRecord.attemptType,  // 'practice' | 'final'
+    // endedBy: fullRecord.endedBy,          // 'reset' | 'submit'
+    event,
+    attemptType,
+      //rolledNew,    
+    timestamp: fullRecord.timestamp,
+    localDateTime: fullRecord.localDateTime,
+    schemaVersion: fullRecord.schemaVersion,
+    storagePaths,
+    createdAt: fsServerTimestamp(),
         });
       }
 
@@ -562,8 +595,10 @@ await uploadBytes(
           wordCount: (fullRecord.typedText || '').trim().split(/\s+/).filter(Boolean).length,
           textCategory: fullRecord.textMeta?.category ?? 'unknown',
           textPresetId: fullRecord.textMeta?.presetId ?? null,
-  //           textCategory: payload.textMeta?.category ?? 'unknown',
-  // textPresetId: payload.textMeta?.presetId ?? null,
+   
+      event,
+    attemptType,
+      //rolledNew,    
           createdAt: serverTimestamp(),
           clientTs: fullRecord.timestamp,
           storageJsonPath: jsonPath,
@@ -586,9 +621,7 @@ await uploadBytes(
  
 
 
-
-//mapping active animatin buttons
- type Tab = 'baselinetyping' | 'multifunction' | 'shapes' | 'color';
+ 
 
 const tabs: { id: Tab; label: string; Comp: React.FC<any> }[] = [
   { id: 'baselinetyping', label: 'Baseline Typing',        Comp: BaselineTyping },

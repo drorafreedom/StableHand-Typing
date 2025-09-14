@@ -1,41 +1,23 @@
--const DEFAULT_SETTINGS: ColorAnimationSettings = {
-+export const COLOR_DEFAULTS: ColorAnimationSettings = {
-   // muted palette (replace with your picks)
--  colors: ['#FF0000', '#00FF00', '#0000FF', '#FFFF00'],
-+  colors: ['#94a3b8', '#a7c4bc', '#cbd5e1', '#fde68a'],
-   animationStyle: 'sine',
--  duration: 1,
--  opacity: 1,
-+  duration: 0.8,
-+  opacity: 0.35,
-   opacityMode: 'constant',
-   opacitySpeed: 1,
-   direction: 'forward',
-   linearAngle: 45,
- };
- 
--const cloneDefaults = (): ColorAnimationSettings => ({
--  ...DEFAULT_SETTINGS,
--  colors: [...DEFAULT_SETTINGS.colors],
--});
-+export const cloneColorDefaults = (): ColorAnimationSettings => ({
-+  ...COLOR_DEFAULTS,
-+  colors: [...COLOR_DEFAULTS.colors], // keep array unshared
-+});
- 
- const ColorAnimation: React.FC<{ setCurrentAnimation: (animation: string) => void }> = ({ setCurrentAnimation }) => {
--  const [settings, setSettings] = useState<ColorAnimationSettings>(cloneDefaults());
-+  const [settings, setSettings] = useState<ColorAnimationSettings>(cloneColorDefaults());
-   ...
--  const resetAnimation = () => {
--    setSettings(cloneDefaults());
-+  const resetAnimation = () => {
-+    setSettings(cloneColorDefaults());
-     setResetKey((k) => k + 1);
-     setRunning(false);
+ // build the same full payload used for submit/resets
+ const buildPayload = (): KeystrokeSavePayload => {
+   // === paste everything from your current handleSubmit up to `const payload: KeystrokeSavePayload = { ... }` ===
+   // (don’t change any logic below; this is your code)
+   const payload: KeystrokeSavePayload = {
+     typedText: inputValue,
+     targetText: displayText,
+     keyData,
+     textMeta: meta,
+     textContext: {
+       category: meta.category,
+       label: meta.label,
+       index: meta.index ?? null,
+       presetId: meta.presetId ?? null,
+       targetTextSnapshot: displayText,
+     },
+     tags: { category: meta.category },
+     analysis: { /* ...unchanged... */ },
+     metrics:  { /* ...unchanged... */ },
+     ui:       { font, fontSize, isBold, textColor, backgroundColor, backgroundOpacity },
    };
- 
-   const sketch = useCallback((p5: any) => {
-     let t = 0;
--    let current: ColorAnimationSettings = DEFAULT_SETTINGS;
-+    let current: ColorAnimationSettings = COLOR_DEFAULTS;
+   return payload;
+ };
