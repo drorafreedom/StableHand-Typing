@@ -23,7 +23,7 @@ import AccountPage from './components/pages/AccountPage';
 import ProgressNotesPage from './components/pages/ProgressNotesPage';
 import TherapyPage from './components/pages/TherapyPage';
 import VerifyEmailFinish from './components/pages/VerifyEmailFinish';
-import FeedbackAndProgressPage from './components/pages/FeedbackAndProgressPage'
+import FeedbackAndProgressPage from './components/pages/FeedbackAndProgressPage';
 // Uncomment if needed
 // import TherapyPage2 from './components/Therapy/TherapyPage2';
 import DisclaimerPage from './components/pages/DisclaimerPage';
@@ -40,6 +40,7 @@ import ThirdPartyAuthPanel from './components/common/ThirdPartyAuthPanel';
 import EndUserPage from './components/pages/EndUserPage';
 import SidebarToggleButton from './components/common/SidebarToggleButton';
 import TherapyFeedbackPage from  './components/pages/TherapyFeedbackPage'
+import PhotoLibraryPage from './components/pages/PhotoLibraryPage';
 
 // Ensure all the routes are defined in the App component
 const App: React.FC = () => {
@@ -100,6 +101,7 @@ const App: React.FC = () => {
           <Route path="/verify-email-finish" element={<VerifyEmailFinish />} />
            <Route path="/feedbackandprogress-notes" element={<FeedbackAndProgressPage />} />
             <Route path="/therapyfeedback-notes" element={<TherapyFeedbackPage />} />
+             <Route path="/photo-library" element={<PhotoLibraryPage/>} />
 
         </Routes>
       </div>

@@ -5,7 +5,7 @@ import MultifunctionAnimation from '../Therapy/MultifunctionAnimation';
 import ShapeAnimations from '../Therapy/ShapeAnimations';
 import ColorAnimation from '../Therapy/ColorAnimation';
 import BaselineTyping from '../Therapy/BaselineTyping';
-
+import PhotoAnimations from '../Therapy/PhotoAnimations';
 import DateTimeDisplay from '../common/DateTimeDisplay';
 import TextDisplay from '../Therapy/TextDisplay';
 import TextInput from '../Therapy/TextInput';
@@ -39,10 +39,15 @@ import {
   DEFAULTS as BASELINETYPING_DEFAULT_SETTINGS,
 } from '../Therapy/BaselineTyping';
 
+// imports
+import  {
+  cloneDefaults as clonePhotoDefaults,
+  DEFAULT_SETTINGS as PHOTO_DEFAULT_SETTINGS,
+} from '../Therapy/PhotoAnimations';
 
 
 
-type Tab = 'multifunction' | 'baselinetyping' | 'shape' | 'color';
+type Tab = 'multifunction' | 'baselinetyping' | 'shape' | 'color'| 'photo';
 interface Message { message: string; type: 'success' | 'error'; }
 interface Settings { [key: string]: any; }
 
@@ -140,7 +145,7 @@ const DEFAULTS: Record<Tab, any> = {
   color:           cloneColorDefaults(),
   multifunction:   cloneMultifuncionDefaults(),
   shapes:          cloneShapeDefaults(),
- 
+   photo: clonePhotoDefaults(),
  /* 
   multifunction: {
  
@@ -232,6 +237,7 @@ const [textMeta, setTextMeta] = useState<TextMeta>({
     baselinetyping: { ...DEFAULTS.baselinetyping },
     shape: { ...DEFAULTS.shape },
     color: { ...DEFAULTS.color },
+      photo: { ...DEFAULTS.photo },
   });
   const settingsRef = useRef(settingsByTab);
   useEffect(() => { settingsRef.current = settingsByTab; }, [settingsByTab]);
@@ -626,8 +632,9 @@ await uploadBytes(
 const tabs: { id: Tab; label: string; Comp: React.FC<any> }[] = [
   { id: 'baselinetyping', label: 'Baseline Typing',        Comp: BaselineTyping },
   { id: 'multifunction',  label: 'Multifunction Animation', Comp: MultifunctionAnimation },
-  { id: 'shapes',         label: 'Shape Animation',         Comp: ShapeAnimations },
+  { id: 'shape',          label: 'Shape Animation',         Comp: ShapeAnimations },
   { id: 'color',          label: 'Color Animation',         Comp: ColorAnimation },
+  { id: 'photo',          label: 'Photo Animation',         Comp: PhotoAnimations }, // ← NEW
 ];
 
 

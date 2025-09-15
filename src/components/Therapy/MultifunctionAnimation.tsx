@@ -54,8 +54,8 @@ export const DEFAULTS: Settings = {
   thickness: 1,
 
   phaseOffset: 0,
-  numLines: 45,//18,            // dense lattice
-  distance: 60,//24,
+  numLines: 60,//18,            // dense lattice
+  distance: 70,//24,
   groups: 2,               // stacked groups for depth
   groupDistance: 330,//32,
 
@@ -72,7 +72,7 @@ export const DEFAULTS: Settings = {
   lineOpacity: 0.6,        // tone down colors
   lineOpacityMode: 'pulse',
   lineOpacitySpeed: 1,
-  yOffsetPx: -100,
+  yOffsetPx: -300,
   fitHeight: false,
 };
 
