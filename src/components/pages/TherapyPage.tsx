@@ -677,7 +677,8 @@ Body text: text-slate-700
 Subtle headings: text-slate-800
      */
     
-    <div className="relative w-full">
+    // <div className="relative w-full">
+    <div className="relative w-full overflow-x-hidden">
 {/* new mapping style  */}
 
 

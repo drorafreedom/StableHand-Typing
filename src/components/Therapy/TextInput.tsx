@@ -268,8 +268,8 @@ const TextInput: React.FC<TextInputProps> = ({
 
     lastReleaseRef.current = releaseTime;
   };
-
-  useEffect(() => {
+  //without Block Paste
+/*   useEffect(() => {
     const down = (ev: KeyboardEvent) => handleKeyDown(ev);
     const up = (ev: KeyboardEvent) => handleKeyUp(ev);
     document.addEventListener('keydown', down);
@@ -278,8 +278,22 @@ const TextInput: React.FC<TextInputProps> = ({
       document.removeEventListener('keydown', down);
       document.removeEventListener('keyup', up);
     };
-  }, []); // once
-  
+  }, []);    */
+  //with Block Paste
+  useEffect(() => {
+  const down = (ev: KeyboardEvent) => {
+    handleKeyDownHardBlock(ev);  // block Ctrl/Cmd+V (and Shift+Insert)
+    handleKeyDown(ev);           // your existing logic
+  };
+  const up = (ev: KeyboardEvent) => handleKeyUp(ev);
+
+  document.addEventListener('keydown', down);
+  document.addEventListener('keyup', up);
+  return () => {
+    document.removeEventListener('keydown', down);
+    document.removeEventListener('keyup', up);
+  };
+}, []); // once
 
   // submit
   const buildPayload = (): KeystrokeSavePayload => {
@@ -414,6 +428,60 @@ const TextInput: React.FC<TextInputProps> = ({
      
   return payload;
 };
+
+// Show a message only once (so we don’t spam alerts)
+const toldRef = React.useRef(false);
+const deny = (msg = 'Paste is disabled — please type the passage.') => {
+  if (!toldRef.current) {
+    window.alert(msg);
+    toldRef.current = true;
+  }
+};
+
+// Block paste into the textarea
+/* e.preventDefault() = actually blocks the browser’s default action (the paste/drop).
+deny() = just your helper to tell the user (e.g., alert(...)). It does not block anything by itself.
+So the correct pattern is: call e.preventDefault() to stop the action, and (optionally) call deny() for feedback. */
+
+const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+  e.preventDefault();  // <-- blocks
+  deny();              // <-- optional feedback
+};
+
+// Block drag/drop text into the textarea
+const handleDrop = (e: React.DragEvent<HTMLTextAreaElement>) => {
+  e.preventDefault();  // <-- blocks
+  deny();              // <-- optional
+};
+
+// Block keyboard paste (Ctrl/⌘+V, Shift+Insert)
+const handleKeyDownHardBlock = (e: KeyboardEvent) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+    e.preventDefault();  // <-- blocks
+    deny();
+    return;
+  }
+  if (e.shiftKey && e.key === 'Insert') {
+    e.preventDefault();  // <-- blocks
+    deny();
+  }
+};
+
+useEffect(() => {
+  const down = (ev: KeyboardEvent) => { 
+    handleKeyDownHardBlock(ev);
+    handleKeyDown(ev);   // your existing typing logic
+  };
+  const up = (ev: KeyboardEvent) => handleKeyUp(ev);
+  document.addEventListener('keydown', down);
+  document.addEventListener('keyup', up);
+  return () => {
+    document.removeEventListener('keydown', down);
+    document.removeEventListener('keyup', up);
+  };
+}, []);
+
+
 //-----------------cahgne names declarations redundant -----------------------
 /* const onSubmit = () => {
   const p = buildPayload();
@@ -513,10 +581,17 @@ Normalized Char Accuracy: ${pct(m.normalizedCharAccuracy)}`;
     <div className="relative w-full">
       <div className="flex flex-row justify-between items-start w-3/4 space-x-4">
         <div className="flex-1 text-xs">
+        
           <textarea
+          
             ref={textareaRef}
-            value={inputValue}
-            placeholder={placeholder}
+  value={inputValue}
+  placeholder={placeholder}
+  onChange={(e) => setInputValue(e.target.value)}
+  onPaste={handlePaste}
+  onDrop={handleDrop}
+  onContextMenu={(e) => e.preventDefault()} // optional: removes right-click paste
+            
             onChange={(e) => setInputValue(e.target.value)}
             style={{
               width: '100%',
@@ -534,6 +609,10 @@ Normalized Char Accuracy: ${pct(m.normalizedCharAccuracy)}`;
               borderRadius: '4px',
               resize: 'vertical',
               overflowY: 'scroll',
+              
+              
+              
+              
             }}
           />
         </div>

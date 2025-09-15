@@ -32,12 +32,52 @@ export interface Settings {
   groups: number;           // number of line groups
   groupDistance: number;    // distance between groups
 
+//   // <<< ADD defaults
+  bgOpacity: number;
+  lineOpacity:number;
+  lineOpacityMode: 'constant'| 'pulsing';
+  lineOpacitySpeed: number;
+ 
+
   // NEW
   yOffsetPx?: number;       // vertical nudge (px), +down / -up
   fitHeight?: boolean;      // auto-scale amplitude to fill viewport
 }
 
- export const DEFAULTS: Settings = {
+export const DEFAULTS: Settings = {
+  waveType: 'sine',
+  direction: 'static',
+  angle: 0,//35,               // gentle diagonal
+  amplitude: 30, //12,           // small, so it doesn’t overwhelm
+  frequency: 9,
+  speed: 2,
+  thickness: 1,
+
+  phaseOffset: 0,
+  numLines: 45,//18,            // dense lattice
+  distance: 60,//24,
+  groups: 2,               // stacked groups for depth
+  groupDistance: 330,//32,
+
+  bgColor:'#e7e7ddff', //'#ffffff',
+  bgOpacity:  0.25, //0.15,         // soft background
+  lineColor:  '#d77575' , //'#FF0000',    // unused when palette != none
+  selectedPalette: 'rainbow',
+
+  rotationSpeed: 0.02,
+  rotationRadius: 150,
+  oscillationRange: 100,
+
+  // keep the new ones
+  lineOpacity: 0.6,        // tone down colors
+  lineOpacityMode: 'pulse',
+  lineOpacitySpeed: 1,
+  yOffsetPx: -100,
+  fitHeight: false,
+};
+
+//old regular defualt setting  one line 
+/*  export const DEFAULTS: Settings = {
   waveType: 'sine',
   direction: 'static',
   angle: 0,
@@ -56,12 +96,18 @@ export interface Settings {
   oscillationRange: 100,
   groups: 1,
   groupDistance: 200,
+//   // <<< ADD opacity factors 
+  bgOpacity: 1,
+  lineOpacity: 1,
+  lineOpacityMode: 'constant',
+  lineOpacitySpeed: 1,
+ 
 
   // NEW defaults
   yOffsetPx:-100,
   fitHeight: false,
 };
-
+ */
 // Make a fresh copy for resets (avoid sharing object refs)
 export const cloneDefaults = (): Settings => ({ ...DEFAULTS });
 
