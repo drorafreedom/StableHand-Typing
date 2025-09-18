@@ -44,8 +44,8 @@ const firebaseConfig = {
   authDomain: 'stablehand-typing.firebaseapp.com',
   projectId: 'stablehand-typing',
   // ✅ Correct bucket ID (not firebasestorage.app)
-  // storageBucket: 'stablehand-typing.appspot.com',
-  storageBucket: "stablehand-typing.firebasestorage.app",
+   storageBucket: 'stablehand-typing.appspot.com',
+  //storageBucket: "stablehand-typing.firebasestorage.app",
   appId: '1:139216749479:web:bf441369ac65d6a096ac82',
   messagingSenderId: '139216749479',
   // RTDB (keep if you use Realtime Database)
@@ -86,6 +86,8 @@ const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
+//const storage = getStorage(app, 'gs://stablehand-typing.appspot.com');
+ 
 // const rtdb = getDatabase(app);
 // If you prefer to be explicit (multiple instances):
 const rtdb = getDatabase(app, firebaseConfig.databaseURL);
@@ -164,6 +166,7 @@ export {
   rtdb,
   // analytics, // has its own rule
 };
+
 
 
 

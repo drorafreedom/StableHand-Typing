@@ -1,306 +1,974 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ReactP5Wrapper } from 'react-p5-wrapper';
 import ControlPanelPhoto from './ControlPanelPhoto';
-import { hexToRgba } from '../../utils/color';
 
-// Keep naming consistent with Shape/Color modules
+export type Direction =
+  | 'static' | 'up' | 'down' | 'left' | 'right'
+  | 'oscillateUpDown' | 'oscillateRightLeft' | 'circular';
+
+export type ZoomMode = 'none' | 'inOut' | 'pulse';
+export type OpacityMode = 'constant' | 'inOut' | 'pulse';
+
 export interface PhotoSettings {
+  // slideshow
+  autoplay: boolean;
+  slideSeconds: number;
+
   // motion
-  direction:
-    | 'static'
-    | 'up'
-    | 'down'
-    | 'left'
-    | 'right'
-    | 'oscillateUpDown'
-    | 'oscillateRightLeft'
-    | 'circular';
-  speed: number;            // px/s equivalent (internal frame step derived)
-  zoom: number;             // 1.0 = cover, >1 zooms in
-  zoomMode: 'constant' | 'pulse';
-  zoomSpeed: number;        // pulse speed
+  direction: Direction;
+  speed: number;              // px/frame baseline
+  oscillationRange: number;   // px amplitude for oscillations
+  rotationRadius: number;     // px for circular
+  rotationSpeed: number;      // multiplier for circular
 
-  // slide show
-  slideDuration: number;    // seconds each photo stays
-  transition: 'cut' | 'crossfade';
-  transitionSeconds: number;
+  // zoom
+  zoomMode: ZoomMode;
+  zoomMin: number;            // ×
+  zoomMax: number;            // ×
+  zoomSpeed: number;          // cycles/sec
 
-  // overlay tint (like your bgOpacity pattern)
-  overlayColor: string;     // hex
-  overlayOpacity: number;   // 0..1
-  overlayOpacityMode: 'constant' | 'pulse';
-  overlayOpacitySpeed: number;
+  // image opacity animation (the photo itself)
+  imageOpacityMin: number;    // 0..1
+  imageOpacityMax: number;    // 0..1
+  imageOpacityMode: OpacityMode;
+  imageOpacitySpeed: number;  // cycles/sec
 
-  // simple CSS filters
-  filter: 'none' | 'grayscale' | 'sepia' | 'hue-rotate';
-  filterAmount: number;     // 0..1 (hue uses 0..1 -> 0..360deg)
+  // overlay & layout
+  overlayColor: string;       // hex
+  overlayOpacity: number;     // 0..1 (static overlay; can simulate fades via imageOpacity)
+  fit: 'cover' | 'contain';
+  angle: number;              // radians
 
-  // scale mode for coverage
-  scaleMode: 'cover' | 'contain';
+  // photos
+  urls: string[];
 }
 
-// --- module defaults (same pattern you use in Shape) ---
-export const DEFAULT_SETTINGS: PhotoSettings = {
-  direction: 'oscillateRightLeft',
-  speed: 40,
-  zoom: 1.1,
-  zoomMode: 'constant',
-  zoomSpeed: 0.6,
+const DEFAULTS: PhotoSettings = {
+  autoplay: true,
+  slideSeconds: 8,
 
-  slideDuration: 6,
-  transition: 'crossfade',
-  transitionSeconds: 1.2,
+  direction: 'static',
+  speed: 1.5,
+  oscillationRange: 120,
+  rotationRadius: 200,
+  rotationSpeed: 0.25,
+
+  zoomMode: 'inOut',
+  zoomMin: 1.0,
+  zoomMax: 1.35,
+  zoomSpeed: 0.2,
+
+  imageOpacityMin: 1.0,
+  imageOpacityMax: 1.0,
+  imageOpacityMode: 'constant',
+  imageOpacitySpeed: 0.2,
 
   overlayColor: '#000000',
-  overlayOpacity: 0.08,
-  overlayOpacityMode: 'constant',
-  overlayOpacitySpeed: 0.8,
+  overlayOpacity: 0.25,
+  fit: 'cover',
+  angle: 0,
 
-  filter: 'none',
-  filterAmount: 0,
-
-  scaleMode: 'cover',
+  urls: [],
 };
 
-export const cloneDefaults = (): PhotoSettings => ({ ...DEFAULT_SETTINGS });
+// 👉 keeps TherapyPage imports happy
+export const cloneDefaults = (): PhotoSettings => ({
+  ...DEFAULTS,
+  urls: [...DEFAULTS.urls], // never share the same array
+});
+export const PHOTO_DEFAULTS = DEFAULTS;
+export const clonePhotoDefaults = cloneDefaults;
 
-// expose stable getter (TherapyPage pattern parity)
-let __photoSettingsRef: PhotoSettings = DEFAULT_SETTINGS;
-export const getPhotoSettings = (): PhotoSettings =>
-  JSON.parse(JSON.stringify(__photoSettingsRef));
-
-type SketchProps = {
-  settings: PhotoSettings;
-  isAnimating: boolean;
-  imageUrls: string[];
+// ----------------- helpers: asset discovery -----------------
+const discoverBundledUrls = (): string[] => {
+  try {
+    const globbed = import.meta.glob('/src/assets/bgphotos/*.{jpg,jpeg,png,gif,webp}', {
+      eager: true,
+      as: 'url',
+    }) as Record<string, string>;
+    return Object.values(globbed);
+  } catch {
+    return [];
+  }
+};
+const buildPublicUrls = (count = 14): string[] => {
+  const base = (import.meta as any).env?.BASE_URL || '/';
+  return Array.from({ length: count }, (_, i) => `${base}bgphotos/${i + 1}.jpg`);
 };
 
-const PhotoAnimations: React.FC<{
-  settings: PhotoSettings;
-  setSettings: React.Dispatch<React.SetStateAction<PhotoSettings>>;
-}> = ({ settings, setSettings }) => {
-  const [isAnimating, setIsAnimating] = useState(true);
-  const [imageUrls, setImageUrls] = useState<string[]>([]);
-  const urlsRef = useRef<string[]>([]);
+// ----------------- helpers: folder persistence (IndexedDB) -----------------
+type DirHandle = any; // FileSystemDirectoryHandle (typed as any for wider TS DOM configs)
+const IDB_NAME = 'photo-anim';
+const IDB_STORE = 'handles';
+const IDB_KEY_LAST = 'lastDir';
 
-  // keep external getter in sync (like Shape)
-  useEffect(() => {
-    __photoSettingsRef = settings;
-  }, [settings]);
-
-  // revoke object URLs when replaced
-  useEffect(() => {
-    const prev = urlsRef.current;
-    urlsRef.current = imageUrls;
-    prev.forEach((u) => {
-      if (!imageUrls.includes(u)) URL.revokeObjectURL(u);
-    });
-    return () => {
-      urlsRef.current.forEach((u) => URL.revokeObjectURL(u));
+function idbOpen(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE);
     };
-  }, [imageUrls]);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function idbSet(key: string, value: any) {
+  const db = await idbOpen();
+  await new Promise<void>((res, rej) => {
+    const tx = db.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).put(value, key);
+    tx.oncomplete = () => res();
+    tx.onerror = () => rej(tx.error);
+  });
+  db.close();
+}
+async function idbGet<T = any>(key: string): Promise<T | undefined> {
+  const db = await idbOpen();
+  const val = await new Promise<T | undefined>((res, rej) => {
+    const tx = db.transaction(IDB_STORE, 'readonly');
+    const r = tx.objectStore(IDB_STORE).get(key);
+    r.onsuccess = () => res(r.result as T | undefined);
+    r.onerror = () => rej(r.error);
+  });
+  db.close();
+  return val;
+}
 
-  const resetAnimation = () => {
-    setIsAnimating(false);
-    requestAnimationFrame(() => setIsAnimating(true));
+async function listImagesFromDir(handle: DirHandle): Promise<File[]> {
+  const files: File[] = [];
+  // @ts-expect-error async iterator exists on FileSystemDirectoryHandle
+  for await (const [, entry] of handle.entries()) {
+    if (entry.kind === 'file') {
+      const file: File = await entry.getFile();
+      if (/^image\//.test(file.type)) files.push(file);
+    }
+  }
+  return files.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+// ----------------- component -----------------
+const THUMB_W = 96;
+const THUMB_H = 60;
+
+const PhotoAnimations: React.FC = () => {
+  const [settings, setSettings] = useState<PhotoSettings>(cloneDefaults());
+  const [running, setRunning] = useState(true);
+  const [resetNonce, setResetNonce] = useState(0);
+  const [idx, setIdx] = useState(0);
+
+  // local files bookkeeping
+  const blobUrlsRef = useRef<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const lastDirHandleRef = useRef<DirHandle | null>(null);
+
+  // seed: bundled -> public (only if nothing loaded yet)
+  useEffect(() => {
+    if (settings.urls.length > 0) return;
+    const assets = discoverBundledUrls();
+    if (assets.length) setSettings(s => ({ ...s, urls: assets }));
+    else setSettings(s => ({ ...s, urls: buildPublicUrls() }));
+    // try to restore last folder if user had granted permission
+    (async () => {
+      const handle = await idbGet<DirHandle>(IDB_KEY_LAST);
+      if (!handle?.requestPermission) return;
+      const perm = await handle.requestPermission({ mode: 'read' });
+      if (perm === 'granted') {
+        const files = await listImagesFromDir(handle);
+        if (files.length) {
+          // revoke old
+          blobUrlsRef.current.forEach(URL.revokeObjectURL);
+          blobUrlsRef.current = [];
+          const urls = files.map(f => {
+            const u = URL.createObjectURL(f);
+            blobUrlsRef.current.push(u);
+            return u;
+          });
+          lastDirHandleRef.current = handle;
+          setSettings(s => ({ ...s, urls }));
+          setIdx(0);
+          setRunning(true);
+        }
+      }
+    })().catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // slideshow
+  useEffect(() => {
+    if (!running || !settings.autoplay || settings.urls.length < 2) return;
+    const ms = Math.max(1000, settings.slideSeconds * 1000);
+    const t = setInterval(() => setIdx(i => (i + 1) % settings.urls.length), ms);
+    return () => clearInterval(t);
+  }, [running, settings.autoplay, settings.slideSeconds, settings.urls.length]);
+
+  // transport
+  const start = () => setRunning(true);
+  const stop  = () => setRunning(false);
+  const reset = () => {
+    setSettings(s => ({ ...cloneDefaults(), urls: s.urls.length ? s.urls : buildPublicUrls() }));
+    setIdx(0);
+    setResetNonce(n => n + 1);
+    setRunning(false);
+  };
+  const prev = () => setIdx(i => (settings.urls.length ? (i - 1 + settings.urls.length) % settings.urls.length : 0));
+  const next = () => setIdx(i => (settings.urls.length ? (i + 1) % settings.urls.length : 0));
+
+  // ----- local file picker (multi-file) -----
+  const pickLocalFiles = () => fileInputRef.current?.click();
+  const onFilesChosen: React.ChangeEventHandler<HTMLInputElement> = e => {
+    const files = Array.from(e.target.files ?? []).filter(f => /^image\//.test(f.type));
+    if (!files.length) return;
+    blobUrlsRef.current.forEach(URL.revokeObjectURL);
+    blobUrlsRef.current = [];
+    const urls = files.map(f => {
+      const u = URL.createObjectURL(f);
+      blobUrlsRef.current.push(u);
+      return u;
+    });
+    setSettings(s => ({ ...s, urls }));
+    setIdx(0);
+    setRunning(true);
+    e.target.value = '';
   };
 
-  const sketch = useCallback((p5: any) => {
-    let imgs: any[] = [];
-    let loadedFrom: string[] = [];
-    let idx = 0;
-    let nextIdx = 0;
-    let t0 = 0;
-    let fadeT = 0;
-    let panPhase = 0;
-
-    function loadIfNeeded(urls: string[]) {
-      if (
-        urls.length === loadedFrom.length &&
-        urls.every((u, i) => u === loadedFrom[i])
-      ) {
+  // ----- folder picker (persistable) -----
+  const pickDirectory = async () => {
+    try {
+      // @ts-ignore - Chrome/Edge
+      if (!window.showDirectoryPicker) {
+        // fallback: open multi-file dialog
+        pickLocalFiles();
         return;
       }
-      imgs = [];
-      loadedFrom = [...urls];
-      urls.forEach((u, i) => {
-        p5.loadImage(
-          u,
-          (im: any) => {
-            imgs[i] = im;
-          },
-          () => {
-            imgs[i] = null;
-          }
-        );
+      // @ts-ignore
+      const handle: DirHandle = await window.showDirectoryPicker({ id: 'photo-anim-dir' });
+      const files = await listImagesFromDir(handle);
+      if (!files.length) return;
+      blobUrlsRef.current.forEach(URL.revokeObjectURL);
+      blobUrlsRef.current = [];
+      const urls = files.map(f => {
+        const u = URL.createObjectURL(f);
+        blobUrlsRef.current.push(u);
+        return u;
       });
-      idx = 0;
-      nextIdx = (idx + 1) % Math.max(urls.length, 1);
-      t0 = p5.millis();
-      fadeT = 0;
-    }
+      lastDirHandleRef.current = handle;
+      await idbSet(IDB_KEY_LAST, handle);
+      setSettings(s => ({ ...s, urls }));
+      setIdx(0);
+      setRunning(true);
+    } catch { /* user cancelled */ }
+  };
 
-    function drawCover(im: any, cx: number, cy: number, z: number) {
-      const W = p5.width;
-      const H = p5.height;
-      const iw = im.width;
-      const ih = im.height;
-      const rs = settings.scaleMode === 'cover'
-        ? Math.max(W / iw, H / ih)
-        : Math.min(W / iw, H / ih);
-      const s = rs * Math.max(0.01, z);
+  const reopenLastDirectory = async () => {
+    const handle = await idbGet<DirHandle>(IDB_KEY_LAST);
+    if (!handle) return;
+    const perm = await handle.requestPermission?.({ mode: 'read' });
+    if (perm !== 'granted') return;
+    const files = await listImagesFromDir(handle);
+    if (!files.length) return;
+    blobUrlsRef.current.forEach(URL.revokeObjectURL);
+    blobUrlsRef.current = [];
+    const urls = files.map(f => {
+      const u = URL.createObjectURL(f);
+      blobUrlsRef.current.push(u);
+      return u;
+    });
+    lastDirHandleRef.current = handle;
+    setSettings(s => ({ ...s, urls }));
+    setIdx(0);
+    setRunning(true);
+  };
 
-      const drawW = iw * s;
-      const drawH = ih * s;
-      const x = (W - drawW) / 2 + cx;
-      const y = (H - drawH) / 2 + cy;
-      p5.image(im, x, y, drawW, drawH);
-    }
+  // source shortcuts
+  const useBundled = () => {
+    const urls = discoverBundledUrls();
+    if (urls.length) { setSettings(s => ({ ...s, urls })); setIdx(0); setRunning(true); }
+  };
+  const usePublic = (count = 14) => {
+    const urls = buildPublicUrls(count);
+    setSettings(s => ({ ...s, urls }));
+    setIdx(0);
+    setRunning(true);
+  };
+
+  // ------------- p5 sketch -------------
+  const sketch = useCallback((p5: any) => {
+    type Props = { settings: PhotoSettings; idx: number; running: boolean; resetNonce: number };
+
+    let cur: PhotoSettings = cloneDefaults();
+    let index = 0;
+    let isRunning = true;
+    let lastReset = -1;
+    let t = 0, offX = 0, offY = 0;
+
+    const cache = new Map<string, any>();
+    const getImage = (url: string) => {
+      const c = cache.get(url);
+      if (c) return c;
+      const img = p5.loadImage(url, () => {}, () => {});
+      cache.set(url, img);
+      return img;
+    };
 
     p5.setup = () => {
       p5.createCanvas(p5.windowWidth, p5.windowHeight);
-      p5.noStroke();
       p5.frameRate(60);
-      t0 = p5.millis();
+      p5.noStroke();
+    };
+    p5.windowResized = () => p5.resizeCanvas(p5.windowWidth, p5.windowHeight);
+
+    p5.updateWithProps = (props: Props) => {
+      if (props.settings) cur = props.settings;
+      if (typeof props.idx === 'number') index = props.idx;
+      if (typeof props.running === 'boolean') isRunning = props.running;
+      if (typeof props.resetNonce === 'number' && props.resetNonce !== lastReset) {
+        t = 0; offX = 0; offY = 0; lastReset = props.resetNonce;
+      }
+      const list = cur.urls || [];
+      if (list.length >= 2) {
+        getImage(list[(index + 1) % list.length]);
+        getImage(list[(index - 1 + list.length) % list.length]);
+      }
     };
 
-    p5.windowResized = () => {
-      p5.resizeCanvas(p5.windowWidth, p5.windowHeight);
+    const lerp01 = (u: number) => Math.max(0, Math.min(1, u));
+    const zoomValue = () => {
+      const a = Math.min(cur.zoomMin, cur.zoomMax);
+      const b = Math.max(cur.zoomMin, cur.zoomMax);
+      switch (cur.zoomMode) {
+        case 'none': return 1;
+        case 'inOut': {
+          const cyc = Math.max(0.0001, cur.zoomSpeed);
+          const phase = (t * cyc) % 2;    // 0..2
+          const u = phase < 1 ? phase : 2 - phase; // 0..1..0
+          return a + (b - a) * u;
+        }
+        case 'pulse': {
+          const u = (p5.sin(t * (Math.PI * 2) * cur.zoomSpeed) + 1) * 0.5;
+          return a + (b - a) * u;
+        }
+      }
+    };
+    const imageAlpha = () => {
+      const a = Math.min(cur.imageOpacityMin, cur.imageOpacityMax);
+      const b = Math.max(cur.imageOpacityMin, cur.imageOpacityMax);
+      switch (cur.imageOpacityMode) {
+        case 'constant': return lerp01(b);
+        case 'inOut': {
+          const cyc = Math.max(0.0001, cur.imageOpacitySpeed);
+          const phase = (t * cyc) % 2;
+          const u = phase < 1 ? phase : 2 - phase;
+          return a + (b - a) * u;
+        }
+        case 'pulse': {
+          const u = (p5.sin(t * (Math.PI * 2) * cur.imageOpacitySpeed) + 1) * 0.5;
+          return a + (b - a) * u;
+        }
+      }
     };
 
-    // ReactP5Wrapper prop bridge
-    (p5 as any).updateWithProps = (props: SketchProps) => {
-      settings = props.settings;
-      if (props.imageUrls) loadIfNeeded(props.imageUrls);
+    const stepMotion = () => {
+      const v = cur.speed;
+      switch (cur.direction) {
+        case 'static': break;
+        case 'up':    offY -= v; break;
+        case 'down':  offY += v; break;
+        case 'left':  offX -= v; break;
+        case 'right': offX += v; break;
+        case 'oscillateUpDown':    offY = cur.oscillationRange * p5.sin(t * 1.5 * Math.max(0.2, v * 0.2)); break;
+        case 'oscillateRightLeft': offX = cur.oscillationRange * p5.sin(t * 1.5 * Math.max(0.2, v * 0.2)); break;
+        case 'circular': {
+          const w = Math.max(0.05, v * cur.rotationSpeed);
+          offX = cur.rotationRadius * p5.cos(t * w);
+          offY = cur.rotationRadius * p5.sin(t * w);
+        } break;
+      }
+    };
+
+    const drawImageFit = (img: any) => {
+      if (!img || !img.width || !img.height) return;
+      const W = p5.width, H = p5.height;
+      const cx = W / 2, cy = H / 2;
+      const aspect = img.width / img.height;
+      let dw = W, dh = H;
+      if (cur.fit === 'cover') {
+        if (W / H > aspect) dh = W / aspect; else dw = H * aspect;
+      } else {
+        if (W / H > aspect) dw = H * aspect; else dh = W / aspect;
+      }
+      const z = Math.max(0.05, zoomValue() || 1);
+      dw *= z; dh *= z;
+
+      p5.push();
+      p5.translate(cx + offX, cy + offY);
+      if (cur.angle) p5.rotate(cur.angle);
+      p5.imageMode(p5.CENTER);
+      const alpha255 = Math.round(255 * lerp01(imageAlpha()));
+      p5.tint(255, alpha255);
+      p5.image(img, 0, 0, dw, dh);
+      p5.noTint();
+      p5.pop();
+
+      if (cur.overlayOpacity > 0) {
+        const c = p5.color(cur.overlayColor || '#000');
+        c.setAlpha(Math.round(255 * lerp01(cur.overlayOpacity)));
+        p5.fill(c);
+        p5.rect(0, 0, W, H);
+      }
     };
 
     p5.draw = () => {
-      if (!isAnimating) return;
-
-      const now = p5.millis();
-      const elapsed = (now - t0) / 1000; // seconds
-
-      p5.clear(0, 0, 0, 0);
-
-      if (imgs.length === 0 || !imgs[0]) return;
-
-      // zoom factor
-      let z = settings.zoom;
-      if (settings.zoomMode === 'pulse') {
-        z = 1 + (settings.zoom - 1) * (0.5 + 0.5 * Math.sin(now * 0.001 * settings.zoomSpeed * Math.PI * 2));
-      }
-
-      // pan via phase
-      const ampX = p5.width * 0.08;
-      const ampY = p5.height * 0.08;
-      const v = settings.speed / 60; // px per frame-ish
-      panPhase += v * 0.02;
-
-      let offX = 0, offY = 0;
-      switch (settings.direction) {
-        case 'left':  offX = -elapsed * settings.speed; break;
-        case 'right': offX =  elapsed * settings.speed; break;
-        case 'up':    offY = -elapsed * settings.speed; break;
-        case 'down':  offY =  elapsed * settings.speed; break;
-        case 'oscillateRightLeft':
-          offX = Math.sin(panPhase) * ampX;
-          break;
-        case 'oscillateUpDown':
-          offY = Math.sin(panPhase) * ampY;
-          break;
-        case 'circular':
-          offX = Math.cos(panPhase) * ampX;
-          offY = Math.sin(panPhase) * ampY;
-          break;
-        default: break;
-      }
-
-      // slideshow timing
-      const sd = Math.max(0.1, settings.slideDuration);
-      const trans = Math.max(0.1, settings.transitionSeconds);
-      const total = sd + trans;
-      const phase = elapsed % total;
-
-      // choose indices
-      if (phase < sd) {
-        nextIdx = (idx + 1) % imgs.length;
-        fadeT = 0;
-      } else {
-        // crossfade progress 0..1
-        fadeT = Math.min(1, (phase - sd) / trans);
-        if (fadeT >= 1) {
-          idx = nextIdx;
-          t0 = now; // restart timing window
-          fadeT = 0;
-        }
-      }
-
-      const A = imgs[idx];
-      const B = imgs[nextIdx] || A;
-
-      if (settings.transition === 'crossfade') {
-        p5.push();
-        p5.tint(255, 255 * (1 - fadeT));
-        drawCover(A, offX, offY, z);
-        p5.pop();
-
-        p5.push();
-        p5.tint(255, 255 * fadeT);
-        drawCover(B, offX, offY, z);
-        p5.pop();
-      } else {
-        drawCover(phase < sd ? A : B, offX, offY, z);
-      }
-
-      // overlay tint (like bgOpacity pattern you use in Shape)
-      let overlayAlpha = settings.overlayOpacity;
-      if (settings.overlayOpacityMode === 'pulse') {
-        overlayAlpha = settings.overlayOpacity * (0.5 + 0.5 * Math.sin(now * 0.001 * settings.overlayOpacitySpeed * Math.PI * 2));
-      }
-      const col = hexToRgba(settings.overlayColor, Math.max(0, Math.min(1, overlayAlpha)));
-      p5.noStroke();
-      p5.fill(col);
-      p5.rect(0, 0, p5.width, p5.height);
+      p5.clear(); p5.background(0);
+      const list = cur.urls || [];
+      if (list.length) drawImageFit(getImage(list[index % list.length]));
+      if (isRunning) { t += 1/60; stepMotion(); }
     };
-  }, [isAnimating, settings]);
+  }, []);
 
-  // CSS filter string (applied to the wrapper so it only affects this canvas)
-  const filterCss =
-    settings.filter === 'grayscale'
-      ? `grayscale(${settings.filterAmount})`
-      : settings.filter === 'sepia'
-      ? `sepia(${settings.filterAmount})`
-      : settings.filter === 'hue-rotate'
-      ? `hue-rotate(${Math.round(settings.filterAmount * 360)}deg)`
-      : 'none';
+  const thumbs = useMemo(() => settings.urls.map((u, i) => ({ u, i })), [settings.urls]);
 
   return (
-    <div className="relative w-full">
+    <div className="relative">
+      {/* multi-file input (with folder fallback via webkitdirectory) */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        // @ts-ignore - vendor attributes for folder selection fallback
+        {...({ webkitdirectory: '', directory: '' } as any)}
+        className="hidden"
+        onChange={onFilesChosen}
+      />
+
       <ControlPanelPhoto
         settings={settings}
         setSettings={setSettings}
-        isAnimating={isAnimating}
-        startAnimation={() => setIsAnimating(true)}
-        stopAnimation={() => setIsAnimating(false)}
-        resetAnimation={resetAnimation}
-        imageUrls={imageUrls}
-        setImageUrls={setImageUrls}
+        running={running}
+        onStart={start}
+        onStop={stop}
+        onReset={reset}
+        idx={idx}
+        onPrev={prev}
+        onNext={next}
+        // sources
+        onUseBundled={useBundled}
+        onUsePublic={usePublic}
+        onPickLocal={pickLocalFiles}
+        onPickDirectory={pickDirectory}
+        onReopenDirectory={reopenLastDirectory}
       />
 
-      {/* full-page background, same pattern you use elsewhere */}
-      <div
-        className="absolute inset-0 -z-10 pointer-events-none overflow-hidden"
-        style={{ filter: filterCss }}
-      >
+      {/* canvas behind everything */}
+      <div className="fixed inset-0 -z-10 pointer-events-none">
         <ReactP5Wrapper
           sketch={sketch}
           settings={settings}
-          isAnimating={isAnimating}
-          imageUrls={imageUrls}
+          idx={idx}
+          running={running}
+          resetNonce={resetNonce}
         />
       </div>
+
+      {/* bottom strip */}
+      {!!thumbs.length && (
+        <div className="fixed left-4 right-4 bottom-4 z-40 bg-white/80 backdrop-blur p-2 rounded-xl shadow flex items-center gap-2 overflow-x-auto">
+          <button className="px-2 py-1 border rounded bg-gray-100 hover:bg-gray-200" onClick={prev} title="Previous">◀</button>
+          {thumbs.map(({ u, i }) => (
+            <button key={`${u}-${i}`}
+              onClick={() => setIdx(i)}
+              className={`relative flex-shrink-0 border rounded overflow-hidden ${i === idx ? 'ring-2 ring-blue-500' : ''}`}
+              style={{ width: THUMB_W, height: THUMB_H }}
+              title={u}>
+              {/* eslint-disable-next-line jsx-a11y/alt-text */}
+              <img src={u} className="w-full h-full object-cover" />
+            </button>
+          ))}
+          <button className="px-2 py-1 border rounded bg-gray-100 hover:bg-gray-200" onClick={next} title="Next">▶</button>
+          <div className="ml-auto text-[11px] px-2 py-1 border rounded bg-white/60">{idx + 1} / {settings.urls.length || 0}</div>
+        </div>
+      )}
     </div>
   );
 };
 
 export default PhotoAnimations;
+
+
+
+//------------version 1 - 
+// import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+// import { ReactP5Wrapper } from 'react-p5-wrapper';
+// import ControlPanelPhoto from './ControlPanelPhoto';
+
+// export type Direction =
+//   | 'static'
+//   | 'up'
+//   | 'down'
+//   | 'left'
+//   | 'right'
+//   | 'oscillateUpDown'
+//   | 'oscillateRightLeft'
+//   | 'circular';
+
+// export type ZoomMode = 'none' | 'inOut' | 'pulse';
+
+// export interface PhotoSettings {
+//   // slideshow
+//   autoplay: boolean;
+//   slideSeconds: number;
+
+//   // motion
+//   direction: Direction;
+//   speed: number;             // px/frame baseline (also modulates osc/circle)
+//   oscillationRange: number;  // px peak amplitude for oscillations
+//   rotationRadius: number;    // px for circular
+//   rotationSpeed: number;     // radians/sec-ish
+
+//   // zoom
+//   zoomMode: ZoomMode;
+//   zoomMin: number;           // ×
+//   zoomMax: number;           // ×
+//   zoomSpeed: number;         // cycles/sec (pulse/inOut)
+
+//   // overlay & layout
+//   overlayColor: string;      // hex
+//   overlayOpacity: number;    // 0..1
+//   fit: 'cover' | 'contain';
+//   angle: number;             // radians
+
+//   // photos
+//   urls: string[];
+// }
+
+// const DEFAULTS: PhotoSettings = {
+//   autoplay: true,
+//   slideSeconds: 8,
+
+//   direction: 'static',
+//   speed: 1.5,
+//   oscillationRange: 120,
+//   rotationRadius: 200,
+//   rotationSpeed: 0.25,
+
+//   zoomMode: 'inOut',
+//   zoomMin: 1.0,
+//   zoomMax: 1.35,
+//   zoomSpeed: 0.2,
+
+//   overlayColor: '#000000',
+//   overlayOpacity: 0.25,
+//   fit: 'cover',
+//   angle: 0,
+
+//   urls: [],
+// };
+
+
+// // add these right after: const DEFAULTS: PhotoSettings = { ... }
+// export const cloneDefaults = (): PhotoSettings => ({
+//   ...DEFAULTS,
+//   // IMPORTANT: never share the same array reference
+//   urls: [...DEFAULTS.urls],
+// });
+
+// // Optional aliases (keep old imports working if any):
+// export const PHOTO_DEFAULTS = DEFAULTS;
+// export const clonePhotoDefaults = cloneDefaults;
+
+// const THUMB_W = 96;
+// const THUMB_H = 60;
+
+// // -------- asset discovery (no HTTP needed for local picks) ----------
+// const discoverBundledUrls = (): string[] => {
+//   // Uses Vite to bundle images under src/assets/bgphotos/* => same-origin URLs
+//   try {
+//     const globbed = import.meta.glob('/src/assets/bgphotos/*.{jpg,jpeg,png,gif,webp}', {
+//       eager: true,
+//       as: 'url',
+//     }) as Record<string, string>;
+//     return Object.values(globbed);
+//   } catch {
+//     return [];
+//   }
+// };
+
+// const buildPublicUrls = (count = 14): string[] => {
+//   const base = (import.meta as any).env?.BASE_URL || '/';
+//   return Array.from({ length: count }, (_, i) => `${base}bgphotos/${i + 1}.jpg`);
+// };
+
+// const PhotoAnimations: React.FC = () => {
+//   const [settings, setSettings] = useState<PhotoSettings>({ ...DEFAULTS });
+//   const [running, setRunning] = useState(true);
+//   const [resetNonce, setResetNonce] = useState(0);
+//   const [idx, setIdx] = useState(0);
+
+//   // keep track of blob URLs to revoke when replaced
+//   const blobUrlsRef = useRef<string[]>([]);
+//   const fileInputRef = useRef<HTMLInputElement>(null);
+
+//   // seed URLs once: assets → public (does not override if user already added)
+//   useEffect(() => {
+//     if (settings.urls.length > 0) return;
+//     const assets = discoverBundledUrls();
+//     if (assets.length) setSettings(s => ({ ...s, urls: assets }));
+//     else setSettings(s => ({ ...s, urls: buildPublicUrls() }));
+//     // eslint-disable-next-line react-hooks/exhaustive-deps
+//   }, []);
+
+//   // slideshow
+//   useEffect(() => {
+//     if (!running || !settings.autoplay || settings.urls.length < 2) return;
+//     const ms = Math.max(1000, settings.slideSeconds * 1000);
+//     const t = setInterval(() => setIdx(i => (i + 1) % settings.urls.length), ms);
+//     return () => clearInterval(t);
+//   }, [running, settings.autoplay, settings.slideSeconds, settings.urls.length]);
+
+//   // transport
+//   const start = () => setRunning(true);
+//   const stop = () => setRunning(false);
+//   const reset = () => {
+//     // preserve current URL list; reset the rest
+//     setSettings(s => ({ ...DEFAULTS, urls: s.urls.length ? s.urls : buildPublicUrls() }));
+//     setIdx(0);
+//     setResetNonce(n => n + 1);
+//     setRunning(false);
+//   };
+//   const prev = () =>
+//     setIdx(i => (settings.urls.length ? (i - 1 + settings.urls.length) % settings.urls.length : 0));
+//   const next = () =>
+//     setIdx(i => (settings.urls.length ? (i + 1) % settings.urls.length : 0));
+
+//   // ---------- local folder (file picker, no HTTP) ----------
+//   const pickLocalFiles = () => fileInputRef.current?.click();
+//   const onFilesChosen: React.ChangeEventHandler<HTMLInputElement> = e => {
+//     const files = Array.from(e.target.files ?? []);
+//     if (!files.length) return;
+//     // revoke old blob URLs
+//     blobUrlsRef.current.forEach(URL.revokeObjectURL);
+//     blobUrlsRef.current = [];
+
+//     const urls = files
+//       .filter(f => /^image\//.test(f.type))
+//       .map(f => {
+//         const u = URL.createObjectURL(f);
+//         blobUrlsRef.current.push(u);
+//         return u;
+//       });
+
+//     if (urls.length) {
+//       setSettings(s => ({ ...s, urls }));
+//       setIdx(0);
+//     }
+//     // clear for re-pick
+//     e.target.value = '';
+//   };
+
+//   // ---------- source shortcuts ----------
+//   const useBundled = () => {
+//     const urls = discoverBundledUrls();
+//     if (urls.length) {
+//       setSettings(s => ({ ...s, urls }));
+//       setIdx(0);
+//     }
+//   };
+//   const usePublic = (count = 14) => {
+//     const urls = buildPublicUrls(count);
+//     setSettings(s => ({ ...s, urls }));
+//     setIdx(0);
+//   };
+
+//   // ---------- simple presets (localStorage) ----------
+//   type Preset = { name: string; settings: PhotoSettings };
+//   const LS_KEY = 'photo_presets_v1';
+
+//   const loadAllPresets = (): Preset[] => {
+//     try {
+//       const raw = localStorage.getItem(LS_KEY);
+//       return raw ? (JSON.parse(raw) as Preset[]) : [];
+//     } catch {
+//       return [];
+//     }
+//   };
+//   const savePreset = (name: string) => {
+//     const list = loadAllPresets();
+//     const copy = { ...settings };
+//     const preset: Preset = { name, settings: copy };
+//     const existingIdx = list.findIndex(p => p.name === name);
+//     if (existingIdx >= 0) list[existingIdx] = preset;
+//     else list.push(preset);
+//     localStorage.setItem(LS_KEY, JSON.stringify(list));
+//   };
+//   const applyPreset = (name: string) => {
+//     const list = loadAllPresets();
+//     const p = list.find(x => x.name === name);
+//     if (!p) return;
+//     // strict merge to avoid undefined wipes
+//     setSettings(s => ({
+//       ...s,
+//       ...p.settings,
+//       urls: p.settings.urls && p.settings.urls.length ? p.settings.urls : s.urls,
+//     }));
+//   };
+//   const deletePreset = (name: string) => {
+//     const list = loadAllPresets().filter(p => p.name !== name);
+//     localStorage.setItem(LS_KEY, JSON.stringify(list));
+//   };
+
+//   // ----------- p5 sketch -----------
+//   const sketch = useCallback((p5: any) => {
+//     type Props = {
+//       settings: PhotoSettings;
+//       idx: number;
+//       running: boolean;
+//       resetNonce: number;
+//     };
+
+//     let cur: PhotoSettings = { ...DEFAULTS };
+//     let index = 0;
+//     let isRunning = true;
+//     let lastReset = -1;
+
+//     // time & pan state
+//     let t = 0;
+//     let offX = 0;
+//     let offY = 0;
+
+//     // cache
+//     const cache = new Map<string, any>();
+//     const getImage = (url: string) => {
+//       const c = cache.get(url);
+//       if (c) return c;
+//       const img = p5.loadImage(url, () => {}, () => {});
+//       cache.set(url, img);
+//       return img;
+//     };
+
+//     p5.setup = () => {
+//       p5.createCanvas(p5.windowWidth, p5.windowHeight);
+//       p5.frameRate(60);
+//       p5.noStroke();
+//     };
+//     p5.windowResized = () => {
+//       p5.resizeCanvas(p5.windowWidth, p5.windowHeight);
+//     };
+
+//     p5.updateWithProps = (props: Props) => {
+//       if (props.settings) cur = props.settings;
+//       if (typeof props.idx === 'number') index = props.idx;
+//       if (typeof props.running === 'boolean') isRunning = props.running;
+//       if (typeof props.resetNonce === 'number' && props.resetNonce !== lastReset) {
+//         t = 0;
+//         offX = 0;
+//         offY = 0;
+//         lastReset = props.resetNonce;
+//       }
+
+//       // warm neighbors
+//       const list = cur.urls || [];
+//       if (list.length >= 2) {
+//         getImage(list[(index + 1) % list.length]);
+//         getImage(list[(index - 1 + list.length) % list.length]);
+//       }
+//     };
+
+//     const zoomValue = () => {
+//       const a = Math.min(cur.zoomMin, cur.zoomMax);
+//       const b = Math.max(cur.zoomMin, cur.zoomMax);
+//       switch (cur.zoomMode) {
+//         case 'none':
+//           return 1;
+//         case 'inOut': {
+//           const cycle = Math.max(0.0001, cur.zoomSpeed);
+//           const phase = (t * cycle) % 2; // 0..2
+//           const u = phase < 1 ? phase : 2 - phase; // 0..1..0
+//           return a + (b - a) * u;
+//         }
+//         case 'pulse': {
+//           const u = (p5.sin(t * (Math.PI * 2) * cur.zoomSpeed) + 1) * 0.5;
+//           return a + (b - a) * u;
+//         }
+//       }
+//     };
+
+//     const stepMotion = () => {
+//       const v = cur.speed;
+//       switch (cur.direction) {
+//         case 'static':
+//           break;
+//         case 'up':
+//           offY -= v;
+//           break;
+//         case 'down':
+//           offY += v;
+//           break;
+//         case 'left':
+//           offX -= v;
+//           break;
+//         case 'right':
+//           offX += v;
+//           break;
+//         case 'oscillateUpDown':
+//           offY = cur.oscillationRange * p5.sin(t * 1.5 * Math.max(0.2, v * 0.2));
+//           break;
+//         case 'oscillateRightLeft':
+//           offX = cur.oscillationRange * p5.sin(t * 1.5 * Math.max(0.2, v * 0.2));
+//           break;
+//         case 'circular': {
+//           const w = Math.max(0.05, v * cur.rotationSpeed);
+//           offX = cur.rotationRadius * p5.cos(t * w);
+//           offY = cur.rotationRadius * p5.sin(t * w);
+//           break;
+//         }
+//       }
+//     };
+
+//     const drawImageFit = (img: any) => {
+//       if (!img || !img.width || !img.height) return;
+//       const W = p5.width,
+//         H = p5.height;
+//       const cx = W / 2,
+//         cy = H / 2;
+
+//       const aspect = img.width / img.height;
+//       let dw = W,
+//         dh = H;
+//       if (cur.fit === 'cover') {
+//         if (W / H > aspect) dh = W / aspect;
+//         else dw = H * aspect;
+//       } else {
+//         if (W / H > aspect) dw = H * aspect;
+//         else dh = W / aspect;
+//       }
+
+//       const z = zoomValue();
+//       dw *= Math.max(0.05, z || 1);
+//       dh *= Math.max(0.05, z || 1);
+
+//       p5.push();
+//       p5.translate(cx + offX, cy + offY);
+//       if (cur.angle) p5.rotate(cur.angle);
+//       p5.imageMode(p5.CENTER);
+//       p5.image(img, 0, 0, dw, dh);
+//       p5.pop();
+
+//       if (cur.overlayOpacity > 0) {
+//         const c = p5.color(cur.overlayColor || '#000');
+//         c.setAlpha(Math.round(255 * Math.max(0, Math.min(1, cur.overlayOpacity))));
+//         p5.fill(c);
+//         p5.rect(0, 0, W, H);
+//       }
+//     };
+
+//     p5.draw = () => {
+//       p5.clear();
+//       p5.background(0);
+//       const list = cur.urls || [];
+//       if (list.length) {
+//         const img = getImage(list[index % list.length]);
+//         drawImageFit(img);
+//       }
+//       if (isRunning) {
+//         t += 1 / 60;
+//         stepMotion();
+//       }
+//     };
+//   }, []);
+
+//   const thumbs = useMemo(() => settings.urls.map((u, i) => ({ u, i })), [settings.urls]);
+
+//   return (
+//     <div className="relative">
+//       {/* Hidden file input for local folder selection */}
+//       <input
+//         ref={fileInputRef}
+//         type="file"
+//         accept="image/*"
+//         multiple
+//         className="hidden"
+//         onChange={onFilesChosen}
+//       />
+
+//       <ControlPanelPhoto
+//         settings={settings}
+//         setSettings={setSettings}
+//         running={running}
+//         onStart={start}
+//         onStop={stop}
+//         onReset={reset}
+//         idx={idx}
+//         onPrev={prev}
+//         onNext={next}
+//         // sources
+//         onUseBundled={useBundled}
+//         onUsePublic={usePublic}
+//         onPickLocal={pickLocalFiles}
+//         // presets
+//         onSavePreset={savePreset}
+//         onApplyPreset={applyPreset}
+//         onDeletePreset={deletePreset}
+//         listPresets={() => {
+//           try {
+//             const raw = localStorage.getItem('photo_presets_v1');
+//             const list = raw ? (JSON.parse(raw) as { name: string }[]) : [];
+//             return list.map(p => p.name);
+//           } catch {
+//             return [];
+//           }
+//         }}
+//       />
+
+//       {/* canvas behind content */}
+//       <div className="fixed inset-0 -z-10 pointer-events-none">
+//         <ReactP5Wrapper
+//           sketch={sketch}
+//           settings={settings}
+//           idx={idx}
+//           running={running}
+//           resetNonce={resetNonce}
+//         />
+//       </div>
+
+//       {/* bottom thumbnails + transport */}
+//       {!!thumbs.length && (
+//         <div className="fixed left-4 right-4 bottom-4 z-40 bg-white/80 backdrop-blur p-2 rounded-xl shadow flex items-center gap-2 overflow-x-auto">
+//           <button
+//             onClick={prev}
+//             className="px-2 py-1 border rounded bg-gray-100 hover:bg-gray-200"
+//             title="Previous"
+//           >
+//             ◀
+//           </button>
+//           {thumbs.map(({ u, i }) => (
+//             <button
+//               key={`${u}-${i}`}
+//               onClick={() => setIdx(i)}
+//               className={`relative flex-shrink-0 border rounded overflow-hidden ${
+//                 i === idx ? 'ring-2 ring-blue-500' : ''
+//               }`}
+//               style={{ width: THUMB_W, height: THUMB_H }}
+//               title={u}
+//             >
+//               {/* eslint-disable-next-line jsx-a11y/alt-text */}
+//               <img src={u} className="w-full h-full object-cover" />
+//             </button>
+//           ))}
+//           <button
+//             onClick={next}
+//             className="px-2 py-1 border rounded bg-gray-100 hover:bg-gray-200"
+//             title="Next"
+//           >
+//             ▶
+//           </button>
+//           <div className="ml-auto text-[11px] px-2 py-1 border rounded bg-white/60">
+//             {idx + 1} / {settings.urls.length || 0}
+//           </div>
+//         </div>
+//       )}
+//     </div>
+//   );
+// };
+
+// export default PhotoAnimations;

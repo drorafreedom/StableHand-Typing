@@ -59,7 +59,7 @@ export const DEFAULTS: Settings = {
   groups: 2,               // stacked groups for depth
   groupDistance: 330,//32,
 
-  bgColor:'#e7e7ddff', //'#ffffff',
+  bgColor:'#e7e7dd', //'#ffffff',
   bgOpacity:  0.25, //0.15,         // soft background
   lineColor:  '#d77575' , //'#FF0000',    // unused when palette != none
   selectedPalette: 'rainbow',
