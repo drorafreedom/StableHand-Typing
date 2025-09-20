@@ -161,7 +161,7 @@ const DEFAULTS: PhotoSettings = {
   imageOpacityMode: 'constant',
   imageOpacitySpeed: 0.2,
 
-  overlayColor:  '#0f172a',//'#000000',
+  overlayColor:  '#afb8cc',//'#000000',
   overlayOpacity: 0.1,
   fit: 'cover',
   angle: 0,
@@ -313,11 +313,21 @@ const folderRef = useRef<HTMLInputElement>(null);   // FOLDER picker (fallback)
   const start = () => setRunning(true);
   const stop  = () => setRunning(false);
   const reset = () => {
-    setSettings(s => ({ ...cloneDefaults(), urls: s.urls.length ? s.urls : buildPublicUrls() }));
-    setIdx(0);
-    setResetNonce(n => n + 1);
-    setRunning(false);
-  };
+  // keep current photo list; just restore default controls
+  setSettings(s => ({ ...cloneDefaults(), urls: s.urls }));
+  setIdx(0);
+  setResetNonce(n => n + 1);
+  setRunning(false);
+
+  // optional: if no photos loaded, auto-discover from /public/bgphotos
+  (async () => {
+    if (!settings.urls.length) {
+      const urls = await discoverPublicUrls?.();
+      if (urls?.length) setSettings(s => ({ ...s, urls }));
+    }
+  })();
+};
+
   const prev = () => setIdx(i => (settings.urls.length ? (i - 1 + settings.urls.length) % settings.urls.length : 0));
   const next = () => setIdx(i => (settings.urls.length ? (i + 1) % settings.urls.length : 0));
 
@@ -605,7 +615,8 @@ if (needX && needY) {
       p5.pop();
 
       if (cur.overlayOpacity > 0) {
-        const c = p5.color(cur.overlayColor || '#000');
+        //const c = p5.color(cur.overlayColor || '#000');
+        const c = p5.color((cur.overlayColor ?? PHOTO_DEFAULTS.overlayColor) as string);
         c.setAlpha(Math.round(255 * lerp01(cur.overlayOpacity)));
         p5.fill(c);
         p5.rect(0, 0, W, H);

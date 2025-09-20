@@ -43,3 +43,6 @@
 +  panX = 0; panY = 0;
 +}
 +lastAutoFlag = isAuto;
+
+
+ken burn slide and crossfade  also shuffle adn auto slide show on adn off . 
