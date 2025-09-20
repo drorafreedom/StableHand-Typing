@@ -161,8 +161,8 @@ const DEFAULTS: PhotoSettings = {
   imageOpacityMode: 'constant',
   imageOpacitySpeed: 0.2,
 
-  overlayColor: '#000000',
-  overlayOpacity: 0.25,
+  overlayColor:  '#0f172a',//'#000000',
+  overlayOpacity: 0.1,
   fit: 'cover',
   angle: 0,
 
@@ -544,14 +544,63 @@ useEffect(() => {
       }
       const z = Math.max(0.05, zoomValue() || 1);
       dw *= z; dh *= z;
+// after: dw *= z; dh *= z;
+
+// Decide which axes can move
+const needX =
+  cur.direction === 'left' || cur.direction === 'right' ||
+  cur.direction === 'oscillateRightLeft' || cur.direction === 'circular';
+const needY =
+  cur.direction === 'up' || cur.direction === 'down' ||
+  cur.direction === 'oscillateUpDown' || cur.direction === 'circular';
+
+// Wrap offsets by the drawn size so the image cluster never drifts away
+let tx = offX;
+let ty = offY;
+if (needX && dw > 0) {
+  tx = ((offX + dw / 2) % dw + dw) % dw - dw / 2; // wrap to [-dw/2, dw/2)
+}
+if (needY && dh > 0) {
+  ty = ((offY + dh / 2) % dh + dh) % dh - dh / 2; // wrap to [-dh/2, dh/2)
+}
+
+
+
 
       p5.push();
-      p5.translate(cx + offX, cy + offY);
+      //p5.translate(cx + offX, cy + offY);
+      p5.translate(cx + tx, cy + ty);
       if (cur.angle) p5.rotate(cur.angle);
       p5.imageMode(p5.CENTER);
       const alpha255 = Math.round(255 * lerp01(imageAlpha()));
       p5.tint(255, alpha255);
-      p5.image(img, 0, 0, dw, dh);
+      // p5.image(img, 0, 0, dw, dh);
+      
+      // Tile around the center to avoid gaps when panning.
+// imageMode is CENTER, so offsets are multiples of dw/dh.
+//const needX = cur.direction === 'left' || cur.direction === 'right' || cur.direction === 'oscillateRightLeft' || cur.direction === 'circular';
+//const needY = cur.direction === 'up'   || cur.direction === 'down'  || cur.direction === 'oscillateUpDown'    || cur.direction === 'circular';
+
+// always draw the center this is for looping in the animation so there is no left over gap
+p5.image(img, 0, 0, dw, dh);
+
+// draw neighbors only along the needed axes to keep it light
+if (needX) {
+  p5.image(img,  dw, 0, dw, dh);
+  p5.image(img, -dw, 0, dw, dh);
+}
+if (needY) {
+  p5.image(img, 0,  dh, dw, dh);
+  p5.image(img, 0, -dh, dw, dh);
+}
+// corners only if both axes move (circular)
+if (needX && needY) {
+  p5.image(img,  dw,  dh, dw, dh);
+  p5.image(img,  dw, -dh, dw, dh);
+  p5.image(img, -dw,  dh, dw, dh);
+  p5.image(img, -dw, -dh, dw, dh);
+}
+
       p5.noTint();
       p5.pop();
 
