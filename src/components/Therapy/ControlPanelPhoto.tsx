@@ -73,7 +73,7 @@ const ControlPanelPhoto: React.FC<Props> = ({
   const [isOpen, setIsOpen] = useState(true);
 
   return (
-    <div className={`fixed right-4 top-2 p-4 rounded ${isOpen ? 'shadow-lg bg-white/85' : ''} w-80 z-50 max-h-[90vh] overflow-y-auto`}>
+    <div className={`fixed right-4 top-2 p-4 rounded ${isOpen ? 'shadow-lg bg-white/85' : ''} w-60 z-50 h-full overflow-y-auto`}>
       <button onClick={() => setIsOpen(o => !o)} className="w-full bg-gray-200 text-gray-700 text-xs py-2 rounded mb-2">
         {isOpen ? 'Collapse Controls' : 'Expand Controls'}
       </button>

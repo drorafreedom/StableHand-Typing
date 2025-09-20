@@ -34,10 +34,10 @@ const genderOptions = ['Male', 'Female', 'Other', 'Prefer not to say'];
 const yesNoOptions = ['Yes', 'No'];
 const frequencyOptions = ['Never', 'Rarely', 'Occasionally', 'Frequently', 'Always'];
 const familyHistoryOptions = ['Mother', 'Father', 'Sibling', 'Grandparent', 'Uncle/Aunt'];
-const tremorTypeOptions = ['Essential Tremor', 'Parkinsonian Tremor', 'Dystonic Tremor', 'Cerebellar Tremor', 'Orthostatic Tremor', 'Other'];
-const affectedBodyPartsOptions = ['Right Hand', 'Left Hand', 'Head', 'Voice', 'Legs'];
-const tremorSeverityOptions = ['Mild', 'Moderate', 'Severe'];
-const neurologicalMedicationsOptions = ['Propranolol', 'Primidone', 'Levodopa', 'Carbidopa', 'Topiramate', 'Gabapentin'];
+const tremorTypeOptions = ['Essential Tremor', 'Parkinson Tremor','Parkinsonism', 'Dystonic Tremor', 'Cerebellar Tremor', 'Orthostatic Tremor', 'Other'];
+const affectedBodyPartsOptions = ['Right Hand', 'Left Hand',  'Right Leg', 'Left Leg' ,'Head', 'Voice', 'Lips', 'Neck', 'Turso','Eyes Lids', 'Other'];
+const tremorSeverityOptions = ['None', 'Mild', 'Moderate', 'Severe'];
+const neurologicalMedicationsOptions = ['Propranolol', 'Primidone', 'Levodopa', 'Carbidopa', 'Topiramate', 'Gabapentin', 'Other'];
 
 // Fields definition
 const medicalInterviewFields: FieldOption[] = [
@@ -45,7 +45,7 @@ const medicalInterviewFields: FieldOption[] = [
   { label: 'Middle Name', name: 'middleName', type: 'input', inputType: 'text', placeholder: 'Enter middle name', validate: [validateMiddleName] },
   { label: 'Last Name', name: 'lastName', type: 'input', inputType: 'text', placeholder: 'Enter last name', validate: [validateRequired] },
   { label: 'Date of Birth', name: 'dob', type: 'input', inputType: 'date', placeholder: 'Enter date of birth', validate: [validateDOB] },
-  { label: 'Age', name: 'age', type: 'input', inputType: 'number', placeholder: 'Enter your age', validate: [validateAge] },
+ // { label: 'Age', name: 'age', type: 'input', inputType: 'number', placeholder: 'Enter your age', validate: [validateAge] },
   { label: 'Gender', name: 'gender', type: 'select', options: genderOptions, validate: [validateRequired] },
   { label: 'Chief Complaint', name: 'chiefComplaint', type: 'input', inputType: 'textareascroll', placeholder: 'Enter chief complaint', validate: [validateRequired] },
   { label: 'History of Present Illness', name: 'historyPresentIllness', type: 'textareascroll', inputType: 'textarea', placeholder: 'Enter history of present illness', validate: [validateRequired] },
