@@ -54,6 +54,51 @@ async function loadStoragePrefix(prefix: string): Promise<string[]> {
   }
 };
  
+ 
+ // Accept images even if MIME is empty
+const isImageFile = (f: File) =>
+  /^image\//.test(f.type) ||
+  /\.(jpe?g|png|gif|webp|bmp|tiff?|heic|heif)$/i.test(f.name);
+
+ 
+ // Try to load an image URL (works in dev/prod) — resolves true/false
+function imageExists(url: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(true);
+    img.onerror = () => resolve(false);
+    img.src = url + (url.includes('?') ? '&' : '?') + 'v=' + Date.now(); // bust cache in dev
+  });
+}
+
+// Scan /public/bgphotos for numbered files (1..N) across common extensions.
+// Stops after a few consecutive misses so it doesn't loop forever.
+async function discoverPublicNumbered(basePrefix?: string): Promise<string[]> {
+  const base = basePrefix ?? ((import.meta as any).env?.BASE_URL || '/') + 'bgphotos/';
+  const exts = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'];
+  const urls: string[] = [];
+
+  let i = 1;
+  let misses = 0;
+  const MAX_MISSES = 12;   // tolerate gaps, then stop
+  const MAX_INDEX  = 999;  // hard safety cap
+
+  while (i <= MAX_INDEX) {
+    let found = false;
+    for (const ext of exts) {
+      const u = `${base}${i}.${ext}`;
+      // eslint-disable-next-line no-await-in-loop
+      if (await imageExists(u)) { urls.push(u); found = true; break; }
+    }
+    if (found) { misses = 0; i += 1; }
+    else { misses += 1; i += 1; if (misses >= MAX_MISSES && urls.length > 0) break; }
+  }
+
+  return urls;
+}
+
+ 
+ 
 //-----------------------
 export type Direction =
   | 'static' | 'up' | 'down' | 'left' | 'right'
@@ -144,9 +189,40 @@ const discoverBundledUrls = (): string[] => {
     return [];
   }
 };
-const buildPublicUrls = (count = 14): string[] => {
+/* const buildPublicUrls = (count = 14): string[] => {
   const base = (import.meta as any).env?.BASE_URL || '/';
   return Array.from({ length: count }, (_, i) => `${base}bgphotos/${i + 1}.jpg`);
+}; */
+// Scan /public/bgphotos for numbered files (1.jpg, 2.jpg, ...), across common extensions.
+// Stops after a few consecutive misses.
+const discoverPublicUrls = async (): Promise<string[]> => {
+  const base = (import.meta as any).env?.BASE_URL || '/';
+  const exts = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'];
+  const urls: string[] = [];
+
+  const exists = (u: string) =>
+    new Promise<boolean>((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve(true);
+      img.onerror = () => resolve(false);
+      img.src = u + (u.includes('?') ? '&' : '?') + 'v=' + Date.now(); // cache-bust
+    });
+
+  let i = 1, misses = 0;
+  const MAX_MISSES = 5;   // stop after 5 consecutive gaps once we’ve found some
+  const MAX_INDEX  = 999; // hard cap
+
+  while (i <= MAX_INDEX) {
+    let hit = false;
+    for (const ext of exts) {
+      const u = `${base}bgphotos/${i}.${ext}`;
+      // eslint-disable-next-line no-await-in-loop
+      if (await exists(u)) { urls.push(u); hit = true; break; }
+    }
+    if (hit) { misses = 0; } else { misses += 1; if (misses >= MAX_MISSES && urls.length) break; }
+    i += 1;
+  }
+  return urls;
 };
 
 // ----------------- helpers: folder persistence (IndexedDB) -----------------
@@ -204,6 +280,8 @@ async function listImagesFromDir(handle: DirHandle): Promise<File[]> {
 const THUMB_W = 96;
 const THUMB_H = 60;
 
+
+
 const PhotoAnimations: React.FC = () => {
   const [settings, setSettings] = useState<PhotoSettings>(cloneDefaults());
   const [running, setRunning] = useState(true);
@@ -214,38 +292,14 @@ const PhotoAnimations: React.FC = () => {
   const blobUrlsRef = useRef<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const lastDirHandleRef = useRef<DirHandle | null>(null);
+// Inside PhotoAnimations component body, together with your other refs:
+const filesRef  = useRef<HTMLInputElement>(null);   // normal FILE picker
+const folderRef = useRef<HTMLInputElement>(null);   // FOLDER picker (fallback)
 
-  // seed: bundled -> public (only if nothing loaded yet)
-  useEffect(() => {
-    if (settings.urls.length > 0) return;
-    const assets = discoverBundledUrls();
-    if (assets.length) setSettings(s => ({ ...s, urls: assets }));
-    else setSettings(s => ({ ...s, urls: buildPublicUrls() }));
-    // try to restore last folder if user had granted permission
-    (async () => {
-      const handle = await idbGet<DirHandle>(IDB_KEY_LAST);
-      if (!handle?.requestPermission) return;
-      const perm = await handle.requestPermission({ mode: 'read' });
-      if (perm === 'granted') {
-        const files = await listImagesFromDir(handle);
-        if (files.length) {
-          // revoke old
-          blobUrlsRef.current.forEach(URL.revokeObjectURL);
-          blobUrlsRef.current = [];
-          const urls = files.map(f => {
-            const u = URL.createObjectURL(f);
-            blobUrlsRef.current.push(u);
-            return u;
-          });
-          lastDirHandleRef.current = handle;
-          setSettings(s => ({ ...s, urls }));
-          setIdx(0);
-          setRunning(true);
-        }
-      }
-    })().catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+
+
+
+
 
   // slideshow
   useEffect(() => {
@@ -338,12 +392,24 @@ const PhotoAnimations: React.FC = () => {
     const urls = discoverBundledUrls();
     if (urls.length) { setSettings(s => ({ ...s, urls })); setIdx(0); setRunning(true); }
   };
-  const usePublic = (count = 14) => {
+/*   const usePublic = (count = 14) => {
     const urls = buildPublicUrls(count);
     setSettings(s => ({ ...s, urls }));
     setIdx(0);
     setRunning(true);
-  };
+  }; */
+  const usePublic = async () => {
+  const urls = await discoverPublicUrls();
+  if (!urls.length) {
+    alert('No images found under /public/bgphotos');
+    return;
+  }
+  setSettings(s => ({ ...s, urls }));
+  setIdx(0);
+  setRunning(true);
+};
+
+  
 //Thumbnail strip  to Use A  or A+ B 
 // A=== Thumbnail strip visibility ===
 const STRIP_H = 92;                    // px height of the strip
@@ -512,15 +578,37 @@ useEffect(() => {
       {/* multi-file input (with folder fallback via webkitdirectory) */}
       <input
         ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        multiple
-        // @ts-ignore - vendor attributes for folder selection fallback
-        {...({ webkitdirectory: '', directory: '' } as any)}
-        className="hidden"
-        onChange={onFilesChosen}
-      />
-
+       type="file"
+  accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.tif,.tiff,.heic,.heif,image/*"
+  multiple
+  className="hidden"
+  onChange={(e) => {
+    const files = Array.from(e.target.files ?? []).filter(isImageFile);
+    if (!files.length) { alert('No images selected.'); e.currentTarget.value = ''; return; }
+    blobUrlsRef.current.forEach(URL.revokeObjectURL); blobUrlsRef.current = [];
+    const urls = files.map(f => { const u = URL.createObjectURL(f); blobUrlsRef.current.push(u); return u; });
+    setSettings(s => ({ ...s, urls })); setIdx(0); setRunning(true);
+    e.currentTarget.value = '';
+  }}
+/>
+{/* FOLDER: folder chooser (fallback) — this one ONLY has webkitdirectory */}
+<input
+  ref={folderRef}
+  type="file"
+  className="hidden"
+  // @ts-ignore
+  webkitdirectory=""
+  // @ts-ignore
+  directory=""
+  onChange={(e) => {
+    const files = Array.from(e.target.files ?? []).filter(isImageFile);
+    if (!files.length) { alert('No images found in that folder.'); e.currentTarget.value = ''; return; }
+    blobUrlsRef.current.forEach(URL.revokeObjectURL); blobUrlsRef.current = [];
+    const urls = files.map(f => { const u = URL.createObjectURL(f); blobUrlsRef.current.push(u); return u; });
+    setSettings(s => ({ ...s, urls })); setIdx(0); setRunning(true);
+    e.currentTarget.value = '';
+  }}
+/>
       <ControlPanelPhoto
         settings={settings}
         setSettings={setSettings}
