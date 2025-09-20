@@ -2,6 +2,59 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ReactP5Wrapper } from 'react-p5-wrapper';
 import ControlPanelPhoto from './ControlPanelPhoto';
 
+// 1) Imports (top of file). Adjust the path to match your firebase exports. 
+import { auth, storage } from '../../firebase/firebase'; 
+import { ref as sref, listAll, getDownloadURL } from 'firebase/storage';
+
+// 2) Helpers
+async function loadStoragePrefix(prefix: string): Promise<string[]> {
+  const res = await listAll(sref(storage, prefix));
+  const out: string[] = [];
+  for (const item of res.items) out.push(await getDownloadURL(item));
+  return out;
+}
+
+// 3) Actions you can call from the panel
+/* const useSharedStorage = async () => {
+  const urls = await loadStoragePrefix('bgphotos');  // shared lib
+  if (urls.length) { setSettings(s => ({ ...s, urls })); setIdx(0); setRunning(true); }
+};
+ */
+ const useSharedStorage = async () => {
+  try {
+    const urls = await loadStoragePrefix('bgphotos'); // shared library folder
+    if (urls.length) {
+      setSettings(s => ({ ...s, urls }));
+      setIdx(0);
+      setRunning(true);
+    }
+  } catch (e) {
+    console.error('Shared storage load failed', e);
+  }
+};
+/* const useUserStorage = async () => {
+  const user = auth.currentUser;
+  if (!user) return; // require login
+  const urls = await loadStoragePrefix(`users/${user.uid}/bgphotos`);
+  if (urls.length) { setSettings(s => ({ ...s, urls })); setIdx(0); setRunning(true); }
+};
+ */
+ const useUserStorage = async () => {
+  try {
+    const user = auth.currentUser;
+    if (!user) return; // require sign-in
+    const urls = await loadStoragePrefix(`users/${user.uid}/bgphotos`);
+    if (urls.length) {
+      setSettings(s => ({ ...s, urls }));
+      setIdx(0);
+      setRunning(true);
+    }
+  } catch (e) {
+    console.error('User storage load failed', e);
+  }
+};
+ 
+//-----------------------
 export type Direction =
   | 'static' | 'up' | 'down' | 'left' | 'right'
   | 'oscillateUpDown' | 'oscillateRightLeft' | 'circular';
@@ -291,6 +344,32 @@ const PhotoAnimations: React.FC = () => {
     setIdx(0);
     setRunning(true);
   };
+//Thumbnail strip  to Use A  or A+ B 
+// A=== Thumbnail strip visibility ===
+const STRIP_H = 92;                    // px height of the strip
+const [showStrip, setShowStrip] = useState(true);
+
+useEffect(() => {
+  let hideTimer: number | undefined;
+  const onMove = (e: MouseEvent) => {
+    // Reveal when the cursor is near the bottom 120px
+    if (e.clientY > window.innerHeight - (STRIP_H + 28)) {
+      setShowStrip(true);
+      if (hideTimer) window.clearTimeout(hideTimer);
+      hideTimer = window.setTimeout(() => setShowStrip(false), 1800);
+    }
+  };
+  window.addEventListener('mousemove', onMove);
+  hideTimer = window.setTimeout(() => setShowStrip(false), 1500);
+  return () => { window.removeEventListener('mousemove', onMove); if (hideTimer) window.clearTimeout(hideTimer); };
+}, []);
+// B Reserve safe space so nothing is covered This pushes your page content up by the strip height while the photo module is mounted
+/* useEffect(() => {
+  const prev = document.body.style.paddingBottom;
+  document.body.style.paddingBottom = `${STRIP_H + 20}px`; // + gutter
+  return () => { document.body.style.paddingBottom = prev; };
+}, []);
+ */
 
   // ------------- p5 sketch -------------
   const sketch = useCallback((p5: any) => {
@@ -458,6 +537,8 @@ const PhotoAnimations: React.FC = () => {
         onPickLocal={pickLocalFiles}
         onPickDirectory={pickDirectory}
         onReopenDirectory={reopenLastDirectory}
+          onUseSharedStorage={useSharedStorage}
+  onUseUserStorage={useUserStorage}
       />
 
       {/* canvas behind everything */}
@@ -473,7 +554,10 @@ const PhotoAnimations: React.FC = () => {
 
       {/* bottom strip */}
       {!!thumbs.length && (
-        <div className="fixed left-4 right-4 bottom-4 z-40 bg-white/80 backdrop-blur p-2 rounded-xl shadow flex items-center gap-2 overflow-x-auto">
+        // <div className="fixed left-4 right-4 bottom-4 z-40 bg-white/80 backdrop-blur p-2 rounded-xl shadow flex items-center gap-2 overflow-x-auto"> this is for a fixed tuhmbnail strip 
+         <div className="fixed left-4 right-4 bottom-4 z-40 bg-white/80 backdrop-blur p-2 rounded-xl shadow flex items-center gap-2 overflow-x-auto transition-transform duration-200"
+  style={{ transform: showStrip ? 'translateY(0%)' : 'translateY(120%)' }}
+>
           <button className="px-2 py-1 border rounded bg-gray-100 hover:bg-gray-200" onClick={prev} title="Previous">◀</button>
           {thumbs.map(({ u, i }) => (
             <button key={`${u}-${i}`}

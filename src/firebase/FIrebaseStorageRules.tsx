@@ -94,3 +94,36 @@ import { firestore } from "firebase-admin"
 //     }
 //   }
 // }
+
+//rules_version = '2';
+
+// Craft rules based on data in your Firestore database
+// allow write: if firestore.get(
+//    /databases/(default)/documents/users/$(request.auth.uid)).data.isAdmin;
+
+//-----------------------------------------------------
+// service firebase.storage {
+//   match /b/{bucket}/o {
+//     match /{allPaths=**} {
+// //     allow read, write: if false;
+//       //allow read, write: if request.auth != null;
+//    allow read, write: if request.auth != null && request.auth.uid == userId; //for anonymous enabled
+//     }
+//   }
+// }
+ 
+// //----------------------------------------------
+// rules_version = '2';
+// service firebase.storage {
+//   match /b/{bucket}/o {
+//     // Shared library everyone can read
+//     match /bgphotos/{allPaths=**} {
+//       allow read;                      // public read (or require auth if you prefer)
+//       // allow write: if request.auth.token.admin == true; // optional
+//     }
+//     // Each user's private library
+//     match /users/{uid}/bgphotos/{allPaths=**} {
+//       allow read, write: if request.auth != null && request.auth.uid == uid;
+//     }
+//   }
+// }

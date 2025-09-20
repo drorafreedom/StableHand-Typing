@@ -6,6 +6,7 @@ import type { PresetModule } from '../../utils/presets';
 const MODULE: PresetModule = 'photo';
 
 type Props = {
+
   settings: PhotoSettings;
   setSettings: React.Dispatch<React.SetStateAction<PhotoSettings>>;
   running: boolean;
@@ -22,6 +23,9 @@ type Props = {
   onPickLocal: () => void;
   onPickDirectory: () => void;
   onReopenDirectory: () => void;
+  //-googld 
+    onUseSharedStorage: () => void;
+  onUseUserStorage: () => void;
 };
 
 const DIRS: Direction[] = ['static','up','down','left','right','oscillateUpDown','oscillateRightLeft','circular'];
@@ -63,7 +67,8 @@ const fmt = (n: number, d = 1) => (Number.isFinite(n) ? n.toFixed(d) : '0');
 const ControlPanelPhoto: React.FC<Props> = ({
   settings, setSettings, running, onStart, onStop, onReset,
   idx, onPrev, onNext,
-  onUseBundled, onUsePublic, onPickLocal, onPickDirectory, onReopenDirectory,
+  onUseBundled, onUsePublic, onPickLocal, onPickDirectory, onReopenDirectory,  onUseSharedStorage,
+  onUseUserStorage,
 }) => {
   const [isOpen, setIsOpen] = useState(true);
 
@@ -240,17 +245,31 @@ const ControlPanelPhoto: React.FC<Props> = ({
           </div>
 
           {/* Photo sources */}
-          <div className="border rounded p-2 bg-white/60">
-            <div className="font-semibold mb-1">Photos</div>
+          <div className=" space-y-2 border rounded p-2 bg-white/60">
+            <div className="font-semibold mb-1">Photo Sources</div>
             <div className="grid grid-cols-2 gap-2">
-              <button className="px-2 py-1 border rounded bg-gray-100 hover:bg-gray-200" onClick={onUseBundled}>Use App Assets</button>
-              <button className="px-2 py-1 border rounded bg-gray-100 hover:bg-gray-200" onClick={() => onUsePublic(14)}>Use /public/bgphotos</button>
+              {/* <button className="px-2 py-1 border rounded bg-gray-100 hover:bg-gray-200" onClick={onUseBundled}>Use App Assets</button> */}
+              <button className="px-2 py-1 border rounded bg-gray-100 hover:bg-gray-200" onClick={() => onUsePublic()}>App Assets</button>
+              <button className="px-2 py-1 border rounded bg-gray-100 hover:bg-gray-200 " onClick={onReopenDirectory}>Reopen Last Folder</button>
               <button className="px-2 py-1 border rounded bg-gray-100 hover:bg-gray-200" onClick={onPickLocal}>Pick Local Files…</button>
               <button className="px-2 py-1 border rounded bg-gray-100 hover:bg-gray-200" onClick={onPickDirectory}>Pick Folder…</button>
-              <button className="px-2 py-1 border rounded bg-gray-100 hover:bg-gray-200 col-span-2" onClick={onReopenDirectory}>Reopen Last Folder</button>
-            </div>
-            <div className="mt-2 text-[11px] text-gray-600">Total loaded: {settings.urls.length}</div>
+              
+           
+            {/* //-------------goggle */}
+            <button onClick={onUseSharedStorage} className="px-2 py-1 border rounded bg-gray-100 hover:bg-gray-200">
+  Load Shared (Storage)
+</button>
+<button onClick={onUseUserStorage} className="px-2 py-1 border rounded bg-gray-100 hover:bg-gray-200">
+  Load My Folder (Storage)
+</button>
+         </div>   
+         <div className="mt-2 text-[11px] text-gray-600">Total loaded: {settings.urls.length}</div>
           </div>
+
+
+
+
+
 
           {/* Inline prev/next */}
           <div className="flex items-center gap-2">
