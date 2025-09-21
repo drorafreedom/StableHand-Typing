@@ -136,12 +136,15 @@ export interface PhotoSettings {
   overlayOpacity: number;     // 0..1 (static overlay; can simulate fades via imageOpacity)
   fit: 'cover' | 'contain';
   angle: number;              // radians
-
+ overlayBlur: number;                  // 0..8
+  transitionMode: 'none' | 'crossfade' | 'slide' | 'kenburns';
+  shuffle: boolean;                     // randomize autoplay order
   // photos
   urls: string[];
 }
 
-const DEFAULTS: PhotoSettings = {
+
+/* const DEFAULTS: PhotoSettings = {
   autoplay: true,
   slideSeconds: 8,
 
@@ -165,6 +168,44 @@ const DEFAULTS: PhotoSettings = {
   overlayOpacity: 0.1,
   fit: 'cover',
   angle: 0,
+ overlayBlur: 0,
+  transitionMode: 'none',
+  shuffle: false,
+  urls: [],
+};
+ */
+ 
+ const DEFAULTS: PhotoSettings = {
+  autoplay: true,
+  slideSeconds: 8,
+
+  direction: 'static',
+  speed: 1.5,
+  oscillationRange: 120,
+  rotationRadius: 200,
+  rotationSpeed: 0.25,
+
+  zoomMode: 'inOut',
+  zoomMin: 1.0,
+  zoomMax: 1.35,
+  zoomSpeed: 0.2,
+
+  imageOpacityMin: 1.0,
+  imageOpacityMax: 1.0,
+  imageOpacityMode: 'constant',
+  imageOpacitySpeed: 0.2,
+
+  // 👇 overlay defaults: softer, lighter, blurred a little
+  overlayColor: '#afb8cc',   // calm gray-blue
+  overlayOpacity: 0.15,      // ~15% tint
+  overlayBlur: 1,            // subtle blur
+
+  fit: 'cover',
+  angle: 0,
+
+  // 👇 new transition/shuffle defaults
+  transitionMode: 'crossfade',
+  shuffle: false,
 
   urls: [],
 };
@@ -301,13 +342,29 @@ const folderRef = useRef<HTMLInputElement>(null);   // FOLDER picker (fallback)
 
 
 
-  // slideshow
-  useEffect(() => {
+  // slideshow only 
+   useEffect(() => {
     if (!running || !settings.autoplay || settings.urls.length < 2) return;
     const ms = Math.max(1000, settings.slideSeconds * 1000);
     const t = setInterval(() => setIdx(i => (i + 1) % settings.urls.length), ms);
     return () => clearInterval(t);
-  }, [running, settings.autoplay, settings.slideSeconds, settings.urls.length]);
+  }, [running, settings.autoplay, settings.slideSeconds, settings.urls.length]);  
+//Shuffle for autoplay  
+useEffect(() => {
+  if (!running || !settings.autoplay || settings.urls.length < 2) return;
+  const ms = Math.max(1000, settings.slideSeconds * 1000);
+  const t = setInterval(() => {
+    setIdx(i => {
+      const n = settings.urls.length;
+      if (!settings.shuffle) return (i + 1) % n;
+      // shuffle: pick a different random index
+      let r = i;
+      if (n > 1) while (r === i) r = Math.floor(Math.random() * n);
+      return r;
+    });
+  }, ms);
+  return () => clearInterval(t);
+}, [running, settings.autoplay, settings.slideSeconds, settings.urls.length, settings.shuffle]);
 
   // transport
   const start = () => setRunning(true);
@@ -446,7 +503,23 @@ useEffect(() => {
   return () => { document.body.style.paddingBottom = prev; };
 }, []);
  */
+// Auto-load from /public/bgphotos on first render
+useEffect(() => {
+  if (settings.urls.length) return;        // already have photos
 
+  (async () => {
+    const urls = await discoverPublicUrls(); // you already defined this
+    if (urls.length) {
+      // use ALL photos (or switch to [urls[0]] if you want exactly one)
+      setSettings(s => ({ ...s, urls }));
+      setIdx(0);
+      setRunning(true);
+    }
+  })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, []);
+
+//setSettings(s => ({ ...s, urls: [urls[0]] })); //for first photo in the folder 
   // ------------- p5 sketch -------------
   const sketch = useCallback((p5: any) => {
     type Props = { settings: PhotoSettings; idx: number; running: boolean; resetNonce: number };
@@ -457,6 +530,8 @@ useEffect(() => {
     let lastReset = -1;
     let t = 0, offX = 0, offY = 0;
 
+
+
     const cache = new Map<string, any>();
     const getImage = (url: string) => {
       const c = cache.get(url);
@@ -465,7 +540,39 @@ useEffect(() => {
       cache.set(url, img);
       return img;
     };
+//-----------------------
+//3) Transitions & blur (small additions inside the p5 sketch)
+//3a) Track transition state (at the top of your sketch callback, near other locals):
 
+let lastIndexSeen = -1;
+let fadeStartMs = 0;
+const FADE_MS = 450;   // crossfade duration
+
+// for slide transition
+let slideStartMs = 0;
+const SLIDE_MS = 450;
+
+// for ken burns per-image animation (start→end zoom/pan over slideSeconds)
+let kbStartMs = 0;
+let kbFrom = { z: 1, x: 0, y: 0 };
+let kbTo   = { z: 1.15, x: 0, y: 0 };
+
+const rng = (min:number, max:number) => min + Math.random() * (max - min);
+
+// recompute Ken Burns vectors each time index changes
+function setupKenBurns(W:number, H:number) {
+  kbStartMs = p5.millis();
+  // Gentle zoom and small pan
+  kbFrom.z = rng(1.0, 1.08);
+  kbTo.z   = kbFrom.z + rng(0.06, 0.14);
+  // pan range (in px) – modest so edges stay covered
+  const panX = Math.min(W, H) * 0.08;
+  const panY = Math.min(W, H) * 0.06;
+  kbFrom.x = rng(-panX, panX);  kbTo.x = rng(-panX, panX);
+  kbFrom.y = rng(-panY, panY);  kbTo.y = rng(-panY, panY);
+}
+
+//----------------------------
     p5.setup = () => {
       p5.createCanvas(p5.windowWidth, p5.windowHeight);
       p5.frameRate(60);
@@ -476,6 +583,20 @@ useEffect(() => {
     p5.updateWithProps = (props: Props) => {
       if (props.settings) cur = props.settings;
       if (typeof props.idx === 'number') index = props.idx;
+      //----------------------for transition t
+      // after: if (typeof props.idx === 'number') index = props.idx;
+if (typeof index === 'number' && index !== lastIndexSeen) {
+  const list = cur.urls || [];
+  if (list.length) {
+    // start timers for transitions
+    fadeStartMs = p5.millis();
+    slideStartMs = fadeStartMs;
+    setupKenBurns(p5.width, p5.height);
+  }
+  lastIndexSeen = index;
+}
+//---------------------------------------
+      
       if (typeof props.running === 'boolean') isRunning = props.running;
       if (typeof props.resetNonce === 'number' && props.resetNonce !== lastReset) {
         t = 0; offX = 0; offY = 0; lastReset = props.resetNonce;
@@ -614,21 +735,170 @@ if (needX && needY) {
       p5.noTint();
       p5.pop();
 
-      if (cur.overlayOpacity > 0) {
+// Optional gentle blur (whole scene)
+if ((cur.overlayBlur ?? 0) > 0) {
+  p5.filter(p5.BLUR, Math.max(0, Math.min(8, cur.overlayBlur)));
+}
+
+// Softer overlay color
+if (cur.overlayOpacity > 0) {
+  const fallbackHex = PHOTO_DEFAULTS.overlayColor as string;
+  const c = p5.color((cur.overlayColor ?? fallbackHex) as string);
+  c.setAlpha(Math.round(255 * lerp01(cur.overlayOpacity)));
+  p5.noStroke();
+  p5.fill(c);
+  p5.rect(0, 0, W, H);
+}
+
+
+    /*   if (cur.overlayOpacity > 0) {
         //const c = p5.color(cur.overlayColor || '#000');
         const c = p5.color((cur.overlayColor ?? PHOTO_DEFAULTS.overlayColor) as string);
         c.setAlpha(Math.round(255 * lerp01(cur.overlayOpacity)));
         p5.fill(c);
         p5.rect(0, 0, W, H);
-      }
+      } */
     };
 
-    p5.draw = () => {
-      p5.clear(); p5.background(0);
+  /*   p5.draw = () => {
+      p5.clear();
+      //p5.background(0); this is why the background is black on first load 
       const list = cur.urls || [];
+      if (!list.length) {
+    p5.background(255);   // white
+    return;
+  }
+       // We have photos → keep black behind them (overlay/color controls apply)
+  p5.background(0);
       if (list.length) drawImageFit(getImage(list[index % list.length]));
       if (isRunning) { t += 1/60; stepMotion(); }
-    };
+    }; */
+    
+    
+    p5.draw = () => {
+  const list = cur.urls || [];
+  p5.clear();
+
+  if (!list.length) { p5.background(255); return; }
+
+  // choose transition
+  const mode = cur.transitionMode ?? 'none';
+
+  if (mode === 'crossfade') {
+    // previous vs current
+    const now = p5.millis();
+    const u = Math.min(1, (now - fadeStartMs) / FADE_MS);
+
+    // draw previous (index-1) faded out, then current faded in
+    const prevIdx = (index - 1 + list.length) % list.length;
+    const imgPrev = getImage(list[prevIdx]);
+    const imgCurr = getImage(list[index]);
+
+    p5.background(0);
+    if (imgPrev && imgPrev.width) {
+      p5.push(); p5.tint(255, Math.round(255 * (1 - u))); drawImageFit(imgPrev); p5.pop();
+    }
+    if (imgCurr && imgCurr.width) {
+      p5.push(); p5.tint(255, Math.round(255 * u)); drawImageFit(imgCurr); p5.pop();
+    }
+  }
+  else if (mode === 'slide') {
+    // slide horizontally left→right (or right→left if you prefer)
+    const now = p5.millis();
+    const u = Math.min(1, (now - slideStartMs) / SLIDE_MS);
+    const W = p5.width;
+
+    const prevIdx = (index - 1 + list.length) % list.length;
+    const imgPrev = getImage(list[prevIdx]);
+    const imgCurr = getImage(list[index]);
+
+    p5.background(0);
+    // previous moving out to the left
+    if (imgPrev && imgPrev.width) {
+      p5.push(); p5.translate(-u * W, 0); drawImageFit(imgPrev); p5.pop();
+    }
+    // current moving in from the right
+    if (imgCurr && imgCurr.width) {
+      p5.push(); p5.translate((1 - u) * W, 0); drawImageFit(imgCurr); p5.pop();
+    }
+  }
+  else if (mode === 'kenburns') {
+    // single image, animate subtle zoom + pan over the slide time
+    const img = getImage(list[index]);
+    if (!img || !img.width) { p5.background(0); return; }
+
+    const durMs = Math.max(1000, (cur.slideSeconds || 8) * 1000);
+    const now = p5.millis();
+    let u = ((now - kbStartMs) % durMs) / durMs; // 0..1
+    // ping-pong so it breathes in/out
+    if (u > 0.5) u = 1 - (u - 0.5) * 2; else u = u * 2;
+
+    // temporarily bias zoom/offsets while drawing (don’t change your global motion)
+    const W = p5.width, H = p5.height;
+    const cx = W / 2, cy = H / 2;
+
+    // compute fit sizes like in drawImageFit
+    const aspect = img.width / img.height;
+    let dw = W, dh = H;
+    if (cur.fit === 'cover') {
+      if (W / H > aspect) dh = W / aspect; else dw = H * aspect;
+    } else {
+      if (W / H > aspect) dw = H * aspect; else dh = W / aspect;
+    }
+
+    const baseZ = Math.max(0.05, (function z() {
+      const a = Math.min(cur.zoomMin, cur.zoomMax);
+      const b = Math.max(cur.zoomMin, cur.zoomMax);
+      switch (cur.zoomMode) {
+        case 'none': return 1;
+        case 'inOut': {
+          const cyc = Math.max(0.0001, cur.zoomSpeed);
+          const phase = (t * cyc) % 2;
+          const uu = phase < 1 ? phase : 2 - phase;
+          return a + (b - a) * uu;
+        }
+        case 'pulse': {
+          const uu = (p5.sin(t * (Math.PI * 2) * cur.zoomSpeed) + 1) * 0.5;
+          return a + (b - a) * uu;
+        }
+      }
+    })() || 1);
+
+    const z = baseZ * (kbFrom.z + (kbTo.z - kbFrom.z) * u);
+    const x = kbFrom.x + (kbTo.x - kbFrom.x) * u;
+    const y = kbFrom.y + (kbTo.y - kbFrom.y) * u;
+
+    dw *= z; dh *= z;
+
+    p5.background(0);
+    p5.push();
+    p5.translate(cx + x, cy + y);
+    if (cur.angle) p5.rotate(cur.angle);
+    p5.imageMode(p5.CENTER);
+
+    // draw with your existing tiling/wrapping? For Ken Burns, single draw is usually fine:
+    p5.image(img, 0, 0, dw, dh);
+    p5.pop();
+
+    // overlay + blur is handled inside drawImageFit; here we replicate minimally:
+    if ((cur.overlayBlur ?? 0) > 0) p5.filter(p5.BLUR, Math.max(0, Math.min(8, cur.overlayBlur)));
+    if (cur.overlayOpacity > 0) {
+      const fallbackHex = PHOTO_DEFAULTS.overlayColor as string;
+      const c = p5.color((cur.overlayColor ?? fallbackHex) as string);
+      c.setAlpha(Math.round(255 * (cur.overlayOpacity)));
+      p5.noStroke(); p5.fill(c); p5.rect(0, 0, W, H);
+    }
+  }
+  else {
+    // 'none' → your original behavior
+    p5.background(0);
+    drawImageFit(getImage(list[index % list.length]));
+  }
+
+  if (isRunning) { t += 1/60; stepMotion(); }
+};
+
+    
   }, []);
 
   const thumbs = useMemo(() => settings.urls.map((u, i) => ({ u, i })), [settings.urls]);

@@ -763,8 +763,10 @@ Subtle headings: text-slate-800
  
  
  
-      <div className="relative w-full ml-52 mt-[22vh]">
-        <div className="w-full max-w-9xl">
+     {/*  <div className="relative w-full ml-52 mt-[22vh]">
+        <div className="w-full max-w-9xl"> */}
+<div className="relative w-full ml-52 mt-[22vh] mr-[calc(15rem+1rem+6px)]">
+  <div className="w-full max-w-9xl">
           <TextInput
             key={typingKey}
             placeholder="Type here…"

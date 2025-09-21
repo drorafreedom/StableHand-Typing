@@ -719,7 +719,10 @@ Normalized Char Accuracy: ${pct(m.normalizedCharAccuracy)}`;
 
   return (
     <div className="relative w-full">
-      <div className="flex flex-row justify-between items-start w-3/4 space-x-4">
+     
+     {/* // <div className="flex flex-row justify-between items-start w-3/4 space-x-4"> */}
+      <div className="flex flex-row justify-between items-start w-4/5 space-x-4">  
+      {/* //<div className="flex flex-row justify-between items-start w-5/6  space-x-4"> */}
         <div className="flex-1 text-xs">
         
           <textarea
@@ -760,12 +763,12 @@ Normalized Char Accuracy: ${pct(m.normalizedCharAccuracy)}`;
         </div>
       </div>
 
-      <button onClick={() => setIsPanelOpen(!isPanelOpen)} className="mt-3 text-xs bg-gray-100 p-2 border rounded">
+      <button onClick={() => setIsPanelOpen(!isPanelOpen)} className="mt-3 text-xs bg-gray-100 p-2 border rounded  mr-[calc(15rem+1rem+6px)">
         {isPanelOpen ? 'Hide Text Controls' : 'Show Text Controls'}
       </button>
 
       <Collapse isOpened={isPanelOpen}>
-        <div className="mt-2 grid grid-cols-2 gap-3 max-w-sm text-xs bg-white/70 p-3 border rounded shadow">
+        <div className="mt-2 grid grid-cols-3 gap-3 max-w-sm text-xs bg-white/70 p-3 border rounded shadow">
           <div>
             <label className="block mb-1">Font</label>
             <select value={font} onChange={(e) => setFont(e.target.value)} className="border p-2 rounded w-full">
@@ -921,7 +924,7 @@ Normalized Char Accuracy: ${pct(m.normalizedCharAccuracy)}`;
 
 export default TextInput;
 
-
+//--------------------------------------------------
 
 // // src/components/Therapy/TextInput.tsx
 // // included reset all and reset typing only buttons  and custom text input and save it .
