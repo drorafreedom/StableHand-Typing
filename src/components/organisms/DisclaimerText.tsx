@@ -5,9 +5,9 @@ import React from 'react';
 
 const DisclaimerText: React.FC = () => {
   return (
-    <div className="text-justify">
-      <h2 className="text-2xl font-bold mb-4">StableHand Disclaimer and Acknowledgment of Risk</h2>
-      <p>
+    <div className="px-32 text-justify">
+      <h2 className="  text-2xl font-bold mb-4">StableHand Disclaimer and Acknowledgment of Risk</h2>
+      <p> 
         Welcome to our StableHand aimed at stabilizing Parkinson's disease and other tremor disorders through
         innovative visual therapy. Our approach involves altering background textures and movements to potentially
         reduce tremor severity. This therapeutic intervention is designed to be engaging and enjoyable for participants,

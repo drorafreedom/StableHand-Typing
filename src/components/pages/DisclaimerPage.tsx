@@ -6,7 +6,7 @@ import { Frame2, Frame, Frame3 } from '../common/Frame';
 
 const DisclaimerPage: React.FC = () => {
   return (
-    <Frame3>
+    <Frame3 >
       <DisclaimerForm />
     </Frame3>
   );

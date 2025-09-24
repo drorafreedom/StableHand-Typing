@@ -14,7 +14,9 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
   return (
-    <header className="w-screen bg-gray-500 p-2 px-6 shadow-md flex items-center justify-between relative z-10">
+    // <header className="w-screen bg-gray-500 p-2 px-6 shadow-md flex items-center justify-between relative z-10">
+    <header className=" w-screen bg-gradient-to-r from-blue-50 via-gray-500 to-blue-50  
+                   fonts-semibold text-sky-900 p-2 px-6 shadow-md flex items-center justify-between relative z-10">
       {/* Sidebar Toggle Button */}
   {/*     <button
         onClick={toggleSidebar}

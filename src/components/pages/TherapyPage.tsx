@@ -766,6 +766,12 @@ Subtle headings: text-slate-800
      {/*  <div className="relative w-full ml-52 mt-[22vh]">
         <div className="w-full max-w-9xl"> */}
 <div className="relative w-full ml-52 mt-[22vh] mr-[calc(15rem+1rem+6px)]">
+{/* <div className="relative w-full ml-52 mt-[22vh] pr-[calc(5rem+1rem+2px)]"> */}
+{/* 15rem =  w-60 menu
+
+1rem = right-4
+
+6px = the tiny gap you want */}
   <div className="w-full max-w-9xl">
           <TextInput
             key={typingKey}

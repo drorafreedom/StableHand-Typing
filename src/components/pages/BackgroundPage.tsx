@@ -31,9 +31,9 @@ import { Frame3 } from '../common/Frame';
 
 const BackgroundPage: React.FC = () => {
   return (
-    <Frame3 bgColor="bg-green-500">
+    <Frame3 bgColor="bg-green-450">
     {/* inner panel */}
-    <div className="max-w-3xl mx-auto bg-green-100 p-6 rounded-lg shadow-md border border-gray-300">
+    <div className="max-w-3xl mx-auto bg-green-50/80 p-6 rounded-lg shadow-md border border-gray-300">
       <h1 className="text-4xl font-bold text-center mb-6">Study Background</h1>
         <p>
           Parkinson’s disease is a progressive nervous system disorder that affects movement, muscle control,

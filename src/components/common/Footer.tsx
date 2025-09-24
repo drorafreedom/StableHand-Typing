@@ -8,7 +8,7 @@ import caltechLogo2 from '../../assets/logos/flameLogo.png';
 import '../../App.css'; // Ensure custom CSS is loaded
 
 const Footer: React.FC = () => (
-  <footer className="w-screen bg-gray-500 p-4 rounded-sm shadow-md flex justify-between items-end relative">
+  <footer className="w-screen bg-gradient-to-r from-blue-50 via-gray-500 to-blue-50 flex justify-between items-end relative">
     {/* Left Wedge with Flame */}
     <div className="footer-wedge relative flex items-end h-full">
       <div className="flame-logo mb-1 z-12">
